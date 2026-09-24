@@ -13,6 +13,13 @@
         "shadcn@latest",
         "mcp"
       ]
+    },
+    "perplexity": {
+      "type": "http",
+      "url": "https://api.perplexity.ai/mcp",
+      "headers": {
+        "Authorization": "Bearer ${PERPLEXITY_API_KEY}"
+      }
     }
   }
 }
