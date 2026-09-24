@@ -24,6 +24,10 @@
     "firecrawl": {
       "type": "http",
       "url": "https://mcp.firecrawl.dev/v2/mcp"
+    },
+    "glyphs-mcp-server": {
+      "type": "http",
+      "url": "http://127.0.0.1:9680/mcp/"
     }
   }
 }
