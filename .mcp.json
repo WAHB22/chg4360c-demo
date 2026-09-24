@@ -28,6 +28,15 @@
     "glyphs-mcp-server": {
       "type": "http",
       "url": "http://127.0.0.1:9680/mcp/"
+    },
+    "chrome-devtools": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "chrome-devtools-mcp@latest",
+        "--headless",
+        "--isolated"
+      ]
     }
   }
 }
