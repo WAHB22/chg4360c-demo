@@ -22,7 +22,7 @@
    - Only shorten pauses longer than about 0.75 s, and keep dramatic ones. Start the voice at 1.0 s, after the intro card.
 2. **Choose one concept** (for example the dot) and write a scene table: every scene start and end, and every motion cue, as `W(lineId, wordIndex)`. Never hard-code seconds.
 3. **Build the scenes.** Draw on twos (`t2`) and move the camera on ones. Keep content in the top two-thirds, because captions sit at the bottom.
-4. **QA stills** at 15–30 timestamps, then a contact sheet. Look for:
+4. **QA stills** at 15 to 30 timestamps, then a contact sheet. Look for:
    - overlaps and elements running off the frame;
    - the same colour on top of itself (orange on orange);
    - things hidden too early;
@@ -31,12 +31,12 @@
    
    Fix them and re-check.
 5. **Audio.**
-   - Music is synthesized and sits 13–14 dB under the voice. It cuts on the final word, with a riser before the reveal.
+   - Music is synthesized and sits 13 to 14 dB under the voice. It cuts on the final word, with a riser before the reveal.
    - Sound effects are real samples, placed on the same cue times as the visuals: taps, slides, whooshes, stamps, dings, coins.
    - Pitch ticks upward for climbs.
    - Measure effect levels against the voice so they stay under it.
 6. **Render:**
-   - `npx remotion render src/index.ts <Comp> out/x.mp4 --codec h264 --crf 18 --audio-bitrate 320k --concurrency=4`, which takes about 5–6 minutes for 60 s with filters.
+   - `npx remotion render src/index.ts <Comp> out/x.mp4 --codec h264 --crf 18 --audio-bitrate 320k --concurrency=4`, which takes about 5 to 6 minutes for 60 s with filters.
    - Trim to exactly 60.00 s with `-t 59.97 -c copy`, because AAC padding otherwise gives 60.05 s.
    - Make a share copy: `-c:v libx264 -preset slow -b:v 3300k -maxrate 4200k -bufsize 8000k -c:a aac -b:a 192k -movflags +faststart`, about 25 MB.
 7. **Check the final file**: pull frames from the MP4 itself with ffmpeg, and ffprobe the duration and streams. Then send it.

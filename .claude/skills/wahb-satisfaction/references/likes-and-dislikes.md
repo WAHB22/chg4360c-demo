@@ -28,7 +28,7 @@
 - **A human or character animation** when he asked for another approach. He wanted "another animation not using a human animation".
 - **Partial delivery, or stopping to ask about things the brief already answers.**
 - **Files he can't open.** A 64 MB video over the send limit wasn't delivered: always make a share copy.
-- **Music louder than the voice.** Keep it 13–14 dB under.
+- **Music louder than the voice.** Keep it 13 to 14 dB under.
 - **Pronunciation errors.** "Spitch" must be SPITCH, never "speech". "Wahb" is one syllable.
 - **Real logos:**
   - no Tinder or LinkedIn logos (draw generic UI);
@@ -46,4 +46,4 @@
   - The site is spitch.vercel.app; the app is wahbs-worlds.vercel.app.
   - The Vercel connector returned 403 for the "wahbs-world" scope, so he deploys by importing the repo himself.
   - Supabase variables arrive with NEXT_PUBLIC_ names, so make the code accept both VITE_ and NEXT_PUBLIC_.
-- The course is GNG4120. The pitch video is unlisted on YouTube and recruits 3–4 teammates.
+- The course is GNG4120. The pitch video is unlisted on YouTube and recruits 3 to 4 teammates.
