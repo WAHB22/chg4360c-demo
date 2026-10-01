@@ -1,0 +1,21 @@
+{
+  "name": "inside-my-head",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "studio": "remotion studio src/index.ts",
+    "render": "remotion render src/index.ts Mind out/inside-my-head-master.mp4 --codec h264 --crf 18 --audio-bitrate 320k --concurrency=4"
+  },
+  "dependencies": {
+    "@remotion/bundler": "^4.0.529",
+    "@remotion/cli": "^4.0.529",
+    "@remotion/renderer": "^4.0.529",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0",
+    "remotion": "^4.0.529"
+  },
+  "devDependencies": {
+    "@types/react": "^19.3.0",
+    "typescript": "^5.6.0"
+  }
+}

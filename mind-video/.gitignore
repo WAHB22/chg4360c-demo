@@ -1,0 +1,4 @@
+node_modules/
+out/
+public/mix.wav
+public/grain*.png
