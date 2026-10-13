@@ -1,2 +1,12 @@
 .idea/
 __pycache__/
+node_modules/
+
+# SAO personal and runtime files: local only, never pushed (public repo)
+memory.md
+state.json
+orders.json
+proposals.md
+handoff.md
+satisfaction-results.md
+last-activity.json
