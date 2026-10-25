@@ -1104,7 +1104,7 @@ function cartoucheSVG(x, y, k) {
     sh('M150,40Q176,36 170,10Q166,-10 150,-8', '#E3D3AE', 1.6) +
     ln('M-136,-34Q0,-46 136,-34M-136,30Q0,18 136,30', 0.9, INK_SOFT, 0.7) +
     `</g>` +
-    `<text x="0" y="-4" text-anchor="middle" font-family="${FONT}" font-variant="small-caps" font-size="34" letter-spacing="4" fill="${SEPIA}">The Island</text>` +
+    `<text x="0" y="-4" text-anchor="middle" font-family="${FONT}" font-size="34" letter-spacing="1" fill="${SEPIA}">The Island</text>` +
     `<text x="0" y="22" text-anchor="middle" font-family="${FONT}" font-style="italic" font-size="19" fill="${INK_SOFT}">as walked and drawn by ICON</text>` +
     `</g>`
   );

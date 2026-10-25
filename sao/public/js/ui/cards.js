@@ -116,6 +116,12 @@ export function botCard(b, { onOpenDrafts, onStop, highlight } = {}) {
   return card;
 }
 
+// "Sat Oct 24" reads as a date: "Scholar at Campus Castle on Sat Oct 24"
+function askedWhen(t) {
+  if (!t) return '';
+  return /^(Mon|Tue|Wed|Thu|Fri|Sat|Sun|Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\b/.test(t) ? `on ${t}` : t;
+}
+
 export function questionCard(q, { onAnswer } = {}) {
   const from = BOT[q.from] || null;
   const opts = (Array.isArray(q.options) ? q.options : []).map(clean).filter(Boolean).slice(0, 2);
@@ -124,7 +130,7 @@ export function questionCard(q, { onAnswer } = {}) {
   const guess = ordered[0] || '';
   const card = h('article', { class: 'qcard', style: { '--bot': from ? from.color : 'var(--gold)' }, dataset: { q: q.id } });
   const body = h('div', { class: 'qcard-body' });
-  const meta = [from ? from.name : botName(q.from) || 'ICON', PLACE[q.place] ? `at ${placeName(q.place)}` : '', q.askedAt ? clean(q.askedAt) : ''].filter(Boolean).join(' ');
+  const meta = [from ? from.name : botName(q.from) || 'ICON', PLACE[q.place] ? `at ${placeName(q.place)}` : '', q.askedAt ? askedWhen(clean(q.askedAt)) : ''].filter(Boolean).join(' ');
   const input = h('input', { class: 'field', type: 'text', placeholder: 'Or write your own', 'aria-label': 'Write your own answer', maxlength: '400' });
   const send = h('button', { class: 'btn btn-icon', type: 'button', 'aria-label': 'Send your answer', html: icon('send', { size: 18 }) });
 

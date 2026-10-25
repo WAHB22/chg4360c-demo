@@ -87,7 +87,11 @@ export function reportView(act) {
 
 // The banner is a crop of the real painted town at morning, around the well,
 // rendered once per season and weather into an image and kept as a blob URL.
-const WELL_VIEW = '640 400 620 172';
+// The crop holds the whole tower, roof and spire included, a little right of
+// centre, with the left houses, the autumn tree and the well at its foot.
+const WELL_VIEW = '380 136 1100 424';
+const WELL_W = 1240;
+const WELL_H = 478;
 const wellCache = new Map();
 
 async function wellImage() {
@@ -101,7 +105,7 @@ async function wellImage() {
     svg = svg.replace(/<svg\b([^>]*)>/, (all, attrs) => {
       let a = attrs.replace(/\sviewBox="[^"]*"/, '').replace(/\s(width|height|preserveAspectRatio)="[^"]*"/g, '');
       if (!/xmlns=/.test(a)) a += ' xmlns="http://www.w3.org/2000/svg"';
-      return `<svg${a} viewBox="${WELL_VIEW}" width="1240" height="344" preserveAspectRatio="xMidYMid slice">`;
+      return `<svg${a} viewBox="${WELL_VIEW}" width="${WELL_W}" height="${WELL_H}" preserveAspectRatio="xMidYMid slice">`;
     });
     return URL.createObjectURL(new Blob([svg], { type: 'image/svg+xml' }));
   });
@@ -124,8 +128,8 @@ function wellFromVista() {
     if (!layers || !layers.length) return null;
     const [vx, vy, vw, vh] = WELL_VIEW.split(' ').map(Number);
     const c = document.createElement('canvas');
-    c.width = 1240;
-    c.height = 344;
+    c.width = WELL_W;
+    c.height = WELL_H;
     c.className = 'well-art';
     const g = c.getContext('2d');
     if (!g) return null;

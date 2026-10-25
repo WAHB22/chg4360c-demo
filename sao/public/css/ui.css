@@ -107,6 +107,10 @@ h4 { margin: 0; font-weight: 400; line-height: var(--lh-title); }
 
 .caption-slot { position: absolute; left: var(--s-16); bottom: var(--s-16); z-index: var(--z-hud); max-width: min(360px, calc(100% - 96px)); }
 .dock-slot { display: none; }
+@media (min-width: 600px) {
+  /* hung under the traveller card: the bottom corners of the vista stay painted */
+  .caption-slot { top: calc(var(--status-foot, 196px) + var(--s-12)); bottom: auto; max-width: 260px; }
+}
 
 /* map opened full: on a laptop it unrolls over everything */
 .map-open .mapband {
@@ -1494,3 +1498,58 @@ html[data-panel^="place:"] .caption { opacity: 0; visibility: hidden; transition
 .status-bots::before { font-variant: normal; font-style: italic; font-size: 14px; }
 .psec-title { font-variant: normal; font-style: italic; letter-spacing: 0; }
 .signoff::after { font-variant: normal; font-style: italic; }
+
+/* the brief banner holds the whole tower (crop 1100 by 424 of the town) */
+.well, .well-art { height: 232px; }
+@media (max-width: 599px) { .well, .well-art { height: 150px; } }
+.well-art { object-position: 50% 50%; }
+
+/* floors, final pass: warm worn stone (#4A4438 to #3E3A34), slabs of uneven
+   width set 3 to 8 px off the plumb line, and a roof with a lit side, a
+   #8A5A46 shade side and tile dabs. Selectors are doubled to sit above the
+   older layers of tower rules. */
+.tower .floor.floor.floor {
+  border: 0; border-radius: 0;
+  border-bottom: 1px solid rgba(26, 22, 16, 0.55);
+  background:
+    linear-gradient(180deg, rgba(120, 108, 86, 0.35) 0 2px, transparent 2px),
+    radial-gradient(22px 7px at 18% 30%, rgba(255, 236, 200, 0.07), transparent 70%),
+    radial-gradient(34px 9px at 74% 70%, rgba(20, 16, 10, 0.18), transparent 70%),
+    radial-gradient(12px 5px at 52% 20%, rgba(20, 16, 10, 0.14), transparent 70%),
+    linear-gradient(90deg, #4A4438, #47423A 55%, #3E3A34);
+  box-shadow: inset 2px 0 0 rgba(214, 196, 160, 0.16), inset -3px 0 0 rgba(26, 22, 18, 0.4);
+}
+.tower .floor.floor.is-current {
+  background:
+    linear-gradient(180deg, rgba(130, 116, 90, 0.4) 0 2px, transparent 2px),
+    radial-gradient(120px 46px at 34px 50%, rgba(255, 206, 140, 0.24), transparent 75%),
+    linear-gradient(90deg, #4E473A, #453F36 60%, #3E3A34);
+}
+.tower .floor.floor.floor:nth-child(5n+1) { margin-left: 4px; margin-right: -2px; }
+.tower .floor.floor.floor:nth-child(5n+2) { margin-left: -3px; margin-right: 5px; }
+.tower .floor.floor.floor:nth-child(5n+3) { margin-left: 7px; margin-right: 2px; }
+.tower .floor.floor.floor:nth-child(5n+4) { margin-left: -1px; margin-right: -6px; }
+.tower .floor.floor.floor:nth-child(5n)   { margin-left: 3px; margin-right: 8px; }
+.tower::before {
+  filter: none;
+  background: url("data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 400 60%27 preserveAspectRatio=%27none%27%3E%3Cpath d=%27M3 55.5 199 2.5c2 0 3.5.4 4.6 1.4L397 54.2c1.6 1.1.4 2.6-1.4 2.7-48 .9-120 .2-190 1.1-70 .4-140-.6-200-.4-2.6 0-3.6-1.1-2.6-2.1z%27 fill=%27%23C47A4E%27/%3E%3Cpath d=%27M14 52c60-16 120-34 182-48%27 fill=%27none%27 stroke=%27%23D99466%27 stroke-width=%279%27 opacity=%27.45%27 stroke-linecap=%27round%27/%3E%3Cpath d=%27M203 3.9 397 54.2c1.6 1.1.4 2.6-1.4 2.7-60 .8-130 .4-190 1.1-3-18-4-38-5.6-54z%27 fill=%27%238A5A46%27/%3E%3Cpath d=%27M210 9c50 16 110 30 170 44%27 fill=%27none%27 stroke=%27%236E4A44%27 stroke-width=%277%27 opacity=%27.35%27 stroke-linecap=%27round%27/%3E%3Cpath d=%27M166.3 14.9q3.5 2.6 7.1 -0.6%27 fill=%27none%27 stroke=%27%23E0A070%27 stroke-width=%272.1%27 stroke-linecap=%27round%27 opacity=%270.3%27/%3E%3Cpath d=%27M183.8 15.1q6.5 1.8 13.0 0.2%27 fill=%27none%27 stroke=%27%23E0A070%27 stroke-width=%271.5%27 stroke-linecap=%27round%27 opacity=%270.34%27/%3E%3Cpath d=%27M204.5 16.3q4.3 2.4 8.6 -0.3%27 fill=%27none%27 stroke=%27%236E4038%27 stroke-width=%272.1%27 stroke-linecap=%27round%27 opacity=%270.32%27/%3E%3Cpath d=%27M232.9 15.4q4.3 1.5 8.6 0.1%27 fill=%27none%27 stroke=%27%236E4038%27 stroke-width=%271.6%27 stroke-linecap=%27round%27 opacity=%270.25%27/%3E%3Cpath d=%27M133.0 23.0q6.8 2.4 13.5 0.6%27 fill=%27none%27 stroke=%27%23E0A070%27 stroke-width=%271.7%27 stroke-linecap=%27round%27 opacity=%270.28%27/%3E%3Cpath d=%27M173.9 22.5q3.6 2.5 7.1 0.2%27 fill=%27none%27 stroke=%27%23E0A070%27 stroke-width=%271.9%27 stroke-linecap=%27round%27 opacity=%270.2%27/%3E%3Cpath d=%27M190.8 22.4q5.2 1.5 10.5 -0.5%27 fill=%27none%27 stroke=%27%23E0A070%27 stroke-width=%271.7%27 stroke-linecap=%27round%27 opacity=%270.32%27/%3E%3Cpath d=%27M231.6 23.2q5.4 1.6 10.9 0.5%27 fill=%27none%27 stroke=%27%236E4038%27 stroke-width=%271.6%27 stroke-linecap=%27round%27 opacity=%270.24%27/%3E%3Cpath d=%27M252.1 22.8q4.6 2.5 9.2 -0.2%27 fill=%27none%27 stroke=%27%236E4038%27 stroke-width=%271.6%27 stroke-linecap=%27round%27 opacity=%270.31%27/%3E%3Cpath d=%27M97.3 30.7q6.7 1.5 13.4 -0.0%27 fill=%27none%27 stroke=%27%23E0A070%27 stroke-width=%271.6%27 stroke-linecap=%27round%27 opacity=%270.31%27/%3E%3Cpath d=%27M148.1 30.4q6.7 1.4 13.5 0.5%27 fill=%27none%27 stroke=%27%23E0A070%27 stroke-width=%272.1%27 stroke-linecap=%27round%27 opacity=%270.3%27/%3E%3Cpath d=%27M170.2 31.8q5.2 1.5 10.5 -0.5%27 fill=%27none%27 stroke=%27%23E0A070%27 stroke-width=%272.0%27 stroke-linecap=%27round%27 opacity=%270.26%27/%3E%3Cpath d=%27M213.8 31.0q5.1 2.2 10.2 -0.3%27 fill=%27none%27 stroke=%27%236E4038%27 stroke-width=%271.3%27 stroke-linecap=%27round%27 opacity=%270.3%27/%3E%3Cpath d=%27M237.3 30.6q4.7 1.8 9.3 0.1%27 fill=%27none%27 stroke=%27%236E4038%27 stroke-width=%271.9%27 stroke-linecap=%27round%27 opacity=%270.28%27/%3E%3Cpath d=%27M284.5 31.4q4.6 2.5 9.2 0.5%27 fill=%27none%27 stroke=%27%236E4038%27 stroke-width=%271.2%27 stroke-linecap=%27round%27 opacity=%270.31%27/%3E%3Cpath d=%27M85.9 38.4q4.7 1.6 9.4 -0.3%27 fill=%27none%27 stroke=%27%23E0A070%27 stroke-width=%272.2%27 stroke-linecap=%27round%27 opacity=%270.24%27/%3E%3Cpath d=%27M114.0 38.0q6.7 1.8 13.4 0.1%27 fill=%27none%27 stroke=%27%23E0A070%27 stroke-width=%271.9%27 stroke-linecap=%27round%27 opacity=%270.29%27/%3E%3Cpath d=%27M154.9 39.1q3.7 2.3 7.4 -0.5%27 fill=%27none%27 stroke=%27%23E0A070%27 stroke-width=%272.0%27 stroke-linecap=%27round%27 opacity=%270.21%27/%3E%3Cpath d=%27M197.0 37.7q4.7 1.5 9.3 -0.2%27 fill=%27none%27 stroke=%27%236E4038%27 stroke-width=%271.9%27 stroke-linecap=%27round%27 opacity=%270.32%27/%3E%3Cpath d=%27M233.6 38.2q5.2 2.3 10.4 -0.6%27 fill=%27none%27 stroke=%27%236E4038%27 stroke-width=%272.0%27 stroke-linecap=%27round%27 opacity=%270.33%27/%3E%3Cpath d=%27M261.9 38.7q5.8 2.1 11.6 0.1%27 fill=%27none%27 stroke=%27%236E4038%27 stroke-width=%272.0%27 stroke-linecap=%27round%27 opacity=%270.31%27/%3E%3Cpath d=%27M306.0 38.4q4.3 1.5 8.6 0.0%27 fill=%27none%27 stroke=%27%236E4038%27 stroke-width=%271.7%27 stroke-linecap=%27round%27 opacity=%270.27%27/%3E%3Cpath d=%27M46.1 45.7q6.0 2.4 12.0 0.6%27 fill=%27none%27 stroke=%27%23E0A070%27 stroke-width=%271.9%27 stroke-linecap=%27round%27 opacity=%270.3%27/%3E%3Cpath d=%27M93.5 45.5q4.5 2.6 8.9 -0.5%27 fill=%27none%27 stroke=%27%23E0A070%27 stroke-width=%272.1%27 stroke-linecap=%27round%27 opacity=%270.2%27/%3E%3Cpath d=%27M138.6 46.3q6.2 1.6 12.5 0.2%27 fill=%27none%27 stroke=%27%23E0A070%27 stroke-width=%272.0%27 stroke-linecap=%27round%27 opacity=%270.2%27/%3E%3Cpath d=%27M180.0 45.5q5.4 1.6 10.7 0.4%27 fill=%27none%27 stroke=%27%23E0A070%27 stroke-width=%271.3%27 stroke-linecap=%27round%27 opacity=%270.32%27/%3E%3Cpath d=%27M213.0 45.7q5.0 2.1 9.9 0.0%27 fill=%27none%27 stroke=%27%236E4038%27 stroke-width=%271.7%27 stroke-linecap=%27round%27 opacity=%270.32%27/%3E%3Cpath d=%27M254.1 45.9q5.1 1.9 10.3 0.5%27 fill=%27none%27 stroke=%27%236E4038%27 stroke-width=%272.2%27 stroke-linecap=%27round%27 opacity=%270.28%27/%3E%3Cpath d=%27M286.9 45.7q6.8 2.5 13.6 -0.4%27 fill=%27none%27 stroke=%27%236E4038%27 stroke-width=%271.9%27 stroke-linecap=%27round%27 opacity=%270.18%27/%3E%3Cpath d=%27M345.9 45.1q5.6 1.9 11.3 -0.0%27 fill=%27none%27 stroke=%27%236E4038%27 stroke-width=%272.0%27 stroke-linecap=%27round%27 opacity=%270.25%27/%3E%3Cpath d=%27M24.5 53.9q6.3 2.3 12.6 -0.4%27 fill=%27none%27 stroke=%27%23E0A070%27 stroke-width=%272.2%27 stroke-linecap=%27round%27 opacity=%270.24%27/%3E%3Cpath d=%27M68.7 53.7q5.2 2.0 10.4 -0.3%27 fill=%27none%27 stroke=%27%23E0A070%27 stroke-width=%271.4%27 stroke-linecap=%27round%27 opacity=%270.34%27/%3E%3Cpath d=%27M118.0 54.0q5.3 2.2 10.5 -0.2%27 fill=%27none%27 stroke=%27%23E0A070%27 stroke-width=%272.1%27 stroke-linecap=%27round%27 opacity=%270.29%27/%3E%3Cpath d=%27M153.0 54.4q4.1 1.5 8.2 0.5%27 fill=%27none%27 stroke=%27%23E0A070%27 stroke-width=%271.9%27 stroke-linecap=%27round%27 opacity=%270.32%27/%3E%3Cpath d=%27M188.7 52.9q5.5 2.2 11.0 -0.3%27 fill=%27none%27 stroke=%27%23E0A070%27 stroke-width=%271.3%27 stroke-linecap=%27round%27 opacity=%270.33%27/%3E%3Cpath d=%27M245.9 54.2q7.0 1.9 14.0 -0.1%27 fill=%27none%27 stroke=%27%236E4038%27 stroke-width=%271.8%27 stroke-linecap=%27round%27 opacity=%270.28%27/%3E%3Cpath d=%27M285.1 53.9q6.0 1.9 11.9 0.4%27 fill=%27none%27 stroke=%27%236E4038%27 stroke-width=%272.1%27 stroke-linecap=%27round%27 opacity=%270.26%27/%3E%3Cpath d=%27M327.1 54.6q4.6 1.9 9.3 0.2%27 fill=%27none%27 stroke=%27%236E4038%27 stroke-width=%271.3%27 stroke-linecap=%27round%27 opacity=%270.24%27/%3E%3Cpath d=%27M353.0 53.1q4.3 2.2 8.6 -0.5%27 fill=%27none%27 stroke=%27%236E4038%27 stroke-width=%271.9%27 stroke-linecap=%27round%27 opacity=%270.29%27/%3E%3Cpath d=%27M6 56.5c40 .6 90-.8 130 .3 60 .6 120-.7 180 .2 30 .3 60-.2 78 0%27 fill=%27none%27 stroke=%27%235A3A30%27 stroke-width=%272.2%27 opacity=%27.55%27 stroke-linecap=%27round%27 stroke-dasharray=%2734 5 52 4 21 6 70 3%27/%3E%3C/svg%3E") center bottom / 100% 100% no-repeat;
+}
+
+/* stone coloured arches on the floors still ahead */
+.tower .floor.floor:not(.is-current):not(.is-cleared) .floor-n { background: #353129; border-color: rgba(201, 184, 150, 0.4); color: #D8CCB0; }
+
+/* the brief's day counts: plain cream italic numerals, like the menu column */
+.due-days {
+  width: 32px; height: auto; border: 0; border-radius: 0;
+  display: block; text-align: right;
+  color: #F3E6CC; font-style: italic; font-size: var(--fs-22); line-height: 1;
+  font-variant-numeric: lining-nums tabular-nums;
+}
+.due-line.is-near .due-days { color: var(--meter-high); }
+
+/* the menu counts tuck against each disc's top left rim, 4 px out */
+.disc-badge { top: 5px; left: 5px; transform: translate(-100%, -100%); }
+@media (max-width: 599px) {
+  .well-herald { width: 44px; height: 44px; margin-left: -22px; }
+  .well-herald svg { width: 44px; height: 44px; }
+}

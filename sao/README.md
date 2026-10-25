@@ -19,7 +19,7 @@ Then open http://127.0.0.1:3210. There is nothing to install: the engine is one 
 
 1. In Vercel, import the GitHub repository `WAHB22/chg4360c-demo`.
 2. Root Directory: `sao`. Framework Preset: Other. Build Command: empty. Output Directory: `public`. `vercel.json` already sets all of this.
-3. Deploy. The site is static: only the `public` folder is served, and there are no server functions.
+3. Deploy. The site is static: only the `public` folder is served, and there are no server functions. Vercel builds the production branch (`main`) as the live site and every other branch as a preview, so until the SAO branch is merged, deploy the branch `claude/modest-pasteur-d4xl49` as a preview, or merge it first.
 4. On the laptop, start the engine with the deployment address allowed, so the deployed page can show live data when it is opened on this machine:
 
 ```

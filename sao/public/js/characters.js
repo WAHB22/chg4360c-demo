@@ -1225,7 +1225,12 @@ function visibleSpan() {
   const left = Math.max(V.left, L.left, 0);
   const right = Math.min(V.right, L.right, vw);
   if (!(right - left > 40)) return null;
-  return { l: (left - L.left) / sx, r: (right - L.left) / sx };
+  // the bottom edge that is really on screen: on desktop the vista ends where
+  // the island map begins, well above the bottom of the painted layer
+  const vh = (typeof window !== 'undefined' && (document.documentElement.clientHeight || window.innerHeight)) || V.bottom;
+  const bottom = Math.min(V.bottom, L.bottom, vh);
+  const sy = L.height / (crowd.layer.offsetHeight || L.height || 1) || 1;
+  return { l: (left - L.left) / sx, r: (right - L.left) / sx, b: (bottom - L.top) / sy };
 }
 
 // The caption card sits over the vista; bots step aside instead of hiding
@@ -1406,7 +1411,11 @@ function place(a, T = nowS()) {
     a.el.style.width = `${bw}px`;
     a.el.style.height = `${bh}px`;
   }
-  const py = Math.min((a.y / 100) * c.H, c.floor || Infinity);
+  // feet, contact shadow and the body's drop all stay at least 8 px above the
+  // bottom edge of what is really on screen, walking or not
+  const drop = c.base * s * 0.06 + c.base * 0.26 * Math.max(s, 0.72) * 0.25 + 8;
+  const vb = c.vis && Number.isFinite(c.vis.b) ? c.vis.b : c.H;
+  const py = Math.min((a.y / 100) * c.H, c.floor || Infinity, vb - drop);
   // stay inside a 16 px gutter of what is really on screen, measured on the
   // whole drawn sprite (body box, contact shadow and marker), and step aside
   // from the caption card. Where most of the painting is cut off (a phone),

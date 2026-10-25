@@ -63,6 +63,22 @@ async function load(name) {
 
 /* ------------------------------------------------------------------ boot */
 
+// On a laptop the caption card hangs just under the traveller card, so the
+// vista's dark foreground corners and the start of its path stay in view.
+// The status block grows with its content; its foot is kept in a CSS value.
+function trackStatusFoot(hud) {
+  const world = $('#world');
+  const st = hud && hud.querySelector('.status');
+  if (!world || !st) return;
+  const set = () => {
+    const foot = st.offsetTop + st.offsetHeight;
+    if (foot > 0) world.style.setProperty('--status-foot', `${Math.round(foot)}px`);
+  };
+  set();
+  if (typeof ResizeObserver === 'function') new ResizeObserver(set).observe(st);
+  else window.addEventListener('resize', set);
+}
+
 async function boot() {
   const root = document.documentElement;
   if (S.prefs.reduceMotion) root.classList.add('reduce-motion');
@@ -72,6 +88,7 @@ async function boot() {
   mountTag(hud);
   mountMenu(hud, { onOpen: (id, btn) => openView(id, {}, btn) });
   mountCaption($('#caption-slot'), { onOpenPlace: (id) => openView(`place:${id}`) });
+  trackStatusFoot(hud);
   mountToast(document.body);
   mountSheets(document.body, { onClose: () => { S.open = null; delete document.documentElement.dataset.panel; setPressed(null); } });
   mountDock($('#dock-slot'), {
