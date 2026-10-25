@@ -9,7 +9,7 @@
 // mid 8 px, front 14 px) with a little spring. Reduced motion turns every
 // effect into a short fade or a still image.
 
-import { PLACE } from './places.js';
+import { PLACE, PLACES, MAP } from './places.js';
 import { paintPlace } from './scene.js';
 import { weekday } from './clock.js';
 
@@ -682,6 +682,122 @@ function buildLeaves(id, parent) {
   }
 }
 
+// Idle pre rendering: once the current view is at full resolution, the places
+// most likely to come next (joined to this one by a road, then the rest) are
+// painted at full resolution off screen, one layer per idle slot, straight into
+// the view cache, so the next travel is a cache hit. Any travel, or a change of
+// light or weather, stops the run. The cache budget is never pushed into
+// evicting a view: the run ends when the next view would not fit.
+let preToken = 0;
+const preStats = [];
+
+function nextPlaces(id) {
+  const near = [];
+  for (const r of (MAP && MAP.roads) || []) {
+    if (r.from === id && !near.includes(r.to)) near.push(r.to);
+    else if (r.to === id && !near.includes(r.from)) near.push(r.from);
+  }
+  // the solid roads (the often travelled ones) first
+  const solid = new Set(((MAP && MAP.roads) || []).filter((r) => r.solid && (r.from === id || r.to === id)).map((r) => (r.from === id ? r.to : r.from)));
+  near.sort((a, b) => (solid.has(b) ? 1 : 0) - (solid.has(a) ? 1 : 0));
+  const rest = PLACES.map((p) => p.id).filter((p) => p !== id && !near.includes(p));
+  return [...near, ...rest].filter((p) => PLACE[p]);
+}
+
+function cacheBytes() {
+  let n = 0;
+  for (const v of layerCache.values()) n += v.bytes || 0;
+  return n;
+}
+
+function idleSlot(timeout = 10000) {
+  return new Promise((r) => {
+    if (typeof requestIdleCallback === 'function') requestIdleCallback((d) => r(d), { timeout });
+    else setTimeout(() => r(null), 60);
+  });
+}
+
+async function prerenderOne(id, alive) {
+  const key = stageKey(id);
+  const size = bakeSize();
+  const hit = layerCache.get(key);
+  if (hit && hit.k === size.k) return 'hit';
+  const t0 = performance.now();
+  const o = sceneOpts();
+  const names = ['land', 'sky', 'front', 'clouds', 'lights'];
+  const parts = {};
+  for (const part of names) {
+    await idleSlot();
+    if (!alive()) return 'stopped';
+    try { parts[part] = paintPlace(id, { ...o, part }); } catch (e) { parts[part] = ''; }
+  }
+  const mk = (cls) => {
+    const c = document.createElement('canvas');
+    if (cls) c.className = cls;
+    c.setAttribute('aria-hidden', 'true');
+    return c;
+  };
+  const sky = mk('sv-layer sv-sky');
+  const ca = mk('sv-cloudstrip');
+  const cb = mk('sv-cloudstrip sv-cb');
+  const land = mk('sv-layer sv-land');
+  const fr = mk('sv-layer sv-frontpic');
+  const groups = parts.lights ? lightGroups(parts.lights) : [];
+  const lights = groups.map(() => mk(''));
+  const subject = PLACE[id] && PLACE[id].subject;
+  const layers = [
+    [parts.land, (im) => bake(land, im, { haze: true, hole: subject, grain: 0.12, f: 1 })],
+    [parts.sky, (im) => bake(sky, im, { haze: true, grain: 0.1, f: 1 })],
+    [parts.front, (im) => bake(fr, im, { grain: 0.08, f: 1 })],
+    [parts.clouds, (im) => { bake(ca, im, { twice: true, f: 1 }); mirror(cb, ca); }],
+    ...groups.map((svg, i) => [svg, (im) => bake(lights[i], im, { grade: false, f: 1 })]),
+  ];
+  for (const [svg, paint] of layers) {
+    if (!svg) continue;
+    const im = await rasterize(svg);
+    await idleSlot();
+    if (!alive()) return 'stopped';
+    if (im) paint(im);
+  }
+  // the light, weather or size changed while painting: this view is stale
+  if (stageKey(id) !== key || bakeSize().k !== size.k) return 'stale';
+  const L = { k: size.k, sky, ca, cb, land, front: fr, lights, inUse: () => false };
+  L.bytes = bytesOf(L);
+  if (cacheBytes() + L.bytes > CACHE_BYTES) return 'full';
+  cachePut(key, L);
+  const ms = Math.round(performance.now() - t0);
+  preStats.push({ id, ms });
+  try { if (performance.mark) performance.mark(`sao-vista-pre-${id}`); } catch (e) { /* not available */ }
+  return 'done';
+}
+
+function prerenderAround(id) {
+  const token = ++preToken;
+  const travel = travelToken;
+  const ambKey = stageKey(id);
+  const alive = () => token === preToken && travel === travelToken && stageKey(id) === ambKey && !(typeof document !== 'undefined' && document.hidden);
+  (async () => {
+    await wait(reduced() ? 400 : 1600);
+    let budget = 0;
+    for (const next of nextPlaces(id)) {
+      if (!alive()) return;
+      // stop before a view would push an older one out of the cache
+      if (budget && cacheBytes() + budget > CACHE_BYTES) return;
+      const r = await prerenderOne(next, alive);
+      if (r === 'stopped' || r === 'stale' || r === 'full') return;
+      if (r === 'done') {
+        const L = layerCache.get(stageKey(next));
+        if (L) budget = L.bytes || budget;
+      }
+    }
+  })().catch(() => {});
+}
+
+// timing, for the performance panel and tests: [{id, ms}] of finished pre renders
+export function prerenderStats() {
+  return preStats.slice();
+}
+
 // timing marks for measuring first paint and travel (performance panel only)
 function mark(rec, what) {
   try { if (typeof performance !== 'undefined' && performance.mark) performance.mark(`sao-vista-${what}-${rec.id}`); } catch (e) { /* not available */ }
@@ -736,6 +852,7 @@ function buildStage(id) {
     hit.inUse = () => !rec.dead;
     cachePut(key, hit);
     rec.ready = Promise.resolve().then(quietLights).then(() => mark(rec, 'cache'));
+    rec.ready.then(() => wait(1200)).then(() => { if (current === rec && !rec.dead) prerenderAround(id); });
   } else {
     stage.dataset.res = 'quick';
     const parts = sceneParts(id, key);
@@ -777,6 +894,7 @@ function buildStage(id) {
       const L = { k: size.k, sky, ca, cb, land, front: fr, lights: lightCv, inUse: () => !rec.dead };
       L.bytes = bytesOf(L);
       cachePut(key, L);
+      if (current === rec) prerenderAround(id);
     }).catch(() => {});
   }
   if (sh) bakeShafts(sh);

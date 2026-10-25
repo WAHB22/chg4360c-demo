@@ -7,6 +7,8 @@
 // 1.5 s timeout, then the demo). ?engine=off forgets it; ?demo=1 forces the demo.
 // In demo mode every action is kept in this browser only (localStorage).
 
+import { now as clockNow, period as clockPeriod, fmtDate, fmtTime } from './clock.js';
+
 const ENGINE_DEFAULT = 'http://127.0.0.1:3210/api';
 const TIMEOUT_MS = 1500;
 const POLL_MS = 30000;
@@ -145,7 +147,7 @@ async function loadDemo(error) {
     demoState = state && typeof state === 'object' ? state : null;
     api = null;
     source = 'demo';
-    const out = { state: withLocalDemo(state && typeof state === 'object' ? state : {}), source: 'demo' };
+    const out = { state: withLocalDemo(state && typeof state === 'object' ? liveDemo(state) : {}), source: 'demo' };
     if (error) out.error = error;
     return out;
   } catch (e) {
@@ -163,6 +165,124 @@ async function post(path, body) {
   } catch (e) { /* empty body */ }
   if (!r.ok || (data && data.ok === false)) throw new Error((data && data.error) || `engine ${r.status}`);
   return data || { ok: true };
+}
+
+/* ------------------------------------------------- the demo keeps time */
+
+// The invented demo was written at one evening (generatedAt). So it never
+// reads stale or out of hour, it is moved onto the live clock: every date in
+// it slides by whole days so that evening is the latest one already past, the
+// morning brief carries today's date, and each place and bot takes its line
+// for the hour (morning, day, sunset, night) with start times counted back
+// from now. Only the demo is touched; engine state is shown as sent.
+const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const WD = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+const DAY_MS = 86400000;
+const DATE_RE = /\b(?:(Sun|Mon|Tue|Wed|Thu|Fri|Sat) )?(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec) (\d{1,2})\b/g;
+
+function torontoDay(d) {
+  // the Toronto calendar day as a UTC midnight, plus minutes into that day
+  try {
+    const f = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Toronto', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
+    const o = {};
+    for (const x of f.formatToParts(d)) o[x.type] = x.value;
+    return { day: Date.UTC(+o.year, +o.month - 1, +o.day), min: (+o.hour % 24) * 60 + +o.minute };
+  } catch (e) {
+    return { day: Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()), min: d.getHours() * 60 + d.getMinutes() };
+  }
+}
+
+function shiftText(text, shift, anchor) {
+  if (!shift || typeof text !== 'string' || text.indexOf(' ') < 0) return text;
+  const a = new Date(anchor);
+  return text.replace(DATE_RE, (all, wd, mon, dd) => {
+    const m = MON.indexOf(mon);
+    const n = Number(dd);
+    if (m < 0 || n < 1 || n > 31) return all;
+    // a month far before the anchor's belongs to the next year (Feb, Jun)
+    let y = a.getUTCFullYear();
+    if (m < a.getUTCMonth() - 5) y += 1;
+    else if (m > a.getUTCMonth() + 6) y -= 1;
+    const t = new Date(Date.UTC(y, m, n) + shift * DAY_MS);
+    const out = `${MON[t.getUTCMonth()]} ${t.getUTCDate()}`;
+    return wd ? `${WD[t.getUTCDay()]} ${out}` : out;
+  });
+}
+
+function shiftAll(v, shift, anchor, depth = 0) {
+  if (depth > 12) return v;
+  if (typeof v === 'string') return shiftText(v, shift, anchor);
+  if (Array.isArray(v)) return v.map((x) => shiftAll(x, shift, anchor, depth + 1));
+  if (v && typeof v === 'object') {
+    const o = {};
+    for (const k of Object.keys(v)) o[k] = shiftAll(v[k], shift, anchor, depth + 1);
+    return o;
+  }
+  return v;
+}
+
+function forHour(obj, per, at) {
+  if (!obj || typeof obj !== 'object') return obj;
+  const t = obj.times && typeof obj.times === 'object' ? obj.times[per] : null;
+  const out = { ...obj };
+  delete out.times;
+  if (t && typeof t === 'object') {
+    for (const k of Object.keys(t)) if (k !== 'startedAgo') out[k] = t[k];
+    const ago = Number(t.startedAgo);
+    if (Number.isFinite(ago) && ago >= 0) out.startedAt = fmtTime(new Date(at.getTime() - ago * 60000));
+  }
+  return out;
+}
+
+export function liveDemo(state, at = clockNow()) {
+  if (!state || typeof state !== 'object') return state;
+  try {
+    const per = clockPeriod(at);
+    const gen = new Date(state.generatedAt || '');
+    let s = state;
+    if (!isNaN(gen)) {
+      const g = torontoDay(gen);
+      const n = torontoDay(at);
+      // the demo evening is the latest one already past: today once its hour
+      // has come, otherwise yesterday
+      const target = n.min >= g.min ? n.day : n.day - DAY_MS;
+      const shift = Math.round((target - g.day) / DAY_MS);
+      // a demo opened a season away keeps its own dates rather than drift
+      if (shift && Math.abs(shift) <= 150) {
+        s = shiftAll(state, shift, g.day);
+        s.generatedAt = new Date(gen.getTime() + shift * DAY_MS).toISOString();
+      }
+      // the report was written that evening: say so when it is not tonight's
+      if (s.report && typeof s.report === 'object' && typeof s.report.at === 'string' && target !== n.day && n.min >= 5 * 60) {
+        s.report = { ...s.report, at: `${s.report.at}, last night` };
+      }
+    }
+    if (s.places && typeof s.places === 'object') {
+      const places = {};
+      for (const k of Object.keys(s.places)) places[k] = forHour(s.places[k], per, at);
+      s.places = places;
+    }
+    if (Array.isArray(s.bots)) s.bots = s.bots.map((b) => forHour(b, per, at));
+    // the morning brief is today's
+    if (s.brief && typeof s.brief === 'object') {
+      const today = torontoDay(at).day;
+      const due = Array.isArray(s.brief.due)
+        ? s.brief.due.map((d) => {
+            if (!d || typeof d.date !== 'string') return d;
+            const m = /^(?:\w{3} )?(\w{3}) (\d{1,2})$/.exec(d.date.trim());
+            if (!m || MON.indexOf(m[1]) < 0) return d;
+            let y = new Date(today).getUTCFullYear();
+            let t = Date.UTC(y, MON.indexOf(m[1]), Number(m[2]));
+            if (t < today - 180 * DAY_MS) t = Date.UTC(y + 1, MON.indexOf(m[1]), Number(m[2]));
+            return { ...d, daysLeft: Math.round((t - today) / DAY_MS) };
+          })
+        : s.brief.due;
+      s.brief = { ...s.brief, date: fmtDate(at), due };
+    }
+    return s;
+  } catch (e) {
+    return state;
+  }
 }
 
 /* ------------------------------------------------------------- the API */

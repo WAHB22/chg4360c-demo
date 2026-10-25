@@ -804,8 +804,10 @@ const CSS = `
 .sao-bot:focus-visible{outline:2px solid #E8C88E;outline-offset:2px}
 .sao-bot .sao-body{position:absolute;left:50%;bottom:0;transform-origin:50% 94%;will-change:transform;pointer-events:none}
 .sao-bot .sao-body svg,.sao-bot .sao-body img{display:block;width:100%;height:100%;user-select:none;-webkit-user-drag:none}
-.sao-bot .sao-shadow{position:absolute;left:50%;bottom:0;border-radius:50% 46% 52% 48%;background:radial-gradient(closest-side,rgba(62,50,48,.3),rgba(62,50,48,.13) 60%,rgba(62,50,48,0));margin-left:4%;pointer-events:none}
-.sao-bot .sao-shadow::before{content:"";position:absolute;left:-34%;right:-34%;top:-70%;bottom:-50%;border-radius:50%;background:radial-gradient(closest-side,rgba(201,180,142,.15),rgba(201,180,142,0))}
+.sao-bot .sao-shadow{position:absolute;left:50%;bottom:0;border-radius:50% 46% 52% 48%;background:radial-gradient(closest-side,rgba(94,106,138,.3),rgba(94,106,138,.24) 45%,rgba(94,106,138,.1) 78%,rgba(94,106,138,0));margin-left:5%;pointer-events:none;mix-blend-mode:multiply}
+.sao-bot .sao-shadow::after{content:"";position:absolute;left:30%;right:18%;top:22%;bottom:30%;border-radius:50%;background:radial-gradient(closest-side,rgba(78,74,96,.22),rgba(78,74,96,0))}
+.sao-bot .sao-body>svg,.sao-bot .sao-body>img{filter:drop-shadow(-1px -.6px .7px var(--rim,rgba(244,226,190,.5)))}
+.sao-crowd.is-quiet{--rim:rgba(196,206,232,.28)}
 .sao-bot .sao-mark{position:absolute;left:50%;bottom:0;pointer-events:none}
 .sao-bot .sao-mark svg{display:block;width:100%;height:100%}
 .sao-sprite-svg g,.sao-marker-svg g,.sao-marker-svg text{transform-box:view-box}
@@ -1117,16 +1119,33 @@ function measure() {
     for (const a of crowd.actors.values()) {
       a.bodyEl.style.width = `${base}px`;
       a.bodyEl.style.height = `${base}px`;
-      a.shadowEl.style.width = `${Math.round(base * (a.core === 'keeper' ? 0.54 : 0.46))}px`;
-      a.shadowEl.style.height = `${Math.round(base * 0.1)}px`;
+      a.shadowEl.style.width = `${Math.round(base * (a.core === 'keeper' ? 0.7 : 0.6))}px`;
+      a.shadowEl.style.height = `${Math.round(base * 0.13)}px`;
       const m = Math.round(base * 0.26);
       a.markEl.style.width = `${m}px`;
       a.markEl.style.height = `${m}px`;
       a.renderKey = '';
     }
   }
+  crowd.vis = visibleSpan();
   crowd.avoid = avoidRects();
   for (const a of crowd.actors.values()) place(a);
+}
+
+// The part of the crowd layer that is really on screen, in layer pixels. On a
+// phone the 16:9 painting covers a tall screen, so most of its width is cut
+// off; bots are kept inside what is visible, never half off the edge.
+function visibleSpan() {
+  if (!crowd || typeof document === 'undefined') return null;
+  const L = crowd.layer.getBoundingClientRect();
+  const sx = L.width / (crowd.layer.offsetWidth || L.width || 1) || 1;
+  const host = crowd.layer.closest('.sv-vista') || crowd.layer.parentElement;
+  const V = host ? host.getBoundingClientRect() : L;
+  const vw = (typeof window !== 'undefined' && (document.documentElement.clientWidth || window.innerWidth)) || V.right;
+  const left = Math.max(V.left, L.left, 0);
+  const right = Math.min(V.right, L.right, vw);
+  if (!(right - left > 40)) return null;
+  return { l: (left - L.left) / sx, r: (right - L.left) / sx };
 }
 
 // The caption card sits over the vista; bots step aside instead of hiding
@@ -1308,15 +1327,24 @@ function place(a, T = nowS()) {
     a.el.style.height = `${bh}px`;
   }
   const py = Math.min((a.y / 100) * c.H, c.floor || Infinity);
-  // stay inside a 16 px safe area, and step aside from the caption card
+  // stay inside a 16 px gutter of what is really on screen, measured on the
+  // whole drawn sprite (body box, contact shadow and marker), and step aside
+  // from the caption card. Where most of the painting is cut off (a phone),
+  // the walk is mapped onto the visible span so no bot stands off screen.
   const pad = 16;
-  let px = clamp((a.x / 100) * c.W, pad + bw / 2, Math.max(pad + bw / 2, c.W - pad - bw / 2));
+  const half = Math.max(bw / 2, (c.base * s * 1.04) / 2, (c.base * 0.26 * Math.max(s, 0.72)) / 2);
+  const vis = c.vis || { l: 0, r: c.W };
+  const visW = vis.r - vis.l;
+  const lo = vis.l + pad + half;
+  const hi = Math.max(lo, vis.r - pad - half);
+  const narrow = visW < c.W * 0.7;
+  let px = narrow ? lo + (clamp(a.x, 0, 100) / 100) * (hi - lo) : clamp((a.x / 100) * c.W, lo, hi);
   let want = 0;
   for (const r of c.avoid || []) {
-    if (px + bw / 2 > r.l - 6 && px - bw / 2 < r.r + 6 && py > r.t - 4 && py - bh < r.b + 4) want = r.r + 10 + bw / 2 - px;
+    if (px + half > r.l - 6 && px - half < r.r + 6 && py > r.t - 4 && py - bh < r.b + 4) want = r.r + 10 + half - px;
   }
   a.adx = (a.adx || 0) + (want - (a.adx || 0)) * (a.adx == null || crowd.reduced ? 1 : 0.12);
-  px = Math.min(px + a.adx, Math.max(pad + bw / 2, c.W - pad - bw / 2));
+  px = clamp(px + a.adx, lo, hi);
   const z = Math.round(a.y * 10);
   if (z !== a.z) {
     a.z = z;
@@ -1498,8 +1526,8 @@ export function setScene(placeId, bots = [], { quiet = false, reduced } = {}) {
       const b = crowd.base;
       a.bodyEl.style.width = `${b}px`;
       a.bodyEl.style.height = `${b}px`;
-      a.shadowEl.style.width = `${Math.round(b * (sp.core === 'keeper' ? 0.54 : 0.46))}px`;
-      a.shadowEl.style.height = `${Math.round(b * 0.1)}px`;
+      a.shadowEl.style.width = `${Math.round(b * (sp.core === 'keeper' ? 0.7 : 0.6))}px`;
+      a.shadowEl.style.height = `${Math.round(b * 0.13)}px`;
       const m = Math.round(b * 0.26);
       a.markEl.style.width = `${m}px`;
       a.markEl.style.height = `${m}px`;
