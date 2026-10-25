@@ -228,25 +228,39 @@ function buildCanal() {
 }
 
 function buildRoads() {
+  const centers = PLACES.map((p) => [p.id, anchor(p.id)]);
   return MAP.roads.map((rd, i) => {
     const a = anchor(rd.from);
     const b = anchor(rd.to);
     const via = rd.via ? [anchor(rd.via)] : [];
     const chain = [a, ...via, b];
     const r = rng(hash(rd.from + rd.to) + i);
-    const pts = [chain[0]];
-    for (let k = 1; k < chain.length; k++) {
-      const p = chain[k - 1];
-      const q = chain[k];
-      const len = Math.hypot(q[0] - p[0], q[1] - p[1]);
-      const nx = -(q[1] - p[1]) / len;
-      const ny = (q[0] - p[0]) / len;
-      const bend = (r() - 0.5) * len * 0.22;
-      pts.push([(p[0] + q[0]) / 2 + nx * bend, (p[1] + q[1]) / 2 + ny * bend]);
-      pts.push(q);
+    const base = chain.slice(1).map(() => (r() - 0.5) * 0.22);
+    const others = centers.filter(([id]) => id !== rd.from && id !== rd.to).map((c) => c[1]);
+    const build = (extra) => {
+      const pts = [chain[0]];
+      for (let k = 1; k < chain.length; k++) {
+        const p = chain[k - 1];
+        const q = chain[k];
+        const len = Math.hypot(q[0] - p[0], q[1] - p[1]);
+        const nx = -(q[1] - p[1]) / len;
+        const ny = (q[0] - p[0]) / len;
+        const bend = (base[k - 1] + extra) * len;
+        pts.push([(p[0] + q[0]) / 2 + nx * bend, (p[1] + q[1]) / 2 + ny * bend]);
+        pts.push(q);
+      }
+      return withLengths(sampleSmooth(pts, false, 16));
+    };
+    // bend the road around any town it would otherwise run through
+    let g = build(0);
+    for (const extra of [0.12, -0.12, 0.22, -0.22, 0.32, -0.32]) {
+      const clash = g.pts.some((q) => others.some((o) => Math.hypot(q[0] - o[0], (q[1] - (o[1] - 26)) * 1.2) < 58));
+      if (!clash) break;
+      g = build(extra);
     }
-    const g = withLengths(sampleSmooth(pts, false, 16));
-    return { ...rd, g, d: polyD(g.pts) };
+    // the drawn road stops at the doorstep instead of running through the icon
+    const trim = withLengths(g.pts.filter((q) => Math.hypot(q[0] - a[0], q[1] - a[1]) > 16 && Math.hypot(q[0] - b[0], q[1] - b[1]) > 16));
+    return { ...rd, g, d: polyD(trim.pts.length > 1 ? trim.pts : g.pts) };
   });
 }
 
@@ -1068,27 +1082,31 @@ function isletSVG(x, y, r, seed, seas) {
   );
 }
 
-function cartoucheSVG(x, y) {
-  // a hand lettered title scroll, drawn by the captain
+function cartoucheSVG(x, y, k) {
+  // a hand lettered title scroll, drawn by the captain; scaled so its text stays 13 px or more
   return (
-    `<g transform="translate(${x} ${y})" filter="url(#sm-inkS)">` +
+    `<g transform="translate(${x} ${y}) scale(${f(k)})">` +
+    `<g filter="url(#sm-inkS)">` +
     sh('M-150,-44Q0,-58 150,-44L150,40Q0,26 -150,40Z', PAPER_HI, 1.8, 0.92) +
     sh('M-150,-44Q-176,-40 -170,-14Q-166,6 -150,4', '#E3D3AE', 1.6) +
     sh('M150,40Q176,36 170,10Q166,-10 150,-8', '#E3D3AE', 1.6) +
     ln('M-136,-34Q0,-46 136,-34M-136,30Q0,18 136,30', 0.9, INK_SOFT, 0.7) +
     `</g>` +
-    `<text x="${x}" y="${y - 4}" text-anchor="middle" font-family="${FONT}" font-variant="small-caps" font-size="34" letter-spacing="4" fill="${SEPIA}">The Island</text>` +
-    `<text x="${x}" y="${y + 22}" text-anchor="middle" font-family="${FONT}" font-style="italic" font-size="19" fill="${INK_SOFT}">as walked and drawn by ICON</text>`
+    `<text x="0" y="-4" text-anchor="middle" font-family="${FONT}" font-variant="small-caps" font-size="34" letter-spacing="4" fill="${SEPIA}">The Island</text>` +
+    `<text x="0" y="22" text-anchor="middle" font-family="${FONT}" font-style="italic" font-size="19" fill="${INK_SOFT}">as walked and drawn by ICON</text>` +
+    `</g>`
   );
 }
 
-function scaleBarSVG(x, y) {
+function scaleBarSVG(x, y, k) {
   let d = '';
-  for (let i = 0; i < 4; i++) d += i % 2 ? '' : `M${x + i * 40},${y}L${x + (i + 1) * 40},${y}`;
+  for (let i = 0; i < 4; i++) d += i % 2 ? '' : `M${i * 40},0L${(i + 1) * 40},0`;
   return (
-    `<g filter="url(#sm-inkS)"><path d="M${x},${y - 4}L${x + 160},${y - 4}L${x + 160},${y + 4}L${x},${y + 4}Z" fill="${PAPER_HI}" stroke="${INK}" stroke-width="1.2"/>` +
+    `<g transform="translate(${x} ${y}) scale(${f(k)})">` +
+    `<g filter="url(#sm-inkS)"><path d="M0,-4L160,-4L160,4L0,4Z" fill="${PAPER_HI}" stroke="${INK}" stroke-width="1.2"/>` +
     `<path d="${d}" stroke="${INK_SOFT}" stroke-width="8"/></g>` +
-    `<text x="${x + 80}" y="${y + 30}" text-anchor="middle" font-family="${FONT}" font-style="italic" font-size="19" fill="${INK_SOFT}">one morning's walk</text>`
+    `<text x="80" y="30" text-anchor="middle" font-family="${FONT}" font-style="italic" font-size="19" fill="${INK_SOFT}">one morning's walk</text>` +
+    `</g>`
   );
 }
 
@@ -1109,7 +1127,7 @@ function buildSea(vb, coast, s, seas) {
       const x = gx * cell + r() * cell * 0.8;
       const y = gy * cell + r() * cell * 0.8;
       if (inPoly(x, y, coast.poly) || distPoly(x, y, coast.poly, true) < 50 || !far(x, y)) continue;
-      if (x > -500 && x < -120 && y > 560 && y < 700) continue; // the title scroll
+      if (x > -560 && x < -60 && y > 540 && y < 720) continue; // the title scroll
       const w = (6 + r() * 4) * k;
       d += `M${f(x)},${f(y)}q${f(w / 2)},${f(-w * 0.5)} ${f(w)},0q${f(w / 2)},${f(-w * 0.5)} ${f(w)},0`;
       if (r() < 0.4) d += `M${f(x + w * 0.6)},${f(y + 6 * k)}q${f(w / 2)},${f(-w * 0.45)} ${f(w)},0`;
@@ -1127,8 +1145,9 @@ function buildSea(vb, coast, s, seas) {
   let isles = '';
   if (wide) {
     for (const [x, y, r, seed] of ISLETS) if (x + r * 1.2 > vb.x && x - r * 1.2 < vb.x + vb.w) isles += isletSVG(x, y, r, seed, seas);
-    if (vb.x < -520) isles += cartoucheSVG(-310, 630);
-    if (vb.x + vb.w > 1420) isles += scaleBarSVG(1180, 1060);
+    const tk = Math.max(1, 13.5 / (19 * s));
+    if (vb.x < -520) isles += cartoucheSVG(-310, 630, tk);
+    if (vb.x + vb.w > 1420) isles += scaleBarSVG(1180, 1060, tk);
   }
   return (
     `<rect x="${vb.x}" y="${vb.y}" width="${vb.w}" height="${vb.h}" fill="${PAPER}" filter="url(#sm-paper)"/>` +
@@ -1267,7 +1286,7 @@ export function mountMap(host, { onTravel, onBotTap } = {}) {
       `<g class="sm-lift"><g class="sm-press" filter="url(#sm-inkS)">${art}</g></g>` +
       `<g class="sm-lantern" transform="translate(${p.id === 'fields' ? 66 : p.id === 'market' ? 58 : 48} 2) scale(1.3)" filter="url(#sm-inkS)">${EXTRAS.lantern()}</g>` +
       `<g class="sm-labelg"><g class="sm-sym" filter="url(#sm-inkS)">${sym}</g><text class="sm-label" x="0" y="30" text-anchor="middle">${esc(p.name)}</text></g>` +
-      `<circle class="sm-focus sm-focus-a" cx="0" cy="-26" r="52" fill="none" stroke="${INK}"/><circle class="sm-focus sm-focus-b" cx="0" cy="-26" r="52" fill="none" stroke="${GOLD}"/>`;
+      `<rect class="sm-focus sm-focus-a" fill="none" stroke="${INK}"/><rect class="sm-focus sm-focus-b" fill="none" stroke="${GOLD}"/>`;
     const title = el('title', {}, g);
     title.textContent = `${p.name}, ${p.specialty}`;
     towns[p.id] = g;
@@ -1471,7 +1490,7 @@ function layout() {
   const u = (px) => px / s;
   const fl = Math.max(19, u(14));
   const fr = Math.max(17, u(13.5));
-  const fm = Math.max(15, u(13));
+  const fm = Math.max(15, u(13.5));
   const fk = Math.max(13, u(13.5));
   const vars = {
     '--sm-fl': `${f(fl)}px`, '--sm-fls': `${f(fl * 0.3)}px`,
@@ -1499,11 +1518,6 @@ function layout() {
       t.setAttribute('d', `M0,${f(-28 - ringR - u(5))}L${f(-u(4))},${f(-28 - ringR + u(4))}L${f(u(4))},${f(-28 - ringR + u(4))}Z`);
       t.setAttribute('stroke-width', f(u(1)));
     });
-    const fr2 = ringR + u(7);
-    g.querySelector('.sm-focus-a').setAttribute('r', f(fr2));
-    g.querySelector('.sm-focus-a').setAttribute('stroke-width', f(u(4.5)));
-    g.querySelector('.sm-focus-b').setAttribute('r', f(fr2));
-    g.querySelector('.sm-focus-b').setAttribute('stroke-width', f(u(2)));
     const text = g.querySelector('.sm-label');
     const ty = 14 + fl * 0.86;
     text.setAttribute('y', f(ty));
@@ -1514,6 +1528,17 @@ function layout() {
     } catch (e) { /* estimate */ }
     g.querySelector('.sm-sym').setAttribute('transform', `translate(${f(-tw / 2 - 10 * symScale)} ${f(ty - fl * 0.32)}) scale(${f(symScale)})`);
     const a = anchor(id);
+    const fx0 = Math.min(-ringR - u(6), -tw / 2 - 22 * symScale);
+    const fx1 = Math.max(ringR + u(6), tw / 2 + 8);
+    for (const [cls, sw] of [['.sm-focus-a', 4.5], ['.sm-focus-b', 2]]) {
+      const rc = g.querySelector(cls);
+      rc.setAttribute('x', f(fx0));
+      rc.setAttribute('y', f(-28 - ringR - u(6)));
+      rc.setAttribute('width', f(fx1 - fx0));
+      rc.setAttribute('height', f(ty + fl * 0.35 + u(6) + 28 + ringR + u(6)));
+      rc.setAttribute('rx', f(u(10)));
+      rc.setAttribute('stroke-width', f(u(sw)));
+    }
     M.boxes.push([a[0] - tw / 2 - 20 * symScale, a[1] + ty - fl, a[0] + tw / 2 + 4, a[1] + ty + fl * 0.3]);
     M.boxes.push([a[0] - 44, a[1] - 84, a[0] + 44, a[1] + 8]);
   }

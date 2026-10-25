@@ -1,0 +1,13 @@
+{
+  "name": "sao",
+  "version": "1.0.0",
+  "private": true,
+  "description": "SAO, a painted world where the work gets quietly done. Static site plus a local engine.",
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "start": "node server.mjs"
+  }
+}

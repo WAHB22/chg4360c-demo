@@ -1,0 +1,53 @@
+// Every fixed line of interface copy in one place: loading, empty and error
+// states (World Bible Part 9.19) and the short system messages. Plain words,
+// no dashes, digits for numbers, 24 h times.
+
+export const COPY = {
+  loading: {
+    status: 'Opening the world',
+    caption: 'ICON is unrolling the map',
+    meter: '???%',
+    panel: 'Reading the latest from your bots',
+  },
+  error: {
+    demo: 'The engine did not answer. Showing the demo world.',
+    none: 'No world to show yet. Start the engine on your machine, then reload.',
+    retry: 'Try again',
+    order: 'Could not reach the engine. Your order is kept on this device.',
+    answer: 'Could not reach the engine. Your answer is kept on this device.',
+    copy: 'Could not copy. Select the text and copy it by hand.',
+    module: 'Part of the world did not load. The rest still works.',
+  },
+  empty: {
+    botsHere: 'No bots here right now.',
+    waiting: 'Nothing waiting on you here.',
+    drafts: 'No drafts here yet.',
+    progress: 'Nothing to track here yet.',
+    bots: 'Every bot is resting on the bench in town.',
+    questions: 'No questions. Your bots have what they need.',
+    allDrafts: 'No drafts yet. They appear here as your bots write them.',
+    report: 'No report yet. ICON writes one at the end of each loop.',
+    reportSection: 'Nothing here this time.',
+    brief: 'No brief yet today. Herald reads it at the well at 7:00.',
+    today: 'Nothing set for today.',
+    due: 'Nothing due soon.',
+    news: 'No news for your projects today.',
+    floors: 'No floors on this climb yet.',
+    rules: 'The charter stone is blank. ICON follows the house rules until you carve your own.',
+    weather: 'Weather unknown',
+    lastResult: 'No result yet',
+    meter: 'Some hours are not known yet',
+  },
+  msg: {
+    orderSaved: 'Order saved for the next loop',
+    orderLocal: 'Order kept on this device for the next loop',
+    answered: 'Answer saved. Thank you.',
+    approved: 'Approved',
+    copied: 'Copied',
+    stopped: (name) => `${name} will stop after this step`,
+    arrived: (name) => `You are at ${name}`,
+    newDrafts: (n) => (n === 1 ? '1 new draft' : `${n} new drafts`),
+    newQuestion: (name) => `${name} has a question for you`,
+    quietOver: 'Quiet hours are over. Good morning.',
+  },
+};

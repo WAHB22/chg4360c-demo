@@ -1203,8 +1203,12 @@ function block(c, o) {
   let s = '';
   s += pg(quad(F, 0, 0, 1, 1), c.P(wall, faceK(c, 0), dz), 1, edge(c, 1));
   s += pg(quad(S, 0, 0, 1, 1), c.P(wall, faceK(c, side), dz), 1, edge(c, 1));
-  // weathering at the foot
+  // weathering at the foot, light falling off down the wall, plaster touches
+  s += pg(quad(F, 0, 0, 1, 1), c.lg([[0, mix(c.T.light, '#FFFFFF', 0.3), 0.22], [0.55, c.T.light, 0], [1, c.T.shade, 0.22]], 0, 0, 0, 1));
   s += pg(quad(F, 0, 0, 1, 0.12), c.P(wall, -0.5, dz), 0.25);
+  const rw = c.sub('wall' + Math.round(x) + ':' + Math.round(y));
+  for (let k = 0; k < Math.round(4 + w / 14); k++) s += ell(...F(rw.R(0.04, 0.96), rw.R(0.06, 0.94)), rw.R(3, 8), rw.R(1.2, 3), c.P(rw.pick([wall, '#D9C9AE', '#F4EAD8', '#CBBBA0']), rw.R(-0.4, 0.6), dz), 0.32);
+  s += pg([[x - 2, y + 1], [x + w + 2, y + 1], [x + w + 2, y + 4], [x - 2, y + 4]], mix(c.T.shade, '#1A2238', 0.4), 0.38);
   const roofCol = o.roof || '#C77B4A';
   const top = y - h;
   const ov = o.overhang != null ? o.overhang : 6;
@@ -1859,8 +1863,8 @@ BUILD.town = (c, pl) => {
   for (const [x, y] of [[652, 486], [664, 484], [1040, 434], [748, 496], [1110, 448]]) pig += ell(x, y, 3.2, 2.2, c.P('#8C8FA0', 0.2)) + circ(x + 2.5, y - 2, 1.4, c.P('#8C8FA0', 0.3));
   c.land.push(pig);
   // the Memory Tree beside the tower, with small lanterns
-  tree(c, 880, 560, 74, { n: 9, touches: 34, trunkW: 0.18 });
-  lanterns(c, [[842, 470], [868, 452], [904, 462], [922, 486], [856, 494]]);
+  tree(c, 872, 562, 90, { touches: 44, trunkW: 0.17, wide: 1.1 });
+  lanterns(c, [[828, 474], [858, 446], [900, 456], [926, 484], [846, 500], [888, 492]]);
   // plaza
   const plaza = blob(c.r, 840, 566, 200, 28, 0.12, 12);
   patch(c, plaza, S.snow ? '#E8ECF2' : '#D6C6A6', { box: [630, 536, 1050, 596], cols: ['#B9A888', '#E2D6BC', '#C8B898'], n: 220, big: 4, key: 'plaza' });
@@ -2360,9 +2364,33 @@ BUILD.kitchen = (c, pl) => {
   }
   chimney(c, 960, 455, 20, 44, { col: '#B9A58C', smokeSize: 1 });
   castShadow(c, 545, 1055, 576, 110, { op: 0.26 });
-  well(c, 410, 626, 22);
-  tree(c, 1260, 640, 120, {});
-  bush(c, 470, 600, 40, {});
+  // woodpile under a lean to against the side wall
+  let wp = pg([[1062, 520], [1150, 500], [1156, 510], [1066, 532]], c.P('#8C6A56', 0.4), 1, edge(c, 0.7));
+  wp += line(1148, 508, 1148, 566, c.P('#5A4030', 0), 3);
+  for (let row = 0; row < 3; row++) for (let k = 0; k < 6; k++) {
+    const lx = 1076 + k * 12 + (row % 2) * 6;
+    const ly = 560 - row * 11 - k * 1.6;
+    wp += circ(lx, ly, 5.6, c.P('#9A7050', 0.1)) + circ(lx, ly, 3.4, c.P('#D9B98A', 0.4)) + circ(lx, ly, 1, c.P('#9A7050', -0.2));
+  }
+  c.land.push(g(ell(1110 - T.litSide * 16, 570, 52, 5, T.shade, 0.3) + wp, `filter="${c.f('arch')}"`));
+  // low dry stone walls along the yard
+  let dw = '';
+  const rw = c.sub('drywall');
+  for (const [x0, x1, y0, y1] of [[330, 520, 640, 618], [1110, 1330, 618, 650]]) {
+    for (let k = 0; k <= 26; k++) {
+      const t = k / 26;
+      const x = lerp(x0, x1, t);
+      const y = lerp(y0, y1, t);
+      for (let row = 0; row < 2; row++) dw += ell(x + (row % 2) * 4, y - 4 - row * 7, rw.R(5, 8), 3.6, c.P(rw.pick(['#BBA98C', '#D8C9AE', '#A8957A', '#C6B391']), row ? 0.6 : 0), 0.95);
+    }
+  }
+  c.land.push(g(dw, `filter="${c.f('arch')}"`));
+  tree(c, 250, 650, 140, {});
+  well(c, 430, 628, 22);
+  tree(c, 1290, 660, 120, {});
+  bush(c, 500, 604, 36, {});
+  bush(c, 1060, 600, 30, {});
+  if (S.flowers) for (const [x, y] of [[700, 590], [1020, 588]]) c.land.push(g(pth(`M${x - 9},${y - 14}L${x + 9},${y - 14}L${x + 7},${y}L${x - 7},${y}Z`, c.P('#C8774A', 0.3)) + circ(x - 4, y - 18, 4, c.P(S.flowers[0], 0.3)) + circ(x + 4, y - 19, 3.6, c.P(S.flowers[1], 0.3)) + ell(x, y - 15, 9, 4, c.P(S.leaf[2] || '#5E9A4E', 0), 0.8), `filter="${c.f('arch')}"`));
   road(c, pl.path, { w0: 230, w1: 50, kind: 'dirt' });
   warmLight(c);
   vignette(c, 0.3);
@@ -2435,7 +2463,7 @@ function fort(c) {
   c.land.push(g(bn, `filter="${c.f('arch')}"`));
   // the sandy training yard
   const yard = 'M450,502C600,486 1000,486 1170,504C1220,544 1170,596 1000,604C800,616 600,612 470,594C410,572 400,524 450,502Z';
-  patch(c, yard, S.snow ? '#EEF1F5' : '#E2CC9C', { box: [400, 486, 1220, 616], cols: ['#C9AE7E', '#EEDDB8', '#BFA070', '#E2CC9C'], n: 300, big: 5, key: 'yard' });
+  patch(c, yard, S.snow ? '#EEF1F5' : '#D2BC92', { box: [400, 486, 1220, 616], cols: ['#BFA67C', '#E2D2B0', '#B39A72', '#D2BC92'], n: 300, big: 5, key: 'yard' });
   // posts and ropes
   const wood = '#7A5A40';
   let pr = '';
@@ -2484,8 +2512,14 @@ BUILD.market = (c, pl) => {
   const sq = profile(-20, W + 20, 10, (x) => 486 + fbm(n, x / 220 + 3) * 8);
   ground(c, sq, { d: 0.03, dabs: 560, persp: [486, 900], key: 'sq', strokes: 500, leaves: 100 });
   // the stone square
-  const plaza = 'M230,596C420,566 1180,566 1370,596C1470,664 1370,784 1150,804C900,830 700,830 450,804C230,784 130,664 230,596Z';
-  patch(c, plaza, S.snow ? '#ECEFF4' : '#D9CDB4', { box: [140, 566, 1470, 830], cols: ['#BFB196', '#E3D9C4', '#B0A386', '#CFC2A6'], n: 640, big: 9, key: 'square' });
+  const plaza = 'M372,572L1228,572C1290,600 1340,640 1360,690C1100,712 500,712 240,690C260,640 310,600 372,572Z';
+  patch(c, plaza, S.snow ? '#E6EAF0' : '#C9BB9E', { box: [240, 566, 1360, 714], cols: ['#B5A78C', '#DCD1BA', '#A89A7E', '#C8BB9F'], n: 620, big: 8, key: 'square' });
+  let cj = '';
+  for (let y = 580; y < 700; y += lerp(5, 12, (y - 580) / 120)) {
+    const k = (y - 572) / 118;
+    cj += line(lerp(372, 250, k), y, lerp(1228, 1350, k), y, c.P('#8E8068', -0.3), lerp(0.4, 1, k), 0.28);
+  }
+  c.land.push(g(cj, `filter="${c.f('arch')}"`));
   marketHall(c);
   road(c, pl.path, { w0: 260, w1: 80, kind: 'cobble', col: S.snow ? '#E6EAF0' : '#D3C4A6', edges: false, dapple: true });
   handCart(c, 520, 660);
@@ -2611,91 +2645,118 @@ function handCart(c, x, y) {
 
 BUILD.vault = (c, pl) => {
   const { T, S } = c;
-  sky(c, { horizon: 432 });
-  cloudSky(c, { big: 1, amount: 1.2 });
-  range(c, { base: 432, amp: 74, d: 0.6, key: 'far' });
-  hazeBand(c, 432, 60, 0.5);
+  sky(c, { horizon: 430 });
+  cloudSky(c, { big: 2, amount: 1.25 });
+  range(c, { base: 430, amp: 80, d: 0.6, key: 'far' });
+  hazeBand(c, 430, 60, 0.5);
   const n = noise1(c.r);
   const back = profile(-20, W + 20, 10, (x) => 470 + fbm(n, x / 170) * 24);
   ground(c, back, { d: 0.3, dabs: 200, key: 'back', nearDark: 0 });
-  treeline(c, -20, W + 20, (x) => back.at(x) + 6, { d: 0.34, min: 12, max: 24, pines: 0.5 });
+  treeline(c, -20, W + 20, (x) => back.at(x) + 6, { d: 0.34, min: 12, max: 24, pines: 0.6 });
   mist(c, 490, 50);
-  const hill = profile(-20, W + 20, 8, (x) => 566 + Math.pow((x - 800) / 620, 2) * 150 + fbm(n, x / 120 + 5) * 18 - 9);
-  ground(c, hill, { d: 0.03, dabs: 640, persp: [560, 900], key: 'hill', strokes: 620, leaves: 100 });
-  // old stones scattered on the hill
-  rocks(c, [[560, 616, 24, 46], [600, 606, 18, 34], [1050, 610, 22, 44], [1100, 624, 26, 36], [1210, 650, 30, 50], [420, 650, 28, 40], [1280, 700, 40, 30], [700, 640, 30, 16], [960, 650, 34, 18]], { col: '#A8A4A8' });
+  const hill = profile(-20, W + 20, 8, (x) => 572 + Math.pow((x - 800) / 560, 2) * 170 + fbm(n, x / 120 + 5) * 18 - 9);
+  ground(c, hill, { d: 0.03, dabs: 680, persp: [560, 900], key: 'hill', strokes: 680, leaves: 120 });
+  // dark pines that hold the fortress between them
+  pine(c, 548, 600, 150, {});
+  pine(c, 596, 590, 110, {});
+  pine(c, 1080, 596, 140, {});
+  pine(c, 1124, 606, 96, {});
   ruins(c);
   stronghold(c);
+  // the quiet ring of old stones
+  rocks(c, [[640, 640, 34, 70], [560, 664, 30, 56], [470, 700, 40, 74], [1000, 646, 30, 64], [1090, 674, 36, 72], [1190, 712, 44, 84], [360, 760, 56, 96], [1290, 780, 60, 100], [720, 680, 46, 22], [930, 690, 50, 24]], { col: '#A8A2A6' });
   road(c, pl.path, { w0: 220, w1: 40, kind: 'dirt' });
   warmLight(c);
-  vignette(c, 0.34);
-  frame(c, { tl: 0.9, tr: 0.9, bl: 1, br: 0.9 });
+  vignette(c, 0.36);
+  frame(c, { tl: 1, tr: 1, bl: 1, br: 1 });
 };
 
 function stronghold(c) {
   const { T, S } = c;
   const st = '#A9A398';
-  // the guard tower first (behind the right corner)
-  let tw = cylinder(c, 962, 560, 72, 64, 318, st);
-  tw += cylinder(c, 962, 322, 80, 80, 300, st);
-  for (let i = 0; i < 4; i++) tw += rect(924 + i * 21, 290, 12, 12, c.P(st, (i < 2) === (T.litSide < 0) ? 0.6 : -0.2), 1, edge(c, 0.6));
-  tw += rect(959, 360, 6, 20, c.P('#2E3440', 0)) + rect(959, 420, 6, 18, c.P('#2E3440', 0));
+  const X0 = 612;
+  const X1 = 988;
+  const BY = 576;
+  const TOP = 404;
+  // the single guard tower, behind the right corner
+  let tw = cylinder(c, 990, 566, 78, 70, 300, st);
+  tw += cylinder(c, 990, 304, 88, 88, 282, st);
+  for (let i = 0; i < 4; i++) tw += rect(948 + i * 23, 270, 13, 13, c.P(st, (i < 2) === (T.litSide < 0) ? 0.6 : -0.2), 1, edge(c, 0.6));
+  tw += rect(987, 340, 6, 22, c.P('#2E3440', 0)) + rect(987, 410, 6, 20, c.P('#2E3440', 0));
   const rg = c.lg(T.litSide < 0 ? [[0, c.P('#6E7486', 0.7)], [0.6, c.P('#5E6476', 0)], [1, c.P('#4E5466', -0.7)]] : [[0, c.P('#4E5466', -0.7)], [0.4, c.P('#5E6476', 0)], [1, c.P('#6E7486', 0.7)]], 0, 0, 1, 0);
-  tw += pg([[916, 292], [1008, 292], [962, 236]], rg, 1, edge(c, 0.9));
-  if (S.snow) tw += pg([[930, 282], [994, 282], [962, 238]], '#F4F6F9', 0.8);
+  tw += pg([[938, 272], [1042, 272], [990, 206]], rg, 1, edge(c, 0.9));
+  tw += line(990, 206, 990, 190, c.P('#3A3F48', 0), 1.6) + circ(990, 189, 2.4, c.P('#E8C88E', 0.4));
+  if (S.snow) tw += pg([[954, 262], [1026, 262], [990, 210]], '#F4F6F9', 0.8);
   c.land.push(g(tw, `filter="${c.f('arch')}"`));
-  // thick battered walls
-  const b = block(c, { x: 650, y: 570, w: 300, h: 150, d: 110, side: 1, kind: 'flat', wall: st, roofTop: '#9A958C' });
-  let s = pg([[640, 572], [960, 572], [952, 528], [648, 528]], c.P(st, T.frontK - 0.1), 1, edge(c, 0.8));
+  // thick walls with a battered foot and buttresses
+  const b = block(c, { x: X0, y: BY, w: X1 - X0, h: BY - TOP, d: 120, side: 1, kind: 'flat', wall: st, roofTop: '#9A958C' });
+  let s = pg([[X0 - 14, BY + 2], [X1 + 14, BY + 2], [X1 + 2, BY - 50], [X0 - 2, BY - 50]], c.P(st, T.frontK - 0.12), 1, edge(c, 0.8));
   const r = c.sub('ashlar');
-  for (let row = 0; row < 11; row++) {
-    const bb = 0.04 + row * 0.09;
+  for (let row = 0; row < 12; row++) {
+    const bb = 0.04 + row * 0.082;
     s += line(...b.F(0, bb), ...b.F(1, bb), c.P(st, -0.6), 0.8, 0.4);
-    for (let k = 0; k < 7; k++) {
-      const a = (k + (row % 2) * 0.5) / 7;
-      s += line(...b.F(a, bb), ...b.F(a, bb + 0.09), c.P(st, -0.6), 0.7, 0.3);
-      s += pg(quad(b.F, a + 0.01, bb + 0.01, a + 0.13, bb + 0.08), c.P(r.pick([st, '#B9B3A8', '#9A9488']), r.R(-0.3, 0.5)), 0.35);
+    for (let k = 0; k < 8; k++) {
+      const a = (k + (row % 2) * 0.5) / 8;
+      s += line(...b.F(a, bb), ...b.F(a, bb + 0.082), c.P(st, -0.6), 0.7, 0.3);
+      s += pg(quad(b.F, a + 0.008, bb + 0.008, a + 0.117, bb + 0.074), c.P(r.pick([st, '#B9B3A8', '#9A9488', '#A49A8A']), r.R(-0.35, 0.55)), 0.4);
     }
   }
-  for (let i = 0; i < 12; i++) s += rect(652 + i * 25, 408, 14, 12, c.P(st, 0.5), 1, edge(c, 0.6));
+  // rain streaks under the merlons and patches of moss
+  for (let k = 0; k < 14; k++) {
+    const a = r.R(0.03, 0.97);
+    s += pg([b.F(a, 0.98), b.F(a + 0.012, 0.98), b.F(a + 0.008, r.R(0.55, 0.85)), b.F(a + 0.002, r.R(0.55, 0.85))], c.P('#5E5A58', -0.3), 0.18);
+  }
+  if (!S.snow) for (let k = 0; k < 10; k++) s += ell(...b.F(r.R(0.02, 0.98), r.R(0.02, 0.35)), r.R(8, 20), r.R(3, 6), c.P(r.pick(['#6F8A52', '#5E7A48', '#8A9A5A']), 0.1), 0.55);
+  for (let i = 0; i < 15; i++) s += rect(X0 + 2 + i * 25.4, TOP - 14, 15, 14, c.P(st, 0.5), 1, edge(c, 0.6));
+  s += rect(X0, TOP - 2, X1 - X0, 6, c.P(st, -0.6), 0.5);
+  for (const bx of [X0 + 70, X1 - 70]) s += pg([[bx - 16, BY + 2], [bx + 16, BY + 2], [bx + 10, BY - 92], [bx - 10, BY - 92]], c.P(st, faceK(c, bx < 800 ? -1 : 1) * 0.5), 1, edge(c, 0.8));
+  for (const ax of [X0 + 40, X1 - 40]) s += rect(ax - 3, 450, 6, 24, c.P('#2E3440', 0));
   // the heavy iron bound door with the key on it
-  s += pth('M766,572L766,512A34,30 0 0 1 834,512L834,572Z', c.P('#2E2A2A', -0.3), 1, edge(c, 0.9));
-  s += pth('M771,572L771,513A29,26 0 0 1 829,513L829,572Z', c.P('#5A4434', -0.1));
-  for (const y of [520, 540, 560]) s += line(771, y, 829, y, c.P('#3A4048', 0.2), 3);
-  for (const y of [520, 540, 560]) for (const x of [776, 790, 810, 824]) s += circ(x, y, 1.4, c.P('#A9AEB5', 0.5));
-  s += circ(800, 528, 6, 'none', 1, ` stroke="${c.P('#D2AE62', 0.5)}" stroke-width="2.4"`) + line(800, 534, 800, 554, c.P('#D2AE62', 0.5), 2.6) + line(800, 548, 806, 548, c.P('#D2AE62', 0.5), 2.4) + line(800, 553, 805, 553, c.P('#D2AE62', 0.5), 2.4);
+  s += pth('M762,578L762,508A38,32 0 0 1 838,508L838,578Z', c.P('#2E2A2A', -0.3), 1, edge(c, 0.9));
+  s += pth('M768,578L768,509A32,27 0 0 1 832,509L832,578Z', c.P('#5A4434', -0.1));
+  for (let k = 1; k < 5; k++) s += line(768 + k * 12.8, 486, 768 + k * 12.8, 577, c.P('#4A3628', -0.3), 0.8, 0.6);
+  for (const y of [518, 542, 566]) s += line(768, y, 832, y, c.P('#3A4048', 0.2), 3.4);
+  for (const y of [518, 542, 566]) for (const x of [774, 788, 812, 826]) s += circ(x, y, 1.5, c.P('#A9AEB5', 0.5));
+  s += circ(800, 528, 7, 'none', 1, ` stroke="${c.P('#D2AE62', 0.5)}" stroke-width="2.6"`) + line(800, 535, 800, 558, c.P('#D2AE62', 0.5), 2.8) + line(800, 550, 807, 550, c.P('#D2AE62', 0.5), 2.6) + line(800, 556, 806, 556, c.P('#D2AE62', 0.5), 2.6);
   // one small barred window
-  s += rect(788, 446, 24, 18, c.P('#2E3440', -0.2), 1, edge(c, 0.6));
-  for (const x of [794, 800, 806]) s += line(x, 446, x, 464, c.P('#6A707A', 0.3), 1.6);
+  s += rect(787, 440, 26, 20, c.P('#2E3440', -0.2), 1, edge(c, 0.6));
+  for (const x of [793, 800, 807]) s += line(x, 440, x, 460, c.P('#6A707A', 0.3), 1.7);
   c.land.push(g(s, `filter="${c.f('arch')}"`));
   // lantern by the door
-  c.land.push(line(842, 500, 852, 500, c.P('#3A3F48', 0), 1.6) + rect(847, 502, 9, 13, c.P('#3E4A5E', 0)) + rect(848.5, 504, 6, 9, c.P('#E8DEC2', 0.2), 0.8));
-  addLight(c, 851.5, 508.5, 3, { halo: 50, col: '#FFD27E' });
-  castShadow(c, 640, 960, 574, 130, { op: 0.28 });
+  c.land.push(line(846, 500, 858, 500, c.P('#3A3F48', 0), 1.6) + rect(852, 502, 10, 14, c.P('#3E4A5E', 0)) + rect(853.5, 504, 7, 10, c.P('#E8DEC2', 0.2), 0.8));
+  addLight(c, 857, 509, 3.2, { halo: 56, col: '#FFD27E' });
+  castShadow(c, X0 - 14, X1 + 14, 578, 150, { op: 0.3 });
 }
 
 function ruins(c) {
   const { T, S } = c;
   const st = '#B6AE9E';
+  const kl = T.litSide < 0 ? 0.5 : -0.25;
+  const kr = T.litSide < 0 ? -0.25 : 0.5;
   let s = '';
-  // broken arch
-  s += rect(232, 520, 26, 112, c.P(st, T.litSide < 0 ? 0.5 : -0.2), 1, edge(c, 0.8));
-  s += rect(316, 556, 26, 76, c.P(st, T.litSide < 0 ? 0.4 : -0.3), 1, edge(c, 0.8));
-  s += pth('M232,522Q240,470 290,462L296,476Q256,482 258,524Z', c.P(st, 0.4), 1, edge(c, 0.8));
-  // broken wall fragment
-  s += pg([[360, 636], [360, 588], [376, 580], [388, 592], [402, 574], [420, 590], [436, 584], [452, 604], [470, 600], [470, 640]], c.P(st, T.frontK - 0.1), 1, edge(c, 0.8));
-  for (let k = 0; k < 4; k++) s += line(360, 600 + k * 10, 470, 602 + k * 10, c.P(st, -0.5), 0.7, 0.35);
-  // column stumps
-  for (const [x, h] of [[180, 34], [500, 22]]) s += ell(x, 646 - h, 13, 4, c.P(st, 0.6)) + rect(x - 13, 646 - h, 26, h, c.P(st, 0), 1, edge(c, 0.6));
-  c.land.push(g(s, `filter="${c.f('arch')}"`));
-  // ivy and the flowers that grow over dropped projects
+  // a broken arch
+  s += rect(196, 500, 34, 160, c.P(st, kl), 1, edge(c, 0.8));
+  s += rect(230, 500, 8, 160, c.P(st, kr), 0.9);
+  s += rect(312, 560, 34, 100, c.P(st, kl), 1, edge(c, 0.8));
+  s += rect(346, 560, 8, 100, c.P(st, kr), 0.9);
+  s += pth('M196,504Q204,436 270,424L276,442Q222,452 230,506Z', c.P(st, 0.4), 1, edge(c, 0.8));
+  s += pg([[188, 496], [240, 496], [240, 506], [188, 506]], c.P(st, 0.6), 1, edge(c, 0.6));
+  for (let k = 0; k < 6; k++) s += line(196, 520 + k * 24, 230, 520 + k * 24, c.P(st, -0.5), 0.7, 0.4);
+  // a broken wall fragment
+  s += pg([[380, 668], [380, 600], [398, 590], [412, 604], [430, 582], [452, 600], [470, 592], [490, 616], [512, 608], [512, 670]], c.P(st, T.frontK - 0.1), 1, edge(c, 0.8));
+  for (let k = 0; k < 6; k++) s += line(380, 612 + k * 10, 512, 614 + k * 10, c.P(st, -0.5), 0.7, 0.35);
+  // column stumps and fallen blocks
+  for (const [x, y, h] of [[140, 676, 46], [540, 680, 30], [270, 690, 20]]) s += ell(x, y - h, 16, 5, c.P(st, 0.6)) + rect(x - 16, y - h, 32, h, c.P(st, 0), 1, edge(c, 0.6));
+  s += pg([[420, 690], [470, 684], [478, 702], [424, 708]], c.P(st, 0.3), 1, edge(c, 0.6));
+  c.land.push(g(ell(330, 690, 240, 26, T.shade, 0.25) + s, `filter="${c.f('arch')}"`));
+  // ivy, and the flowers that grow over dropped projects
   const r = c.sub('ivy');
   let iv = '';
-  for (let i = 0; i < 80; i++) {
-    const [x, y] = r.pick([[245, r.R(480, 630)], [329, r.R(560, 630)], [r.R(360, 470), r.R(590, 640)], [r.R(160, 520), r.R(626, 650)]]);
-    iv += ell(x + r.R(-12, 12), y, r.R(3, 7), r.R(2, 4), c.P(r.pick([S.snow ? '#3E5E58' : '#5E9A4E', '#4E7A45', '#7FA05A']), r.R(-0.4, 0.5)), 0.85);
+  for (let i = 0; i < 130; i++) {
+    const [x, y] = r.pick([[213, r.R(440, 660)], [329, r.R(560, 660)], [r.R(380, 512), r.R(600, 670)], [r.R(120, 560), r.R(660, 700)], [r.R(200, 280), r.R(424, 470)]]);
+    iv += ell(x + r.R(-16, 16), y, r.R(3, 8), r.R(2, 4.5), c.P(r.pick([S.snow ? '#3E5E58' : '#5E9A4E', '#4E7A45', '#7FA05A', '#3F6A44']), r.R(-0.45, 0.5)), 0.88);
   }
-  if (S.flowers) for (let i = 0; i < 40; i++) iv += circ(r.R(170, 510), r.R(600, 650), r.R(2, 3.4), c.P(r.pick(S.flowers), 0.4), 0.95);
+  if (S.flowers) for (let i = 0; i < 70; i++) iv += circ(r.R(120, 560), r.R(620, 704), r.R(2.2, 4), c.P(r.pick(S.flowers), 0.4), 0.95);
   c.land.push(g(iv, `filter="${c.f('leaf')}"`));
 }
 
@@ -2977,7 +3038,7 @@ export function paintPlace(placeId, opts = {}) {
     if (part === 'sky') inner = b.sky;
     else if (part === 'clouds') inner = b.clouds;
     else if (part === 'land') inner = b.land + b.paper;
-    else if (part === 'lights') inner = `<g style="mix-blend-mode:screen">${b.lights}</g>`;
+    else if (part === 'lights') inner = b.lights;
     else if (part === 'front') inner = b.front;
     else if (part === 'back') inner = b.sky + b.clouds + b.land + b.paper;
     else inner = b.sky + b.clouds + b.land + `<g style="mix-blend-mode:screen">${b.lights}</g>` + b.front + b.paper;
