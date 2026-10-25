@@ -38,7 +38,7 @@ function avatar(core, state, size = 40) {
 }
 
 function stateLabel(state) {
-  return STATES[state] ? STATES[state].label : clean(state) || '';
+  return STATES[state] ? STATES[state].label.replace(/^Traveling$/, 'Travelling') : clean(state) || '';
 }
 
 export function botChip(b, { onTap } = {}) {

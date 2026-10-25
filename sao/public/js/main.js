@@ -95,6 +95,21 @@ async function boot() {
   const [vista, characters, map, data] = await Promise.all([load('vista'), load('characters'), load('map'), load('data')]);
   Object.assign(M, { vista, characters, map, data });
   if (characters && typeof characters.spriteSVG === 'function') hooks.sprite = characters.spriteSVG;
+  // the brief banner reuses the painted town at morning when the vista holds it
+  hooks.vistaLayers = () => {
+    if (!vista || typeof vista.currentPlace !== 'function' || vista.currentPlace() !== 'town') return null;
+    if (clock.period(clock.now()) !== 'morning') return null;
+    const stage = document.querySelector('#vista .sv-stage');
+    if (!stage || !stage.dataset.res) return null;
+    const layers = ['canvas.sv-sky', 'canvas.sv-land'].map((q) => stage.querySelector(q));
+    if (layers.some((c) => !c || !c.width || !c.height)) return null;
+    try {
+      const land = layers[1];
+      const px = land.getContext('2d').getImageData(Math.round(land.width * 0.6), Math.round(land.height * 0.55), 1, 1).data;
+      if (!px[3]) return null; // not painted yet
+    } catch (e) { /* unreadable pixels: trust the painted flag */ }
+    return layers;
+  };
   if (!vista || !characters || !map) say(COPY.error.module, { force: true });
 
   updateQuiet(false);

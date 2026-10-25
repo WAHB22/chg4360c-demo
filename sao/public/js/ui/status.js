@@ -77,7 +77,7 @@ export function renderStatus() {
   if (!root) return;
   const s = st();
   const owner = s.owner || {};
-  nameEl.textContent = clean(owner.name) || (S.loading ? '' : 'Traveler');
+  nameEl.textContent = clean(owner.name) || (S.loading ? '' : 'Traveller');
   phaseEl.textContent = S.loading ? COPY.loading.status : clean(owner.phase) || '';
   phaseEl.hidden = !phaseEl.textContent;
   srcEl.hidden = S.loading || S.source !== 'demo';
@@ -109,7 +109,7 @@ export function renderStatus() {
   const act = activeBots();
   for (const b of act) {
     const core = BOT[b.core];
-    const label = `${clean(b.name) || core.name}, ${STATES[b.state] ? STATES[b.state].label.toLowerCase() : b.state}${b.place ? ` at ${placeName(b.place)}` : ''}`;
+    const label = `${clean(b.name) || core.name}, ${STATES[b.state] ? STATES[b.state].label.toLowerCase().replace(/^traveling$/, 'travelling') : b.state}${b.place ? ` at ${placeName(b.place)}` : ''}`;
     const dot = h(
       'button',
       { class: `bot-dot is-${b.state}`, type: 'button', role: 'listitem', 'aria-label': label, title: label, style: { '--bot': core.color } },

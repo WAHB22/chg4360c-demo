@@ -48,7 +48,9 @@ export function placeView(id, act) {
         { class: 'resting' },
         h('span', { class: 'resting-lead', text: 'Resting here: ' }),
         resting.map((b, i) => {
-          const why = b.state === 'sleeping' ? 'asleep' : `done${b.place && b.place !== 'town' ? ` at ${/^(The |[A-Z]+'s )/.test(placeName(b.place)) ? placeName(b.place).replace(/^The /, 'the ') : `the ${placeName(b.place)}`}` : ''}`;
+          // the crowd naps a done bot only in quiet hours; the words follow it
+          const where = b.place && b.place !== 'town' ? ` at ${/^(The |[A-Z]+'s )/.test(placeName(b.place)) ? placeName(b.place).replace(/^The /, 'the ') : `the ${placeName(b.place)}`}` : '';
+          const why = b.state === 'sleeping' || S.quiet ? 'asleep' : b.rest ? clean(b.rest) : `done${where}`;
           return h('span', { text: `${clean(b.name) || b.core} (${why})${i < resting.length - 1 ? ', ' : ''}` });
         }),
       )

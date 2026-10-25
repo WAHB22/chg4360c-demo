@@ -115,6 +115,39 @@ export function prewarmBrief() {
   wellImage().catch(() => {});
 }
 
+// hooks.vistaLayers (set by main.js) hands over the painted sky and land
+// canvases when the vista shows the town at morning; they cover the whole
+// 1600 by 900 scene, so the crop is the same view box as the rendered image.
+function wellFromVista() {
+  try {
+    const layers = typeof hooks.vistaLayers === 'function' ? hooks.vistaLayers() : null;
+    if (!layers || !layers.length) return null;
+    const [vx, vy, vw, vh] = WELL_VIEW.split(' ').map(Number);
+    const c = document.createElement('canvas');
+    c.width = 1240;
+    c.height = 344;
+    c.className = 'well-art';
+    const g = c.getContext('2d');
+    if (!g) return null;
+    // the vista's layers carry alpha (its sky wash lives partly in CSS): lay
+    // a morning ground under them so no paper line shows through
+    const ground = g.createLinearGradient(0, 0, 0, c.height);
+    ground.addColorStop(0, '#C6CFD6');
+    ground.addColorStop(0.55, '#E2D6BE');
+    ground.addColorStop(1, '#A9AE8E');
+    g.fillStyle = ground;
+    g.fillRect(0, 0, c.width, c.height);
+    for (const L of layers) {
+      if (!L || !L.width || !L.height) continue;
+      const k = L.width / 1600;
+      g.drawImage(L, vx * k, vy * k, vw * k, vh * k, 0, 0, c.width, c.height);
+    }
+    return c;
+  } catch (e) {
+    return null;
+  }
+}
+
 function wellScene() {
   let herald = '';
   try {
@@ -122,8 +155,12 @@ function wellScene() {
   } catch (e) {
     herald = '';
   }
-  const img = h('img', { class: 'well-art', alt: '', decoding: 'async' });
-  const box = h('div', { class: 'well is-waiting', 'aria-hidden': 'true' }, img, h('i', { class: 'well-veil' }), herald ? h('div', { class: 'well-herald', html: herald }) : null);
+  // the vista already painted the town at morning: crop its layers at once
+  // (the vista may hold it at its quick resolution: the full image still
+  // loads and settles over it)
+  const snap = wellFromVista();
+  const img = h('img', { class: snap ? 'well-art well-hi' : 'well-art', alt: '', decoding: 'async' });
+  const box = h('div', { class: snap ? 'well has-snap is-waiting' : 'well is-waiting', 'aria-hidden': 'true' }, snap, img, h('i', { class: 'well-veil' }), herald ? h('div', { class: 'well-herald', html: herald }) : null);
   wellImage()
     .then((url) => {
       img.addEventListener('load', () => box.classList.remove('is-waiting'), { once: true });

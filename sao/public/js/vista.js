@@ -637,7 +637,7 @@ function breathe(ms = 0) {
 // Falling leaves come only from the trees each place really has: crown
 // centres and sizes in painting pixels, read from the scene layout.
 const CROWNS = {
-  campus: [[432, 390, 150], [1450, 543, 170], [120, 495, 90]],
+  campus: [[128, 494, 130], [1450, 543, 170], [300, 484, 60]],
   town: [[872, 443, 80], [230, 542, 100], [1380, 508, 105]],
   bobino: [[286, 466, 125], [664, 290, 110], [1012, 255, 120], [1318, 325, 100]],
   home: [[1150, 368, 150]],

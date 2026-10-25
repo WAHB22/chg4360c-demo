@@ -234,7 +234,21 @@ function forHour(obj, per, at) {
   return out;
 }
 
-export function liveDemo(state, at = clockNow()) {
+// The same clock the tag and the quiet pill read: ?at= moves the whole clock,
+// ?time= alone sets a typical hour for that period, so the report header, the
+// brief and the status pill agree in every review shot.
+const PERIOD_HOUR = { morning: [7, 40], day: [13, 20], sunset: [18, 40], night: [23, 10] };
+export function demoNow() {
+  const n = clockNow();
+  if (param('at')) return n;
+  const want = PERIOD_HOUR[param('time')];
+  if (!want) return n;
+  const [hh, mm] = fmtTime(n).split(':').map(Number);
+  if (!Number.isFinite(hh) || !Number.isFinite(mm)) return n;
+  return new Date(n.getTime() + ((want[0] * 60 + want[1]) - (hh * 60 + mm)) * 60000);
+}
+
+export function liveDemo(state, at = demoNow()) {
   if (!state || typeof state !== 'object') return state;
   try {
     const per = clockPeriod(at);
