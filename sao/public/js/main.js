@@ -82,7 +82,7 @@ async function boot() {
   $('#map-close').addEventListener('click', () => toggleMap(false));
   renderCaption(null, { loading: true });
   {
-    const n0 = clock.now();
+    const n0 = nowish();
     renderTag({ day: clock.weekday(n0), time: clock.fmtTime(n0), weather: undefined, quiet: false });
   }
 
@@ -167,6 +167,8 @@ async function loadWorld() {
   S.state = res.state && typeof res.state === 'object' ? res.state : {};
   S.source = res.source || 'none';
   S.error = res.error || null;
+  // one small "Demo world" badge says it once; the lines themselves read clean
+  if (S.source === 'demo') S.state = undemo(S.state);
   const errEl = $('#world-error');
   if (S.source === 'none') {
     errEl.hidden = false;
@@ -180,8 +182,24 @@ async function loadWorld() {
   renderAll();
 }
 
+function undemo(v, depth = 0) {
+  if (depth > 12) return v;
+  if (typeof v === 'string') {
+    const t = v.replace(/(^|\n)\s*Demo content only\.\s*/g, '$1').replace(/(^|\n)(\s*)Demo:\s*/g, '$1$2').replace(/^\s+/, '');
+    return t && t !== v ? t.charAt(0).toUpperCase() + t.slice(1) : t || v;
+  }
+  if (Array.isArray(v)) return v.map((x) => undemo(x, depth + 1));
+  if (v && typeof v === 'object') {
+    const o = {};
+    for (const k of Object.keys(v)) o[k] = undemo(v[k], depth + 1);
+    return o;
+  }
+  return v;
+}
+
 function applyState(next) {
   if (!next || typeof next !== 'object') return;
+  if (S.source === 'demo') next = undemo(next);
   const prev = st();
   const prevQ = new Set((Array.isArray(prev.questions) ? prev.questions : []).map((q) => q && q.id));
   const prevDrafts = allDrafts().length;
@@ -231,13 +249,27 @@ function renderScene() {
 
 /* ----------------------------------------------------------- clock, quiet */
 
+// The clock tag and the quiet pill follow the same overrides as the painting:
+// ?at= moves the whole clock; ?time= alone sets a typical hour for that period,
+// so a review shot of the night scene also reads night on the tag.
+const PERIOD_HOUR = { morning: [7, 40], day: [13, 20], sunset: [18, 40], night: [23, 10] };
+function nowish() {
+  const n = clock.now();
+  if (param('at')) return n;
+  const want = PERIOD_HOUR[param('time')];
+  if (!want) return n;
+  const [hh, mm] = clock.fmtTime(n).split(':').map(Number);
+  let delta = (want[0] * 60 + want[1]) - (hh * 60 + mm);
+  return new Date(n.getTime() + delta * 60000);
+}
+
 function ambience() {
   const n = clock.now();
   return { time: clock.period(n), season: clock.season(n), weather: weatherNow ? weatherNow.kind : undefined, quiet: S.quiet };
 }
 
 function updateQuiet(announce = true) {
-  const n = clock.now();
+  const n = nowish();
   const was = S.quiet;
   S.quiet = safe(() => clock.isQuiet(n, st().quiet || undefined), 'isQuiet') || false;
   document.documentElement.classList.toggle('is-quiet', S.quiet);
@@ -247,7 +279,7 @@ function updateQuiet(announce = true) {
 }
 
 function clockTick() {
-  const n = clock.now();
+  const n = nowish();
   const changed = updateQuiet(true);
   renderTag({ day: clock.weekday(n), time: clock.fmtTime(n), weather: weatherNow, quiet: S.quiet, until: safe(() => clock.quietUntil(n, st().quiet || undefined)) });
   const p = clock.period(n);
@@ -265,7 +297,7 @@ async function refreshWeather() {
   } catch (e) {
     weatherNow = null;
   }
-  const n = clock.now();
+  const n = nowish();
   renderTag({ day: clock.weekday(n), time: clock.fmtTime(n), weather: weatherNow, quiet: S.quiet, until: safe(() => clock.quietUntil(n, st().quiet || undefined)) });
   if (M.vista) safe(() => M.vista.setAmbience(ambience()), 'setAmbience');
 }

@@ -84,8 +84,8 @@ canvas.sv-cloudstrip{display:block}
 .sv-grade{transition:background-color 2.4s ease,opacity 2.4s ease}
 .sv-haze{transition:opacity 2.4s ease,background 2.4s ease}
 .sv-grain{opacity:.05;mix-blend-mode:overlay;background-size:220px 220px}
-.sv-tag{position:absolute;top:12px;left:50%;transform:translateX(-50%);padding:4px 12px;border-radius:999px;background:rgba(27,34,48,.85);border:1px solid rgba(232,200,142,.6);color:#F3EFE6;font:13px/1.5 "Times New Roman",Georgia,serif;letter-spacing:.01em;pointer-events:none;opacity:0;transition:opacity .4s ease;white-space:nowrap}
-.sv-vista[data-tag="on"] .sv-tag{opacity:.88}
+.sv-tag{position:absolute;left:16px;bottom:132px;padding:3px 11px;border-radius:999px;background:rgba(27,34,48,.85);border:1px solid rgba(232,200,142,.6);color:#F3EFE6;font:italic 12px/1.5 "Times New Roman",Georgia,serif;pointer-events:none;opacity:0;transition:opacity 1.1s cubic-bezier(.4,0,.2,1);white-space:nowrap}
+.sv-vista[data-tag="on"] .sv-tag{opacity:.6;transition-duration:.5s}
 .sv-wx i{position:absolute;top:0;display:block;will-change:transform}
 .sv-wx .sv-rain{width:1.5px;height:var(--len,18px);background:linear-gradient(rgba(220,230,245,0),rgba(228,236,248,.7));animation:svRain var(--dur,.7s) linear infinite;animation-delay:var(--delay,0s)}
 .sv-wx .sv-fall{animation:svFall var(--dur,12s) linear infinite;animation-delay:var(--delay,0s)}
@@ -212,18 +212,47 @@ function animate(node, frames, ms, easing = 'cubic-bezier(.22,.61,.36,1)', delay
 
 /* ----------------------------------------------------------------- geometry */
 
-function fit() {
+function fit(ease) {
   if (!root || !canvas) return;
   const w = root.clientWidth || 1;
   const h = root.clientHeight || 1;
-  const scale = Math.max((w + BLEED * 2) / VW, (h + BLEED * 2) / VH);
+  const cover = Math.max((w + BLEED * 2) / VW, (h + BLEED * 2) / VH);
+  const pl = PLACE[hereId()];
+  const s = pl && pl.subject ? pl.subject : { x: 50, y: 50, w: 30, h: 30 };
+  const de = typeof document !== 'undefined' ? document.documentElement : null;
+  const phone = w < 720;
+  // a phone bottom sheet covers the lower 60 percent: the subject moves into
+  // the visible top 40 percent, stepping back a little if it would not fit
+  const sheet = phone && de && de.classList.contains('has-sheet');
+  let scale = cover;
+  let room = h;
+  if (sheet) {
+    room = h * 0.4;
+    const need = (s.h / 100) * VH * 1.18;
+    scale = Math.max((w + BLEED * 2) / VW, Math.min(cover, room / need));
+  }
   const cw = VW * scale;
   const ch = VH * scale;
-  const left = (w - cw) / 2;
-  const top = (h - ch) / 2;
+  const sx = (s.x / 100) * cw;
+  const sTop = ((s.y - s.h / 2) / 100) * ch;
+  const sH = (s.h / 100) * ch;
+  // across: the subject sits a touch off centre (never dead centre on wide
+  // bands), and the canvas never shows an edge
+  const bias = phone ? 0.5 : 0.5 + (s.x >= 50 ? 0.03 : -0.03);
+  let left = w * bias - sx;
+  left = Math.min(-BLEED, Math.max(w + BLEED - cw, left));
+  if (cw <= w + BLEED * 2) left = (w - cw) / 2;
+  // down: keep the whole subject (tower tops, the gold bot on a roof) with a
+  // margin, then spend the rest of the room on the path below it
+  const margin = Math.min(room * 0.1, 48);
+  const slack = Math.max(0, room - sH - margin * 2);
+  let top = margin + slack * (sheet ? 0.5 : 0.3) - sTop;
+  if (sheet) top = Math.min(-BLEED, Math.max(room - ch, top));
+  else top = Math.min(-BLEED, Math.max(h + BLEED - ch, top));
   geom = { w, h, cw, ch, left, top, scale };
   canvas.style.width = `${VW}px`;
   canvas.style.height = `${VH}px`;
+  canvas.style.transition = ease && !reduced() ? 'transform 640ms cubic-bezier(.22,.7,.25,1)' : 'none';
   canvas.style.transform = `translate3d(${left}px,${top}px,0) scale(${scale})`;
   root.style.setProperty('--svh', `${Math.round(h)}px`);
   placeHit();
@@ -600,8 +629,25 @@ function buildStage(id) {
   return rec;
 }
 
+// "Painting coming" says itself once per session: four seconds, then it fades
+let tagSeen = false;
+let tagTimer = 0;
 function setTag(on) {
-  if (root) root.dataset.tag = on ? 'on' : 'off';
+  if (!root) return;
+  if (!on) {
+    clearTimeout(tagTimer);
+    root.dataset.tag = 'off';
+    return;
+  }
+  if (!tagSeen) {
+    try { tagSeen = sessionStorage.getItem('sao.paintingTag') === '1'; } catch (e) { /* private window */ }
+  }
+  if (tagSeen) return;
+  tagSeen = true;
+  try { sessionStorage.setItem('sao.paintingTag', '1'); } catch (e) { /* private window */ }
+  root.dataset.tag = 'on';
+  clearTimeout(tagTimer);
+  tagTimer = setTimeout(() => { if (root) root.dataset.tag = 'off'; }, 4000);
 }
 
 function mountRec(rec) {
@@ -767,7 +813,7 @@ export function mountVista(container, { onPlaceTap } = {}) {
   wxEl.setAttribute('aria-hidden', 'true');
   tagEl = el('div', 'sv-tag', root);
   tagEl.textContent = 'Painting coming';
-  setTag(false);
+  root.dataset.tag = 'off';
 
   hitEl.addEventListener('click', () => {
     const id = hereId();
@@ -795,7 +841,13 @@ export function mountVista(container, { onPlaceTap } = {}) {
   if (mq && typeof mq.addEventListener === 'function') mq.addEventListener('change', motionChanged);
   if (typeof MutationObserver === 'function') {
     let was = reduced();
+    let sheetWas = document.documentElement.classList.contains('has-sheet');
     new MutationObserver(() => {
+      const sheetNow = document.documentElement.classList.contains('has-sheet');
+      if (sheetNow !== sheetWas) {
+        sheetWas = sheetNow;
+        fit(true);
+      }
       const now = reduced();
       if (now !== was) {
         was = now;
@@ -834,7 +886,7 @@ export async function showPlace(placeId, { instant } = {}) {
     mountRec(rec);
     current = rec;
     heading = null;
-    placeHit();
+    fit();
     setTag(!rec.image);
     if (!instant && !old) {
       rec.stage.style.opacity = '0';
@@ -861,7 +913,7 @@ export async function showPlace(placeId, { instant } = {}) {
     }
     current = rec;
     heading = null;
-    placeHit();
+    fit();
     setTag(!rec.image);
     await Promise.all([
       animate(rec.stage, [{ opacity: '0.001' }, { opacity: '1' }], 200, 'linear'),
@@ -890,7 +942,7 @@ export async function showPlace(placeId, { instant } = {}) {
   }
   current = rec;
   heading = null;
-  placeHit();
+  fit(true);
   setTag(!rec.image);
   const keepOn = [{ opacity: '1', offset: 0 }, { opacity: '1', offset: 0.7 }, { opacity: '0', offset: 1 }];
   await Promise.all([
