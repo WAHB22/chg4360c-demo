@@ -149,7 +149,7 @@ export const PLACES = [
     id: 'market',
     name: 'Market',
     short: 'Market',
-    ref: 'Costco',
+    ref: 'Bulk groceries for the week',
     region: 'The Eastern Village',
     side: 'east',
     specialty: 'supplies',
