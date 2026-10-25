@@ -33,7 +33,7 @@ function rsec(title, nodes, lead) {
 
 export function reportTitle() {
   const r = st().report || {};
-  return { title: 'ICON REPORT', sub: r.at ? `${clean(r.at)}, written by ICON` : 'Written by ICON' };
+  return { title: 'ICON Report', sub: r.at ? `${clean(r.at)}, written by ICON` : 'Written by ICON' };
 }
 
 export function reportView(act) {

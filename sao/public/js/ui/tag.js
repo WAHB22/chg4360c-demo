@@ -8,6 +8,8 @@ import { COPY } from './copy.js';
 
 let root;
 let timeEl;
+let dayEl;
+let clockEl;
 let wxEl;
 let sepEl;
 let moonEl;
@@ -16,7 +18,9 @@ let moonText;
 export function mountTag(parent) {
   root = h('div', { class: 'tags' });
   const tag = h('div', { class: 'tag glass', role: 'group', 'aria-label': 'Time and weather' });
-  timeEl = h('span', { class: 'tag-time' });
+  dayEl = h('span', { class: 'tag-day' });
+  clockEl = h('span');
+  timeEl = h('span', { class: 'tag-time' }, dayEl, clockEl);
   wxEl = h('span', { class: 'tag-wx' });
   sepEl = h('span', { class: 'tag-sep', 'aria-hidden': 'true', text: ', ' });
   tag.append(timeEl, sepEl, wxEl);
@@ -28,7 +32,8 @@ export function mountTag(parent) {
 
 export function renderTag({ day, time, weather, quiet, until }) {
   if (!root) return;
-  timeEl.textContent = `${day} ${time}`;
+  dayEl.textContent = day ? `${day} ` : '';
+  clockEl.textContent = time;
   // undefined: the forecast is still on its way, so show the time alone
   sepEl.hidden = wxEl.hidden = weather === undefined;
   if (weather && weather.label) {

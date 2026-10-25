@@ -88,7 +88,8 @@ export function showSheet(handle) {
   if (phone) from = 'translateY(24px)';
   else if (handle.kind === 'modal') from = 'translateY(12px) scale(.985)';
   else from = 'translateX(24px)';
-  play(el, [{ opacity: 0, transform: from }, { opacity: 1, transform: 'none' }], { duration: 260, easing: 'cubic-bezier(.16,1,.3,1)' });
+  // panels arrive with weight: they travel in, pass their mark by a hair and settle back
+  play(el, [{ opacity: 0, transform: from }, { opacity: 1, transform: 'translateY(-3px) scale(1.006)', offset: 0.68 }, { opacity: 1, transform: 'translateY(0.5px) scale(0.999)', offset: 0.86 }, { opacity: 1, transform: 'none' }], { duration: 340, easing: 'cubic-bezier(.22,.9,.32,1)' });
   setTimeout(() => {
     try { handle.titleEl.focus({ preventScroll: true }); } catch (e) { /* ignore */ }
   }, 30);

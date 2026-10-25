@@ -193,7 +193,7 @@ export function draftRow(d, { onOpen, onCopy } = {}) {
   return h(
     'li',
     { class: 'draft' },
-    h('span', { class: 'draft-tag', text: 'DRAFT' }),
+    h('span', { class: 'draft-tag', text: 'Draft' }),
     h('div', { class: 'draft-main' }, h('p', { class: 'draft-title', text: clean(d.title) || 'Untitled draft' }), meta ? h('p', { class: 'draft-meta', text: meta }) : null),
     h(
       'div',
@@ -208,7 +208,7 @@ export function orderBox(place, { onSend } = {}) {
   const id = `order-${place}`;
   const ta = h('textarea', { class: 'field field-area', id, rows: '3', maxlength: '1200', placeholder: 'Tell ICON what to do next. It waits for the next loop.' });
   const btn = h('button', { class: 'btn btn-primary', type: 'button' }, h('span', { html: icon('send', { size: 16 }) }), h('span', { text: 'Save for next loop' }));
-  const note = h('p', { class: 'order-note', text: 'Orders are DRAFT work. Nothing is sent outside SAO without your yes.' });
+  const note = h('p', { class: 'order-note', text: 'Orders are draft work. Nothing is sent outside SAO without your yes.' });
   btn.addEventListener('click', async () => {
     const t = ta.value.trim();
     if (!t) {

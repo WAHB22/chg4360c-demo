@@ -336,7 +336,19 @@ function paint(T, col, k = 0, d = 0) {
   else if (k < 0) x = mix(mul(x, 1 + k * 0.22), T.shade, -k * T.shadeK);
   if (T.expo !== 1) x = mul(x, T.expo);
   if (d > 0) x = mix(x, T.haze, d);
-  return x;
+  return deepen(x);
+}
+
+// No pure black: the darkest darks fall to a deep blue green or a warm brown.
+function lum(h) {
+  const [r, g2, b] = rgb(h);
+  return (0.2126 * r + 0.7152 * g2 + 0.0722 * b) / 255;
+}
+function deepen(x) {
+  const l = lum(x);
+  if (l >= 0.13) return x;
+  const [r, , b] = rgb(x);
+  return mix(x, r > b ? '#3E3230' : '#25373A', (0.13 - l) / 0.13 * 0.7);
 }
 
 function filters(c) {
@@ -1270,7 +1282,7 @@ function faceK(c, s) {
 }
 
 function edge(c, w = 1) {
-  return ` stroke="${c.edgeCol || c.lineCol}" stroke-width="${w}" stroke-opacity="${c.edgeO != null ? c.edgeO : 0.55}" stroke-linejoin="round"`;
+  return ` stroke="${c.edgeCol || c.lineCol}" stroke-width="${w}" stroke-opacity="${c.edgeO != null ? c.edgeO : 0.34}" stroke-linejoin="round"`;
 }
 
 // A light: emissive core plus halo, in the lights layer (pulses, dims at quiet hours)
@@ -1289,7 +1301,15 @@ function addLight(c, x, y, r, o = {}) {
 // A window on a face. Lit at sunset and night (in the lights layer).
 function windowOn(c, F, a0, b0, a1, b1, o = {}) {
   const frame = o.frame || c.P('#EFE6D4', 0.3);
-  const glassDay = o.glass || c.P('#4D5D74', -0.15);
+  const wr = c.sub('win' + f1(F(a0, b0)[0]) + ':' + f1(F(a0, b0)[1]));
+  const deep = wr.pick(['#3A4A4E', '#4B3F45', '#44504E']);
+  let glassDay = o.glass || c.P(deep, 0.1);
+  if (lum(glassDay) < 0.27) glassDay = mix(glassDay, c.P(deep, 0.2), 0.75);
+  if (o.vary !== false) {
+    const da = (a1 - a0) * wr.R(-0.07, 0.07);
+    const db = (b1 - b0) * wr.R(-0.08, 0.06);
+    a0 -= da / 2; a1 += da / 2; b1 += db;
+  }
   const out = o.to || c.land;
   let s = pg(quad(F, a0 - (o.fw || 0.012), b0 - (o.fh || 0.02), a1 + (o.fw || 0.012), b1 + (o.fh || 0.02)), frame);
   const inner = quad(F, a0, b0, a1, b1);
@@ -1353,7 +1373,7 @@ function block(c, o) {
   s += pg(quad(F, 0, 0, 1, 1), c.lg([[0, mix(c.T.light, '#FFFFFF', 0.3), 0.22], [0.55, c.T.light, 0], [1, c.T.shade, 0.22]], 0, 0, 0, 1));
   s += pg(quad(F, 0, 0, 1, 0.12), c.P(wall, -0.5, dz), 0.25);
   const rw = c.sub('wall' + Math.round(x) + ':' + Math.round(y));
-  for (let k = 0; k < Math.round(4 + w / 14); k++) s += ell(...F(rw.R(0.04, 0.96), rw.R(0.06, 0.94)), rw.R(3, 8), rw.R(1.2, 3), c.P(rw.pick([wall, '#D9C9AE', '#F4EAD8', '#CBBBA0']), rw.R(-0.4, 0.6), dz), 0.32);
+  s += massLight(c, F, S, side, wall, dz, rw, w, h);
   s += pg([[x - 2, y + 1], [x + w + 2, y + 1], [x + w + 2, y + 4], [x - 2, y + 4]], mix(c.T.shade, '#1A2238', 0.4), 0.38);
   const roofCol = o.roof || '#C77B4A';
   const top = y - h;
@@ -1373,6 +1393,7 @@ function block(c, o) {
     s += pg([A, B, Cc, D], c.P(roofCol, 0.35, dz), 1, edge(c, 1));
     s += roofTiles(c, A, B, Cc, D, roofCol, dz, o.tiles);
     if (c.S.snow) s += pg([D, Cc, lerpP(Cc, B, 0.45), lerpP(D, A, 0.45)], c.P('#F4F6F9', 0.5, dz), 0.95);
+    if (o.lost !== false && dz < 0.3) s += roofLost(c, [A, B, Cc, D], [D, Cc]);
     out.push(s);
     return { F, S, top, ridge: [D, Cc], dv, apex };
   }
@@ -1385,6 +1406,7 @@ function block(c, o) {
     const a2 = [apex[0] + dv[0], apex[1] + dv[1] - 2];
     s += pg([[apex[0], apex[1] - 3], e1, e2, a2], c.P(roofCol, side === c.T.litSide ? 0.6 : 0.05, dz), 1, edge(c, 1));
     s += roofTiles(c, e1, e2, a2, apex, roofCol, dz, o.tiles);
+    if (o.lost !== false && dz < 0.3) s += roofLost(c, [[apex[0], apex[1] - 3], e1, e2, a2], [[apex[0], apex[1] - 3], a2]);
     if (c.S.snow) s += pg([[apex[0], apex[1] - 4], lerpP(apex, e1, 0.5), lerpP(a2, e2, 0.5), a2], c.P('#F4F6F9', 0.5, dz), 0.95);
     // barge board along the gable
     s += spath(`M${f1(x - ov)},${f1(top + 4)}L${f1(apex[0])},${f1(apex[1] - 3)}L${f1(x + w + ov)},${f1(top + 4)}`, c.P(roofCol, -0.4, dz), 3, 0.9);
@@ -1400,6 +1422,37 @@ function block(c, o) {
   }
   out.push(s);
   return { F, S, top, dv };
+}
+
+// Shared hero building light: a clear sun side, a cool transparent shadow
+// side with a wet bloom along the terminator, plaster dabs without outlines.
+function massLight(c, F, S, side, wall, dz, rw, w, h) {
+  const { T } = c;
+  const sh = mix('#8E93A8', T.shade, c.time === 'day' ? 0.12 : 0.3);
+  const shadowSide = side !== T.litSide;
+  const SF = shadowSide ? S : F;
+  const op = shadowSide ? rw.R(0.45, 0.55) : 0.3;
+  let q = '';
+  q += g(pg(quad(SF, -0.02, -0.02, 1.02, 1.02), sh, op), `style="mix-blend-mode:multiply"`);
+  // the terminator is the corner between the faces: pigment pools there
+  const cx = side > 0 ? 1 : 0;
+  q += g(spath(`M${f1(F(cx, 0)[0])},${f1(F(cx, 0)[1])}L${f1(F(cx, 1)[0])},${f1(F(cx, 1)[1])}`, mix(sh, '#5A5476', 0.35), Math.max(5, w * 0.06), 0.3), `filter="${c.f('soft')}"`);
+  // the sun side catches a thin warm glaze
+  const LF = shadowSide ? F : S;
+  q += pg(quad(LF, 0, 0.1, 1, 1), mix(T.light, '#FFD9A0', 0.4), c.time === 'night' ? 0.04 : 0.16);
+  const n = Math.round(6 + (w * h) / 600);
+  for (let k = 0; k < n; k++) {
+    const onSide = rw.ch(0.3);
+    const P = onSide ? S : F;
+    q += ell(...P(rw.R(0.04, 0.96), rw.R(0.06, 0.94)), rw.R(3, 9), rw.R(1.2, 3.4), c.P(rw.pick([wall, '#D9C9AE', '#F4EAD8', '#CBBBA0', '#C9B7B0', '#B9BFC4']), rw.R(-0.4, 0.6), dz), rw.R(0.35, 0.45), rw.R(-12, 12));
+  }
+  return q;
+}
+
+// The roof line against the sky loses its edge over about 30 px.
+function roofLost(c, poly, ridge) {
+  const skyC = mix(c.T.sky[3][1], c.T.light, 0.35);
+  return g(g(spath(`M${f1(ridge[0][0])},${f1(ridge[0][1])}L${f1(ridge[1][0])},${f1(ridge[1][1])}`, skyC, 30, 0.6), `filter="${c.f('b10')}"`), `clip-path="${c.clip(pg(poly, '#000'))}"`);
 }
 
 function lerpP(a, b, t) {
@@ -1602,13 +1655,51 @@ function lanterns(c, list) {
 }
 
 function cylinder(c, x, yb, wb, wt, yt, col, o = {}) {
-  const L = c.T.litSide < 0;
+  const { T } = c;
+  const L = T.litSide < 0;
   const d = o.d || 0;
-  const grad = c.lg(L
-    ? [[0, c.P(col, 0.45, d)], [0.28, c.P(col, 0.9, d)], [0.62, c.P(col, 0.05, d)], [1, c.P(col, -0.75, d)]]
-    : [[0, c.P(col, -0.75, d)], [0.38, c.P(col, 0.05, d)], [0.72, c.P(col, 0.9, d)], [1, c.P(col, 0.45, d)]], 0, 0, 1, 0);
-  const s = pg([[x - wb / 2, yb], [x + wb / 2, yb], [x + wt / 2, yt], [x - wt / 2, yt]], grad, 1, edge(c, 1));
-  return s;
+  const body = [[x - wb / 2, yb], [x + wb / 2, yb], [x + wt / 2, yt], [x - wt / 2, yt]];
+  const [cLit, cMid, cSh] = o.cols || [c.P(col, 0.75, d), c.P(col, 0.02, d), null];
+  const sh = mix(o.shadow || '#8E93A8', T.shade, c.time === 'day' ? 0.12 : 0.3);
+  // u across the body (0 on the lit side), v up
+  const at = (u, v) => {
+    const hw = lerp(wb, wt, v) / 2;
+    const xx = L ? x - hw + u * 2 * hw : x + hw - u * 2 * hw;
+    return [xx, lerp(yb, yt, v)];
+  };
+  const band = (u0, u1) => [at(u0, -0.02), at(u1, -0.02), at(u1, 1.02), at(u0, 1.02)];
+  const cp = c.clip(pg(body, '#000'));
+  const r = c.sub('cyl' + Math.round(x) + ':' + Math.round(yt));
+  let w = pg(body, cMid);
+  // lit wash, the mid wash already lies under it, then the cool shadow third
+  w += g(pg(band(-0.1, 0.36), cLit, 0.9) + pg(band(0.3, 0.56), cLit, 0.38), `filter="${c.f('wc')}"`);
+  w += g(pg(band(0.64, 1.1), c.P(col, -0.45, d), 0.8), `filter="${c.f('wc')}"`);
+  w += g(pg(band(0.66, 1.1), sh, o.shOp || 0.52), `filter="${c.f('wc')}" style="mix-blend-mode:multiply"`);
+  // wet bloom along the terminator: pigment pooled where the two washes met
+  w += g(spath(`M${f1(at(0.68, -0.02)[0])},${f1(yb)}L${f1(at(0.68, 1.02)[0])},${f1(yt)}`, mix(sh, '#5A5476', 0.35), Math.max(6, wb * 0.09), 0.34), `filter="${c.f('soft')}"`);
+  if (cSh) w += g(pg(band(0.8, 1.1), cSh, 0.4), `filter="${c.f('wc')}"`);
+  // bounce light from the ground warms the very edge of the shadow side
+  w += pg(band(0.93, 1.1), mix(T.light, '#D9A877', 0.5), 0.16);
+  // irregular stone or plaster dabs, no outlines
+  const nd = o.dabs != null ? o.dabs : Math.round(((wb + wt) / 2) * (yb - yt) / 900);
+  const dc = o.dabCols || [mix(col, '#C9C0AE', 0.6), mix(col, '#9E9585', 0.6), mix(col, '#B9A9A0', 0.4), mix(col, '#A9B0BC', 0.4)];
+  let dd = '';
+  for (let i = 0; i < nd; i++) {
+    const u = r.R(0.04, 0.96);
+    const v = r.R(0.02, 0.97);
+    const [px, py] = at(u, v);
+    dd += ell(px, py, r.R(3, 9) * (wb / 90), r.R(1.6, 3.6), c.P(r.pick(dc), u < 0.5 ? 0.3 : -0.4, d), r.R(0.35, 0.45), r.R(-10, 10));
+  }
+  w += g(dd, `filter="${c.f('pig')}"`);
+  // the sky side dissolves: lost edge 30 px wide over the upper body
+  if (o.lost !== false) {
+    const skyC = mix(T.sky[3][1], T.light, 0.35);
+    const [ex, ey] = at(0, 1);
+    const lostW = Math.min(30, wb * 0.3);
+    const gr = c.lg([[0, skyC, 0.7], [1, skyC, 0]], L ? 0 : 1, 0, L ? 1 : 0, 0);
+    w += g(rect(L ? ex - 4 : ex - lostW + 4, ey - 4, lostW, (yb - yt) * 0.55, gr), `filter="${c.f('b4')}"`);
+  }
+  return g(w, `clip-path="${cp}"`);
 }
 
 function footbridge(c, x, y, w, d) {
@@ -1667,16 +1758,20 @@ function village(c, x0, x1, yAt, o = {}) {
 function rocks(c, list, o = {}) {
   const { T } = c;
   let s = '';
-  for (const [x, y, w, h] of list) {
+  for (let [x, y, w, h] of list) {
     const r = c.sub('rock' + Math.round(x) + ':' + Math.round(y));
-    const col = o.col || '#A49C9C';
+    const col = mix(o.col || '#A49C9C', r.pick(['#B4A28E', '#9A9AB0', '#A8A08A', '#B9A6A0']), r.R(0.1, 0.45));
+    const tilt = r.R(-0.28, 0.28);
+    w *= r.R(0.86, 1.14);
+    h *= r.R(0.8, 1.2);
     const d = o.d || 0;
     const n = 9;
     const pts = [];
     for (let i = 0; i <= n; i++) {
       const t = i / n;
       const a = Math.PI * t;
-      pts.push([x - Math.cos(a) * w * 0.5 * r.R(0.9, 1.05), y - Math.sin(a) * h * r.R(0.7, 1.05) * (0.85 + 0.3 * Math.sin(a * 2.3 + r.R(0, 2)))]);
+      const py = y - Math.sin(a) * h * r.R(0.7, 1.05) * (0.85 + 0.3 * Math.sin(a * 2.3 + r.R(0, 2)));
+      pts.push([x - Math.cos(a) * w * 0.5 * r.R(0.9, 1.05) + (y - py) * tilt, py]);
     }
     s += g(ell(x - T.litSide * w * 0.3, y + 2, w * 0.62, h * 0.12, T.shade, 0.32 * (1 - d)), `filter="${c.f('b4')}"`);
     s += pg(pts, c.P(col, -0.55, d));
@@ -2578,8 +2673,10 @@ BUILD.tower = (c, pl) => {
   const n = noise1(c.r);
   const valley = profile(-20, W + 20, 10, (x) => 520 + fbm(n, x / 160) * 12);
   ground(c, valley, { d: 0.3, dabs: 300, key: 'valley', nearDark: 0 });
-  village(c, 60, 560, (x) => valley.at(x) + 22, { d: 0.26 });
-  village(c, 1090, 1560, (x) => valley.at(x) + 24, { d: 0.26 });
+  // three hamlets at three depths, the farthest almost lost in the haze
+  village(c, 40, 300, (x) => valley.at(x) + 10, { d: 0.46, min: 6, max: 9 });
+  village(c, 380, 640, (x) => valley.at(x) + 26, { d: 0.3, min: 9, max: 13 });
+  village(c, 1180, 1560, (x) => valley.at(x) + 40, { d: 0.16, min: 12, max: 18 });
   treeline(c, -20, W + 20, (x) => valley.at(x) + 6, { d: 0.34, min: 10, max: 18, pines: 0.4 });
   mist(c, 545, 60);
   const ridge = profile(-20, W + 20, 8, (x) => {
@@ -2589,8 +2686,16 @@ BUILD.tower = (c, pl) => {
   ground(c, ridge, { d: 0.04, dabs: 650, persp: [552, 900], key: 'ridge', strokes: 600, leaves: 90 });
   rocks(c, [[520, 640, 150, 80], [1150, 646, 170, 86], [690, 596, 70, 38], [990, 600, 80, 42], [330, 724, 190, 96], [1330, 736, 200, 100], [760, 640, 40, 20]]);
   for (const [x, y, h] of [[450, 640, 70], [600, 610, 56], [1060, 612, 60], [1230, 640, 76], [250, 690, 90]]) pine(c, x, y, h, {});
-  road(c, pl.path, { w0: 220, w1: 26, kind: 'dirt' });
+  // the road climbs from the bottom center and bends right to the gate
+  const climb = pl.path.map(([px, py], i) => [px + 7 * Math.pow(i / Math.max(1, pl.path.length - 1), 1.3), py]);
+  road(c, climb, { w0: 220, w1: 26, kind: 'dirt' });
+  const l0 = c.land.length;
+  const q0 = c.lights.length;
   watchtower(c);
+  // the old tower leans a little on its rock
+  const lean = `transform="rotate(1.5 928 556)"`;
+  c.land.splice(l0, c.land.length - l0, g(c.land.slice(l0).join(''), lean));
+  c.lights.splice(q0, c.lights.length - q0, g(c.lights.slice(q0).join(''), lean));
   if (c.time !== 'night') birds(c, [[930, 196, 7], [952, 178, 6], [905, 160, 5], [1040, 230, 6]], c.P('#3E4A5E', 0));
   frame(c, { tl: 0.9, tr: 0.9, bl: 1, br: 0.9 });
   warmLight(c);
@@ -2599,21 +2704,40 @@ BUILD.tower = (c, pl) => {
 
 function watchtower(c) {
   const { T, S } = c;
-  const x = 832;
-  const st = '#A9A8AC';
+  const x = 928;
+  const st = '#B7B3AE';
   let s = '';
-  s += cylinder(c, x, 556, 106, 90, 244, st);
-  // stone courses and blocks
+  const day = c.time === 'day' || c.time === 'morning';
+  s += cylinder(c, x, 556, 106, 90, 244, st, {
+    cols: [c.P(day ? '#D9D2C4' : mix('#D9D2C4', T.light, 0.35), day ? 0.25 : 0.9), c.P('#B7B3AE', 0), null],
+    shOp: 0.55, dabs: 36, dabCols: ['#C9C0AE', '#9E9585', '#C9C0AE', '#A7A2A6'],
+  });
+  // stone courses: broken dry brush strokes, never ruled lines
   const r = c.sub('wtstones');
-  for (let y = 548; y > 250; y -= 12) {
+  let cr = '';
+  for (let y = 546; y > 252; y -= r.R(10, 17)) {
     const t = (556 - y) / 312;
     const hw = lerp(53, 45, t);
-    s += line(x - hw, y, x + hw, y, c.P(st, -0.5), 0.7, 0.35);
-    for (let k = 0; k < 3; k++) {
-      const bx = x + r.R(-hw * 0.9, hw * 0.9);
-      const kk = ((bx - x) / hw) * -T.litSide;
-      s += ell(bx, y - 6, r.R(4, 9), 2.5, c.P(st, kk > 0 ? -0.5 : 0.6), 0.35);
+    let xa = x - hw + r.R(0, 10);
+    while (xa < x + hw - 8) {
+      const len = r.R(12, 34);
+      const u = (xa - (x - hw)) / (2 * hw);
+      const shadeSide = T.litSide < 0 ? u > 0.6 : u < 0.4;
+      if (r.ch(0.7)) cr += spath(`M${f1(xa)},${f1(y + r.R(-1, 1))}l${f1(len)},${f1(r.R(-1.2, 1.2))}`, c.P(shadeSide ? '#6E7088' : '#8E8576', -0.2), r.R(0.8, 1.6), r.R(0.25, 0.45));
+      xa += len + r.R(3, 12);
     }
+  }
+  s += g(cr, `filter="${c.f('dry')}"`);
+  // the base is broken: fallen stones and grass growing up into the wall
+  let bs = '';
+  for (let k = 0; k < 9; k++) {
+    const bx = x + r.R(-62, 62);
+    bs += ell(bx, 556 + r.R(-3, 5), r.R(5, 12), r.R(3, 6), c.P(r.pick(['#9E9585', '#B7B3AE', '#8E8A9A']), r.R(-0.3, 0.4)), 0.85, r.R(-15, 15));
+  }
+  for (let k = 0; k < 26; k++) {
+    const bx = x + r.R(-66, 66);
+    const hh = r.R(6, 22);
+    bs += spath(`M${f1(bx)},${f1(558)}q${f1(r.R(-3, 3))},${f1(-hh / 2)} ${f1(r.R(-6, 6))},${f1(-hh)}`, c.P(r.pick(c.S.grass), r.R(-0.2, 0.5)), r.R(1.2, 2.6), 0.8);
   }
   // corbels and parapet with crenels
   for (let i = 0; i < 9; i++) s += rect(x - 50 + i * 12, 238, 6, 9, c.P(st, -0.3), 1, edge(c, 0.5));
@@ -2623,13 +2747,24 @@ function watchtower(c) {
   s += pth(`M${x - 17},556L${x - 17},522A17,17 0 0 1 ${x + 17},522L${x + 17},556Z`, c.P('#3A3030', -0.3), 1, edge(c, 0.8));
   s += pth(`M${x - 13},556L${x - 13},523A13,13 0 0 1 ${x + 13},523L${x + 13},556Z`, c.P('#6E4A34', -0.1));
   for (const dx of [-6, 0, 6]) s += line(x + dx, 512, x + dx, 555, c.P('#4A3426', -0.3), 0.8, 0.7);
-  c.land.push(g(s, `filter="${c.f('arch')}"`));
-  for (const [y, h] of [[470, 22], [400, 22], [330, 20]]) windowOn(c, face([x - 4 + T.litSide * 10, y], [8, 0], [0, -h]), 0, 0, 1, 1, { mullions: 0, sill: false, glass: c.P('#2E3A4A', -0.3), litP: c.T.lit ? 0.8 : 0 });
-  // banners, gold and blue, hanging from the parapet
-  for (const [bx, col] of [[x - 28, '#E2B54E'], [x + 22, '#4F79A8']]) {
-    const len = 128;
-    const bs = pth(`M${bx - 10},246L${bx + 10},246L${bx + 11},${246 + len}L${bx},${246 + len - 12}L${bx - 11},${246 + len}Z`, c.lg([[0, c.P(col, 0.5)], [0.5, c.P(col, 0.1)], [1, c.P(col, -0.3)]], T.litSide < 0 ? 0 : 1, 0, T.litSide < 0 ? 1 : 0, 0), 1, edge(c, 0.7));
-    c.land.push(g(bs + line(bx - 12, 246, bx + 12, 246, c.P('#6E4A34', 0), 2) + rect(bx - 6, 262, 12, 12, 'none', 1, ` stroke="${c.P('#F3EFE6', 0.4)}" stroke-width="1" stroke-opacity="0.7" transform="rotate(45 ${bx} 268)"`), `filter="${c.f('arch')}"`));
+  c.land.push(g(s, `filter="${c.f('arch')}"`) + g(bs, `filter="${c.f('leaf')}"`));
+  for (const [y, h, w2, dx] of [[472, 24, 9, -2], [398, 18, 7, 3], [334, 21, 8, 0]]) windowOn(c, face([x - w2 / 2 + T.litSide * 12 + dx, y], [w2, 0], [0, -h]), 0, 0, 1, 1, { mullions: 0, sill: false, glass: c.P('#3A4A4E', 0), litP: c.T.lit ? 0.8 : 0 });
+  // banners, gold and blue, hanging from the parapet: cloth that sags and folds
+  for (const [bx, col, len, sway] of [[x - 28, '#D9AE52', 124, -3], [x + 22, '#5A7DA6', 112, 4]]) {
+    const top = 246;
+    const bot = top + len;
+    const lw = 10;
+    const litL = T.litSide < 0;
+    let bn = pth(`M${bx - lw},${top}Q${bx - lw - 1},${top + len * 0.5} ${bx - lw + sway},${bot}L${bx + sway},${bot - 13}L${bx + lw + sway + 1},${bot - 2}Q${bx + lw + 1},${top + len * 0.45} ${bx + lw},${top}Z`, c.P(col, 0.15));
+    // fold shading: soft valleys running down, a lit ridge between
+    const fold = (dx0, w0, colF, op) => pth(`M${bx + dx0},${top + 4}Q${bx + dx0 - 1},${top + len * 0.5} ${bx + dx0 + sway * 0.8},${bot - 9}L${bx + dx0 + w0 + sway * 0.8},${bot - 10}Q${bx + dx0 + w0},${top + len * 0.5} ${bx + dx0 + w0},${top + 4}Z`, colF, op);
+    bn += fold(-3, 4, c.P(col, -0.7), 0.45);
+    bn += fold(litL ? 5 : -9, 4, c.P(col, -0.55), 0.5);
+    bn += fold(litL ? -8 : 4, 3, mix(c.P(col, 0.8), '#FFF4DC', 0.25), 0.55);
+    // a worn emblem painted on the cloth
+    bn += pth(`M${bx},${top + 18}l6,7l-6,7l-6,-7Z`, 'none', 1, ` stroke="${c.P('#F3EFE6', 0.3)}" stroke-width="1.3" stroke-opacity="0.6"`);
+    bn += spath(`M${bx - 12},${top}L${bx + 12},${top + 1}`, c.P('#6E4A34', 0), 2.2, 0.9);
+    c.land.push(g(bn, `filter="${c.f('wc')}"`));
   }
   // the wooden roost on the summit with messenger birds
   const wood = '#7A5A40';
@@ -3585,7 +3720,33 @@ BUILD.lighthouse = (c, pl) => {
   const fh = T.farHaze || T.haze;
   c.land.push(g(pth('M-20,396C60,384 160,380 260,388C300,392 320,396 340,398L-20,398Z', mix(c.P('#7F8DB5', 0), fh, 0.55)), `filter="${c.f('pig')}"`));
   water(c, { y0: 396, y1: 900, n: 160 });
-  hazeBand(c, 398, 24, 0.5);
+  {
+    // the sea in broken horizontal washes, paler and bluer toward the horizon
+    const rs = c.sub('seabands');
+    let sb = '';
+    for (const [ya, yb, col, op, n] of [[398, 450, '#8FA9C4', 0.4, 7], [440, 560, '#6F8FB0', 0.35, 8], [540, 760, '#5F7FA4', 0.3, 7]]) {
+      for (let i = 0; i < n; i++) {
+        const y = rs.R(ya, yb);
+        const x = rs.R(-120, 1500);
+        const w = rs.R(260, 760);
+        const hh = rs.R(5, 16) * (y / 420);
+        sb += pth(`M${f1(x)},${f1(y)}q${f1(w * 0.3)},${f1(-hh * 0.6)} ${f1(w * 0.6)},${f1(-hh * 0.2)}t${f1(w * 0.4)},${f1(hh * 0.3)}l0,${f1(hh)}q${f1(-w * 0.5)},${f1(hh * 0.5)} ${f1(-w)},0Z`, c.P(col, 0, 0), op);
+      }
+    }
+    c.land.push(g(sb, `filter="${c.f('wet')}"`));
+    // sparkle dabs on the water under the sun
+    const sx = (c.sunX != null ? c.sunX : 300);
+    let sp = '';
+    for (let i = 0; i < 70; i++) {
+      const y = 404 + Math.pow(rs.r(), 1.3) * 300;
+      const k = (y - 400) / 300;
+      const x = sx + rs.R(-1, 1) * lerp(60, 260, k) + rs.R(-40, 40);
+      sp += ell(x, y, lerp(3, 12, k) * rs.R(0.5, 1.4), lerp(0.8, 2, k), c.time === 'sunset' ? '#FFE3B0' : '#A7C0D0', rs.R(0.35, 0.75));
+      if (rs.ch(0.3)) sp += ell(x + rs.R(-4, 4), y, lerp(1.5, 4, k), 0.8, '#FFFBEF', rs.R(0.4, 0.8));
+    }
+    c.land.push(g(sp, `filter="${c.f('pig')}"`));
+  }
+  hazeBand(c, 398, 34, 0.62);
   // sailing boats far out
   let bt = '';
   for (const [x, y, s2] of [[180, 418, 1], [420, 410, 0.8], [1380, 406, 0.7], [640, 430, 1.1]]) {
@@ -3662,10 +3823,35 @@ BUILD.lighthouse = (c, pl) => {
 function lighthouseTower(c) {
   const { T, S } = c;
   const x = 930;
-  const white = '#F3EFE8';
-  let s = cylinder(c, x, 556, 92, 62, 264, white);
-  // a soft painted band and the door
-  s += pg([[x - 40, 420], [x + 40, 420], [x + 39, 400], [x - 39, 400]], c.P('#9FB4C8', T.frontK - 0.1), 0.55);
+  const white = '#F2EBDD';
+  let s = cylinder(c, x, 556, 92, 62, 264, white, {
+    cols: [c.P(white, 0.6), c.P(mix(white, '#D8D2C6', 0.5), 0), null],
+    shadow: '#A9B3CC', shOp: 0.5, dabs: 22, dabCols: ['#E6DCC8', '#D4CCBE', '#C9CCD6', '#EFE3CC'],
+  });
+  // two red bands laid with a dry brush: the paper shows through in breaks
+  const rb = c.sub('lhbands');
+  for (const [y0, y1] of [[452, 432], [372, 354]]) {
+    const hw0 = lerp(46, 31, (556 - y0) / 292);
+    const hw1 = lerp(46, 31, (556 - y1) / 292);
+    let band = '';
+    for (let yy = y0; yy > y1; yy -= 2.4) {
+      const t = (y0 - yy) / (y0 - y1);
+      const hw = lerp(hw0, hw1, t);
+      let xa = x - hw;
+      while (xa < x + hw) {
+        const len = rb.R(14, 40);
+        const u = (xa - (x - hw)) / (2 * hw);
+        const shade = T.litSide < 0 ? u : 1 - u;
+        if (rb.ch(0.86)) band += spath(`M${f1(xa)},${f1(yy)}l${f1(Math.min(len, x + hw - xa))},${f1(rb.R(-0.6, 0.6))}`, c.P('#B9574A', shade > 0.62 ? -0.6 : shade < 0.3 ? 0.4 : 0), rb.R(2.2, 3.4), rb.R(0.7, 0.95));
+        xa += len + rb.R(1, 6);
+      }
+    }
+    // the body of the band is one transparent wash, its edges wobble
+    const shL = T.litSide < 0;
+    const red = c.lg([[0, c.P('#B9574A', shL ? 0.5 : -0.7)], [0.5, c.P('#B9574A', 0)], [1, c.P('#B9574A', shL ? -0.7 : 0.5)]], 0, 0, 1, 0);
+    const wash = pg([[x - hw0, y0], [x + hw0, y0], [x + hw1, y1], [x - hw1, y1]], red, 0.82);
+    s += g(wash, `filter="${c.f('wc')}"`) + g(band, `filter="${c.f('dry')}"`);
+  }
   s += pth(`M${x - 11},556L${x - 11},530A11,11 0 0 1 ${x + 11},530L${x + 11},556Z`, c.P('#5A4434', -0.2), 1, edge(c, 0.8));
   // gallery and railing
   s += rect(x - 52, 254, 104, 10, c.P('#3E5A66', 0.3), 1, edge(c, 0.8));

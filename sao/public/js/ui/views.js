@@ -39,12 +39,28 @@ export function placeView(id, act) {
   const out = [];
   if (info.note) out.push(h('p', { class: 'place-note', text: clean(info.note) }));
 
+  // In town the crowd seats every bot that is not out working on the bench;
+  // the panel names them from the same list so words and picture agree.
+  const resting = id === 'town' ? bots().filter((b) => b.state === 'sleeping' || b.state === 'done').slice(0, 4) : [];
+  const restLine = resting.length
+    ? h(
+        'p',
+        { class: 'resting' },
+        h('span', { class: 'resting-lead', text: 'Resting here: ' }),
+        resting.map((b, i) => {
+          const why = b.state === 'sleeping' ? 'asleep' : `done${b.place && b.place !== 'town' ? ` at ${/^(The |[A-Z]+'s )/.test(placeName(b.place)) ? placeName(b.place).replace(/^The /, 'the ') : `the ${placeName(b.place)}`}` : ''}`;
+          return h('span', { text: `${clean(b.name) || b.core} (${why})${i < resting.length - 1 ? ', ' : ''}` });
+        }),
+      )
+    : null;
+  const nowHere = here.filter((b) => !resting.includes(b));
   out.push(
     section(
       'Now',
-      here.length
-        ? h('div', { class: 'chips' }, here.map((b) => botChip(b, { onTap: () => act.openBot(b.id) })))
-        : empty(COPY.empty.botsHere),
+      nowHere.length
+        ? h('div', { class: 'chips' }, nowHere.map((b) => botChip(b, { onTap: () => act.openBot(b.id) })))
+        : restLine ? null : empty(COPY.empty.botsHere),
+      restLine,
     ),
   );
   out.push(section('Waiting on you', qs.length ? questionList(qs, act) : empty(COPY.empty.waiting)));
@@ -235,7 +251,7 @@ export function draftView(d, act) {
   const text = clean(d.text || d.body || '');
   const meta = [clean(d.time), clean(d.kind), placeName(d.place)].filter(Boolean).join(', ');
   return [
-    h('p', { class: 'draft-head' }, h('span', { class: 'draft-tag', text: 'DRAFT' }), meta ? h('span', { class: 'soft', text: meta }) : null),
+    h('p', { class: 'draft-head' }, h('span', { class: 'draft-tag', text: 'Draft' }), meta ? h('span', { class: 'soft', text: meta }) : null),
     text
       ? h('div', { class: 'draft-text' }, text.split(/\n{2,}/).map((para) => h('p', { text: para })))
       : h('p', { class: 'empty', text: 'The full text lives in the drafts folder on your machine. Open SAO there to read it.' }),

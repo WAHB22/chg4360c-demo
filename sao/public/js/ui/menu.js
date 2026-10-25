@@ -6,7 +6,7 @@ import { h, play } from './dom.js';
 import { icon } from './icons.js';
 
 export const MENU = [
-  { id: 'report', label: 'ICON REPORT' },
+  { id: 'report', label: 'ICON Report' },
   { id: 'map', label: 'Map' },
   { id: 'bots', label: 'Bots' },
   { id: 'drafts', label: 'Drafts' },

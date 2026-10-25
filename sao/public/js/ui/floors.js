@@ -65,7 +65,7 @@ function renderTower(list, id, now) {
   if (curIdx < 0) curIdx = sorted.findIndex((f) => f.status !== 'cleared');
   const seen = store(SEEN_KEY) || {};
   const fresh = [];
-  const ol = h('ol', { class: 'tower', reversed: true, 'aria-label': `${TABS.find((t) => t.id === id).label}, ${sorted.filter((f) => f.status === 'cleared').length} of ${sorted.length} floors cleared` });
+  const ol = h('ol', { class: 'tower', reversed: true, style: { '--top-rise': String(sorted.length - 1) }, 'aria-label': `${TABS.find((t) => t.id === id).label}, ${sorted.filter((f) => f.status === 'cleared').length} of ${sorted.length} floors cleared` });
   for (let i = sorted.length - 1; i >= 0; i--) {
     const f = sorted[i];
     const cleared = f.status === 'cleared';
@@ -77,7 +77,7 @@ function renderTower(list, id, now) {
     const status = cleared ? `cleared${f.date ? ` ${clean(f.date)}` : ''}` : current ? 'you are here' : 'upcoming';
     const li = h(
       'li',
-      { class: cls, 'aria-current': current ? 'step' : null },
+      { class: cls, 'aria-current': current ? 'step' : null, style: { '--rise': String(i) } },
       h('span', { class: 'floor-n', 'aria-hidden': 'true', text: String(f.n ?? i + 1) }),
       h(
         'div',

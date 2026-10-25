@@ -1034,3 +1034,165 @@ h4 { margin: 0; font-weight: 400; line-height: var(--lh-title); }
   .status, .tags { transition: opacity 260ms var(--ease-out), visibility 0s linear 260ms; }
   .has-sheet .status, .has-sheet .tags { opacity: 0; visibility: hidden; }
 }
+
+
+/* ================================================= loop 6: real materials
+   Navy glass over a faint paper and cloth weave, a hand inked warm gold edge
+   (#C9A86A) with a lighter top stroke (#E8D2A0) and small corner flourishes
+   instead of a plain rounded rectangle. The status block, the caption and
+   every panel share it, so the material is the same in every place. */
+
+:root {
+  --ink-corners: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='26' height='26' viewBox='0 0 26 26'%3E%3Cg fill='none' stroke='%23D9B97A' stroke-linecap='round' transform=''%3E%3Cpath d='M1.4 17.5C1.1 9.6 4.6 2.9 13.2 1.6' stroke-width='1.25' stroke-opacity='.9'/%3E%3Cpath d='M13.2 1.6c3.1-.3 5.2.9 5.6 2.7.3 1.6-1 2.6-2.3 2.2-1-.3-1.2-1.4-.5-2' stroke-width='.9' stroke-opacity='.8'/%3E%3Cpath d='M1.4 17.5c-.4 2.7.5 4.6 2.1 4.9 1.3.2 2.1-.9 1.6-2' stroke-width='.85' stroke-opacity='.75'/%3E%3Cpath d='M5.2 8.4c1.9.6 3.3 2 3.7 4' stroke-width='.7' stroke-opacity='.55'/%3E%3C/g%3E%3Ccircle cx='7.6' cy='6.9' r='.95' fill='%23E8D2A0' fill-opacity='.8' transform=''/%3E%3C/svg%3E") left 3px top 3px / 26px 26px no-repeat,
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='26' height='26' viewBox='0 0 26 26'%3E%3Cg fill='none' stroke='%23D9B97A' stroke-linecap='round' transform='translate(26 0) scale(-1 1)'%3E%3Cpath d='M1.4 17.5C1.1 9.6 4.6 2.9 13.2 1.6' stroke-width='1.25' stroke-opacity='.9'/%3E%3Cpath d='M13.2 1.6c3.1-.3 5.2.9 5.6 2.7.3 1.6-1 2.6-2.3 2.2-1-.3-1.2-1.4-.5-2' stroke-width='.9' stroke-opacity='.8'/%3E%3Cpath d='M1.4 17.5c-.4 2.7.5 4.6 2.1 4.9 1.3.2 2.1-.9 1.6-2' stroke-width='.85' stroke-opacity='.75'/%3E%3Cpath d='M5.2 8.4c1.9.6 3.3 2 3.7 4' stroke-width='.7' stroke-opacity='.55'/%3E%3C/g%3E%3Ccircle cx='7.6' cy='6.9' r='.95' fill='%23E8D2A0' fill-opacity='.8' transform='translate(26 0) scale(-1 1)'/%3E%3C/svg%3E") right 3px top 3px / 26px 26px no-repeat,
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='26' height='26' viewBox='0 0 26 26'%3E%3Cg fill='none' stroke='%23D9B97A' stroke-linecap='round' transform='translate(0 26) scale(1 -1)'%3E%3Cpath d='M1.4 17.5C1.1 9.6 4.6 2.9 13.2 1.6' stroke-width='1.25' stroke-opacity='.9'/%3E%3Cpath d='M13.2 1.6c3.1-.3 5.2.9 5.6 2.7.3 1.6-1 2.6-2.3 2.2-1-.3-1.2-1.4-.5-2' stroke-width='.9' stroke-opacity='.8'/%3E%3Cpath d='M1.4 17.5c-.4 2.7.5 4.6 2.1 4.9 1.3.2 2.1-.9 1.6-2' stroke-width='.85' stroke-opacity='.75'/%3E%3Cpath d='M5.2 8.4c1.9.6 3.3 2 3.7 4' stroke-width='.7' stroke-opacity='.55'/%3E%3C/g%3E%3Ccircle cx='7.6' cy='6.9' r='.95' fill='%23E8D2A0' fill-opacity='.8' transform='translate(0 26) scale(1 -1)'/%3E%3C/svg%3E") left 3px bottom 3px / 26px 26px no-repeat,
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='26' height='26' viewBox='0 0 26 26'%3E%3Cg fill='none' stroke='%23D9B97A' stroke-linecap='round' transform='translate(26 26) scale(-1 -1)'%3E%3Cpath d='M1.4 17.5C1.1 9.6 4.6 2.9 13.2 1.6' stroke-width='1.25' stroke-opacity='.9'/%3E%3Cpath d='M13.2 1.6c3.1-.3 5.2.9 5.6 2.7.3 1.6-1 2.6-2.3 2.2-1-.3-1.2-1.4-.5-2' stroke-width='.9' stroke-opacity='.8'/%3E%3Cpath d='M1.4 17.5c-.4 2.7.5 4.6 2.1 4.9 1.3.2 2.1-.9 1.6-2' stroke-width='.85' stroke-opacity='.75'/%3E%3Cpath d='M5.2 8.4c1.9.6 3.3 2 3.7 4' stroke-width='.7' stroke-opacity='.55'/%3E%3C/g%3E%3Ccircle cx='7.6' cy='6.9' r='.95' fill='%23E8D2A0' fill-opacity='.8' transform='translate(26 26) scale(-1 -1)'/%3E%3C/svg%3E") right 3px bottom 3px / 26px 26px no-repeat;
+  --grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .96 0 0 0 0 .9 0 0 0 0 .78 0 0 0 .075 0'/%3E%3C/filter%3E%3Crect width='180' height='180' filter='url(%23n)'/%3E%3C/svg%3E") 0 0 / 180px 180px repeat;
+}
+
+.glass,
+.sheet,
+.status,
+.caption {
+  border-radius: 3px 4px 3px 5px;
+  border: 1px solid rgba(201, 168, 106, 0.6);
+  box-shadow:
+    inset 0 1px 0 rgba(232, 210, 160, 0.5),
+    inset 0 0 0 3px rgba(20, 28, 44, 0.0),
+    inset 0 0 22px rgba(8, 12, 22, 0.32),
+    0 14px 30px -10px rgba(10, 14, 24, 0.55);
+}
+.status,
+.caption,
+.sheet-panel,
+.sheet-modal,
+.world-error {
+  background: var(--ink-corners), var(--grain), rgba(20, 28, 44, 0.85);
+}
+.sheet-modal { background: var(--ink-corners), var(--grain), rgba(16, 22, 36, 0.92); }
+/* a second, hairline inner rule a few pixels in: the inked double border */
+.status::before,
+.caption::before,
+.sheet::before {
+  content: ""; position: absolute; inset: 4px; pointer-events: none;
+  border: 1px solid rgba(201, 168, 106, 0.16);
+  border-radius: 2px;
+}
+.caption { position: relative; }
+
+/* the status block never goes light: when it rests only its ink softens */
+.status.is-idle { opacity: 1; }
+.status > * { transition: opacity var(--t-idle-fade) ease; }
+.status.is-idle > * { opacity: 0.55; }
+
+/* pills keep the grain but not the corners */
+.tag, .map-open .map-bar {
+  background: var(--grain), rgba(20, 28, 44, 0.85);
+  border-color: rgba(201, 168, 106, 0.6);
+  box-shadow: inset 0 1px 0 rgba(232, 210, 160, 0.4), 0 8px 20px -8px rgba(10, 14, 24, 0.5);
+}
+.disc { border-color: rgba(201, 168, 106, 0.6); box-shadow: inset 0 1px 0 rgba(232, 210, 160, 0.4), 0 6px 14px -6px rgba(10, 14, 24, 0.55); }
+.sheet-head { border-bottom-color: rgba(201, 168, 106, 0.3); }
+.sheet-sym { border-color: rgba(201, 168, 106, 0.6); }
+
+/* deliberate type: labels in small caps at normal tracking, old style figures
+   in running text where the face has them, tabular figures only in meters */
+.status-name, .caption-name, .sheet-title { font-kerning: normal; font-feature-settings: "kern", "liga", "onum"; }
+.sheet-body, .status-phase, .caption-ref, .tag { font-variant-numeric: oldstyle-nums proportional-nums; }
+.meter-pct, .floor-days b, .disc-badge { font-variant-numeric: lining-nums tabular-nums; }
+.is-report .sheet-title { font-variant: small-caps; letter-spacing: 0.01em; }
+.signoff::after { font-variant: small-caps; letter-spacing: 0; }
+.psec-title { font-variant: small-caps; letter-spacing: 0.01em; font-size: 19px; }
+.meter-label { font-variant: small-caps; letter-spacing: 0; font-size: 14px; }
+.draft-tag {
+  padding: 0; border: 0; border-radius: 0;
+  font-style: italic; letter-spacing: 0; font-size: var(--fs-15);
+  color: var(--gold);
+}
+.draft-tag::after { content: ","; color: var(--text-soft); }
+.draft-head .draft-tag::after { content: ""; }
+
+/* resting visitors in the town panel, named from the same list as the bench */
+.resting { margin-top: var(--s-8); font-style: italic; color: var(--text-soft); }
+.resting-lead { font-style: normal; color: var(--text); }
+
+/* the vista's "Painting coming" tag shows for four seconds and then leaves for good */
+.sv-vista[data-tag="on"] .sv-tag { animation: svTagOnce 4.6s linear forwards; }
+@keyframes svTagOnce { 0% { opacity: 0; } 10%, 82% { opacity: 0.6; } 100% { opacity: 0; visibility: hidden; } }
+
+/* ------------------------------------------------- the tower of floors
+   Stone courses that narrow as they rise (3 percent a floor), a painted
+   roof with an uneven ridge, and the current floor as one lit window. */
+.tower {
+  border: 0; gap: 0; padding: 0; margin-top: 64px;
+  max-width: 440px;
+}
+.tower::before {
+  left: calc(var(--top-rise, 6) * 1.5% - 4%); right: calc(var(--top-rise, 6) * 1.5% - 2%); top: -58px; height: 56px;
+  clip-path: polygon(49% 0, 53% 3%, 100% 96%, 97% 100%, 2% 100%, 0 95%);
+  background:
+    radial-gradient(40% 70% at 30% 70%, rgba(255, 214, 170, 0.35), transparent 70%),
+    repeating-linear-gradient(172deg, transparent 0 7px, rgba(70, 34, 30, 0.18) 7px 8px),
+    linear-gradient(90deg, #D48A5A 0 46%, #B36A47 52%, #7E4B48 100%);
+}
+.tower::after {
+  left: calc(var(--top-rise, 6) * 1.5% - 14px); right: calc(var(--top-rise, 6) * 1.5% - 18px); top: -6px; height: 6px; border-radius: 1px 3px 2px 1px;
+  background: linear-gradient(90deg, #8A5038, #6E4440);
+  box-shadow: 0 3px 6px rgba(10, 14, 24, 0.35);
+}
+.floor {
+  margin-inline: calc(var(--rise, 0) * 1.5%);
+  border: 0; border-radius: 0;
+  border-bottom: 1px solid rgba(20, 24, 34, 0.5);
+  min-height: 54px;
+  background:
+    radial-gradient(18px 8px at 22% 30%, rgba(255, 246, 226, 0.06), transparent 70%),
+    radial-gradient(26px 10px at 78% 70%, rgba(0, 0, 0, 0.08), transparent 70%),
+    linear-gradient(90deg, rgba(201, 192, 174, 0.15), rgba(201, 192, 174, 0.08) 62%, rgba(142, 147, 168, 0.12));
+  box-shadow: inset 2px 0 0 rgba(201, 192, 174, 0.28), inset -2px 0 0 rgba(142, 147, 168, 0.3);
+}
+.floor + .floor { margin-top: 0; }
+.floor-n {
+  border-radius: 14px 14px 3px 3px; width: 26px; height: 34px;
+  background: #3A4A4E; border: 1px solid rgba(201, 192, 174, 0.45);
+  color: var(--text-soft);
+}
+.floor.is-boss:not(.is-cleared) { border-color: rgba(20, 24, 34, 0.5); border-style: solid; }
+.floor.is-boss:not(.is-cleared) .floor-n { border-color: rgba(233, 168, 107, 0.6); }
+.floor.is-cleared {
+  border: 0; border-bottom: 1px solid rgba(20, 24, 34, 0.45);
+  background-image:
+    linear-gradient(90deg, rgba(232, 200, 142, 0.26) 50%, rgba(232, 200, 142, 0) 50%),
+    linear-gradient(90deg, rgba(201, 192, 174, 0.14), rgba(142, 147, 168, 0.1));
+  background-size: 200% 100%, 100% 100%;
+}
+.floor.is-cleared .floor-n { background: #C9A86A; border-color: #E8D2A0; color: #2A2630; }
+.floor.is-current {
+  border: 0; border-bottom: 1px solid rgba(20, 24, 34, 0.5);
+  animation: none;
+  box-shadow: inset 2px 0 0 rgba(232, 200, 142, 0.4), inset -2px 0 0 rgba(142, 147, 168, 0.3);
+  background:
+    radial-gradient(120px 46px at 34px 50%, rgba(255, 206, 140, 0.28), transparent 75%),
+    linear-gradient(90deg, rgba(201, 192, 174, 0.16), rgba(142, 147, 168, 0.12));
+}
+.floor.is-current .floor-n {
+  color: #3A2A1E; border-color: #F1D9A6;
+  background: radial-gradient(circle at 50% 60%, #FFE6B0, #F0B870 60%, #C98A4E);
+  box-shadow: 0 0 14px 2px rgba(255, 196, 120, 0.45);
+  animation: lampFlicker 5.5s steps(1) infinite;
+}
+@keyframes lampFlicker { 0%, 100% { filter: none; } 47% { filter: brightness(0.93); } 49% { filter: none; } 81% { filter: brightness(0.96); } }
+.tower-base {
+  margin: 0 -18px 0 -22px; height: 16px; border-radius: 2px 3px 0 0;
+  background:
+    repeating-linear-gradient(90deg, rgba(201, 192, 174, 0.42) 0 33px, rgba(110, 106, 96, 0.5) 33px 35px, rgba(201, 192, 174, 0.34) 35px 71px, rgba(110, 106, 96, 0.5) 71px 73px);
+}
+
+/* phone: the clock sits on one line */
+@media (max-width: 599px) {
+  .tags { flex-direction: row; max-width: none; }
+  .tag { flex-direction: row; align-items: center; border-radius: var(--r-pill); white-space: nowrap; line-height: 1.3; padding: 4px 10px; }
+  .tag-sep { display: inline; }
+  .tag-day { display: none; }
+  .status { max-width: calc(100% - 172px); }
+}
