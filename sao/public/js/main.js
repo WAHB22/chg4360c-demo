@@ -117,7 +117,8 @@ async function boot() {
     if (!vista || typeof vista.currentPlace !== 'function' || vista.currentPlace() !== 'town') return null;
     if (clock.period(clock.now()) !== 'morning') return null;
     const stage = document.querySelector('#vista .sv-stage');
-    if (!stage || !stage.dataset.res) return null;
+    // only the full paint: the quick one stair steps when it fills the banner
+    if (!stage || stage.dataset.res !== 'full') return null;
     const layers = ['canvas.sv-sky', 'canvas.sv-land'].map((q) => stage.querySelector(q));
     if (layers.some((c) => !c || !c.width || !c.height)) return null;
     try {

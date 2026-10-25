@@ -3832,9 +3832,9 @@ BUILD.kitchen = (c, pl) => {
   bush(c, 452, 600, 30, {});
   {
     const lm = c.land.splice(kl0).join('');
-    c.land.push(g(lm, 'transform="translate(-140,0)"'));
+    c.land.push(g(lm, 'transform="translate(-80,0)"'));
     const gm = c.lights.splice(kg0).join('');
-    if (gm) c.lights.push(g(gm, 'transform="translate(-140,0)"'));
+    if (gm) c.lights.push(g(gm, 'transform="translate(-80,0)"'));
   }
   bush(c, 1230, 640, 44, {});
   // the orange tree steps back a layer: half the size, paler, with cool air in front

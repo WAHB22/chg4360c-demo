@@ -121,7 +121,7 @@ export const PLACES = [
     details: ['jars on shelves', 'bread on the table', 'meal slate with the days', 'herb pots'],
     bot: 'keeper',
     path: [[50, 98], [47, 88], [52, 79], [48, 70], [51, 63]],
-    subject: { x: 41, y: 52, w: 36, h: 26 },
+    subject: { x: 45, y: 52, w: 36, h: 26 },
     caption: { x: 3, y: 80 },
     map: { x: 820, y: 960 },
     subs: [],
