@@ -13,13 +13,14 @@
 
 import { PLACE } from './places.js';
 import { BOT, ICON, STATES, MAX_ACTIVE } from './bots.js';
+import { period } from './clock.js';
 
 // Paint
 const INK = '#5A4638B3';    // warm brown ink at 0.7, never black (lite sprites only)
 const INK_SOLID = '#4E3A30';  // the pen: warm dark brown
 const INK_PRESS = '#3E3230';  // where the pen pressed (shadow side)
 const SHADE = '#8E93A8';    // the one cool shadow tone (gouache, not a gradient)
-const RIM = '#F2E3C6';      // warm rim light on the sun side
+const RIM = '#E8D8B0';      // warm rim light on the sun side
 const BOUNCE = '#C9B48E';   // warm light bounced up from the ground
 const CONTACT = '#3E3230';  // soft contact shadow, warm brown
 const EYE = '#22303A';      // deep blue green, never black
@@ -34,6 +35,26 @@ const PAPER = '#FBF3E3';
 const SKIN = '#EBCFB2';
 const HAIR = '#3E2D28';
 const FONT = "'Times New Roman', Times, Georgia, serif";
+
+// The scene light the bots stand in. dir is where the light comes from
+// (1: from the left, -1: from the right). rim is the lit edge, far the cool
+// turned away edge, grade a gouache glaze over the whole figure (null: none),
+// shadow the cast shadow on the ground (offset and stretch in shadow widths).
+const LIGHTS = {
+  day: { dir: 1, rim: '#E8D8B0', rimOp: 0.62, far: '#8A90B0', farOp: 0.3, bounce: 0.24, grade: null, sh: { x: 9, s: 1.08, o: 1 }, css: ['-1px', '-.6px', 'rgba(244,226,190,.5)'] },
+  sunset: { dir: -1, rim: '#F0C48C', rimOp: 0.7, far: '#7E7FA8', farOp: 0.38, bounce: 0.3, grade: '0.98 0.06 0.02 0 0.03 0.02 0.93 0.02 0 0.015 0.02 0.04 0.9 0 0.01 0 0 0 1 0', sh: { x: -34, s: 1.75, o: 0.82 }, css: ['1.2px', '-.3px', 'rgba(240,188,128,.55)'] },
+  night: { dir: 1, rim: '#B8C6E0', rimOp: 0.42, far: '#4E5A84', farOp: 0.42, bounce: 0.1, grade: '0.56 0.1 0.04 0 0.01 0.06 0.6 0.08 0 0.02 0.08 0.12 0.66 0 0.05 0 0 0 1 0', sh: { x: 5, s: 1.02, o: 0.55 }, css: ['-.6px', '-.8px', 'rgba(184,198,224,.34)'] },
+};
+LIGHTS.morning = { ...LIGHTS.day, grade: '1 0.02 0 0 0.01 0 0.97 0.02 0 0.01 0 0 0.92 0 0.02 0 0 0 1 0' };
+let LIGHT = 'day';
+function sceneLight() {
+  try {
+    const p = period();
+    return LIGHTS[p] ? p : 'day';
+  } catch {
+    return 'day';
+  }
+}
 
 // Neighboring color touches, broken into the body like impressionist dabs.
 const DABS = {
@@ -113,13 +134,14 @@ function shadeOf(color) {
 }
 const org = (x, y) => `style="transform-box:view-box;transform-origin:${x}px ${y}px"`;
 
-function makeCtx(lite, pose = {}) {
+function makeCtx(lite, pose = {}, light = LIGHT) {
   const k = 'sao' + (++uid).toString(36);
   const defs = [];
   let n = 0;
   return {
     lite,
     pose,
+    L: LIGHTS[light] || LIGHTS.day,
     sw: lite ? 2.5 : 1.35,
     defs,
     inkN: 0,
@@ -158,7 +180,7 @@ function ink(ctx, d, w = 1) {
   const off = (k * 37 + 11) % 61;
   return (
     `<path d="${d}" fill="none" stroke="${INK_SOLID}" stroke-opacity="0.46" stroke-width="${a}" stroke-linejoin="round" stroke-linecap="round" stroke-dasharray="${LOST[k % 3]}" stroke-dashoffset="${off}"/>` +
-    `<path d="${d}" fill="none" stroke="${INK_PRESS}" stroke-opacity="0.36" stroke-width="${r2(a * 1.3)}" stroke-linejoin="round" stroke-linecap="round" stroke-dasharray="${PRESS[k % 3]}" stroke-dashoffset="${r2(off * 1.7)}" transform="translate(0.5 0.6)"/>`
+    `<path d="${d}" fill="none" stroke="${INK_PRESS}" stroke-opacity="0.36" stroke-width="${r2(a * 1.3)}" stroke-linejoin="round" stroke-linecap="round" stroke-dasharray="${PRESS[k % 3]}" stroke-dashoffset="${r2(off * 1.7)}" transform="translate(${r2(0.5 * ctx.L.dir)} 0.6)"/>`
   );
 }
 // A crescent of light along one side of a shape: the shape minus a copy of
@@ -185,7 +207,7 @@ function ellipse(ctx, cx, cy, rx, ry, color, { line = 1, rot = 0, op = 1, flat =
   const o = op < 1 ? ` opacity="${op}"` : '';
   let s = `<ellipse cx="${cx}" cy="${cy}" rx="${rx}" ry="${ry}" fill="${fill}"/>`;
   // a small cool underside on round parts (feet, paws, buns): one tone, hard edge
-  if (!ctx.lite && !flat && rx > 2.2) s += `<ellipse cx="${r2(cx + rx * 0.16)}" cy="${r2(cy + ry * 0.34)}" rx="${r2(rx * 0.8)}" ry="${r2(ry * 0.6)}" fill="${SHADE}" opacity="0.3"/>`;
+  if (!ctx.lite && !flat && rx > 2.2) s += `<ellipse cx="${r2(cx + rx * 0.16 * ctx.L.dir)}" cy="${r2(cy + ry * 0.34)}" rx="${r2(rx * 0.8)}" ry="${r2(ry * 0.6)}" fill="${SHADE}" opacity="0.3"/>`;
   if (line) s += ink(ctx, ellipsePath(cx, cy, rx, ry), line);
   return `<g${t}${o}>${s}</g>`;
 }
@@ -202,7 +224,7 @@ function puffs(ctx, circles, color) {
   const out = circles.map(([x, y, r]) => `<circle cx="${x}" cy="${y}" r="${r2(r + ctx.sw / 2)}"/>`).join('');
   const fill = circles.map(([x, y, r]) => `<circle cx="${x}" cy="${y}" r="${r}" fill="${ctx.paint(color)}"/>`).join('');
   let shade = '';
-  if (!ctx.lite) shade = circles.map(([x, y, r]) => `<circle cx="${r2(x + r * 0.22)}" cy="${r2(y + r * 0.36)}" r="${r2(r * 0.7)}" fill="${SHADE}" opacity="0.22"/>`).join('');
+  if (!ctx.lite) shade = circles.map(([x, y, r]) => `<circle cx="${r2(x + r * 0.22 * ctx.L.dir)}" cy="${r2(y + r * 0.36)}" r="${r2(r * 0.7)}" fill="${SHADE}" opacity="0.22"/>`).join('');
   const line = ctx.lite ? `<g fill="${INK}">${out}</g>` : `<g fill="${INK_SOLID}" opacity="0.5">${out}</g>`;
   return `${line}${fill}${shade}`;
 }
@@ -218,7 +240,9 @@ function body(ctx, id, d, color, box, coolOp = 0.42) {
   let s = `<path d="${d}" fill="${ctx.paint(color)}"/>`;
   s += `<g clip-path="url(#${clip})">`;
   // shadow = everything outside a lit egg pushed up and left
-  const lit = blob(box.cx - box.rx * 0.2, box.cy - box.ry * 0.2, box.rx * 1.02, box.ry * 0.97, { wob: ctx.lite ? 0 : 0.035, seed: top * 3 + 5, n: 10 });
+  const L = ctx.L;
+  const dir = L.dir;
+  const lit = blob(box.cx - box.rx * 0.2 * dir, box.cy - box.ry * 0.2, box.rx * 1.02, box.ry * 0.97, { wob: ctx.lite ? 0 : 0.035, seed: top * 3 + 5, n: 10 });
   const x0 = box.cx - box.rx - 6;
   const x1 = box.cx + box.rx + 6;
   const R = `M${r2(x0)} ${r2(top - 6)}H${r2(x1)}V${r2(box.cy + box.ry + 6)}H${r2(x0)}Z`;
@@ -229,8 +253,8 @@ function body(ctx, id, d, color, box, coolOp = 0.42) {
     // wet edge: the shadow wash dried with a darker rim, broken like a real wash
     s += `<path d="${lit}" fill="none" stroke="${mix(SHADE, DEEP, 0.35)}" stroke-width="1.3" opacity="0.34" stroke-dasharray="11 2.6 18 3.4 7 2"/>`;
     // a wet in wet bloom where a cooler drop ran into the shadow
-    s += `<ellipse cx="${r2(box.cx + box.rx * 0.42)}" cy="${r2(box.cy + box.ry * 0.5)}" rx="${r2(box.rx * 0.34)}" ry="${r2(box.ry * 0.2)}" fill="${mix(SHADE, '#7F9BB8', 0.5)}" opacity="0.22" filter="url(#${ctx.blur(1.6)})"/>`;
-    s += `<path d="${blob(box.cx - box.rx * 0.32, box.cy - box.ry * 0.5, box.rx * 0.62, box.ry * 0.34, { wob: 0.16, seed: top * 7 })}" fill="${CREAM}" opacity="0.2"/>`;
+    s += `<ellipse cx="${r2(box.cx + box.rx * 0.42 * dir)}" cy="${r2(box.cy + box.ry * 0.5)}" rx="${r2(box.rx * 0.34)}" ry="${r2(box.ry * 0.2)}" fill="${mix(SHADE, '#7F9BB8', 0.5)}" opacity="0.22" filter="url(#${ctx.blur(1.6)})"/>`;
+    s += `<path d="${blob(box.cx - box.rx * 0.32 * dir, box.cy - box.ry * 0.5, box.rx * 0.62, box.ry * 0.34, { wob: 0.16, seed: top * 7 })}" fill="${dir < 0 ? L.rim : CREAM}" opacity="0.2"/>`;
     const ax = r2(box.cx + box.rx * 0.5);
     const ay = r2(box.cy - box.ry * 0.05);
     s += `<ellipse cx="${ax}" cy="${ay}" rx="4.2" ry="3" fill="${dab[0]}" opacity="0.3" transform="rotate(-18 ${ax} ${ay})"/>`;
@@ -242,9 +266,11 @@ function body(ctx, id, d, color, box, coolOp = 0.42) {
   }
   s += `</g>`;
   if (!ctx.lite) {
-    // warm rim light on the sun side, cool side keeps its shadow; warm ground bounce underneath
-    s += crescent(ctx, d, 2.1, 2.5, RIM, 0.55);
-    s += crescent(ctx, d, 0.4, -3.2, BOUNCE, 0.24, 0.8);
+    // rim light on the side the light comes from, a cool band on the turned
+    // away side, and warm light bounced up from the ground underneath
+    s += crescent(ctx, d, r2(2.3 * dir), dir < 0 ? 1.2 : 2.5, L.rim, L.rimOp);
+    s += crescent(ctx, d, r2(-3 * dir), -0.8, L.far, L.farOp, 0.9);
+    s += crescent(ctx, d, 0.4, -3.2, BOUNCE, L.bounce, 0.8);
   }
   s += ink(ctx, d, 1);
   return s;
@@ -305,13 +331,41 @@ function drawScholar(ctx, st, back) {
   s += shape(ctx, tuftL, c) + shape(ctx, mirror(tuftL), c);
   s += body(ctx, 'scholar', d, c, STD);
   if (back) {
+    // Seen from behind: the book's corner pokes out past the right side,
+    // a crown tuft on top, a darker cap over the back of the head, two
+    // folded wings with feather tips, and a little three feather tail.
+    const dir = ctx.L.dir;
+    const book = 'M66.8 74.2L78.6 71.6L80.2 82.6L68.4 85.6Z';
+    s = shape(ctx, book, '#8A5A3B') + shape(ctx, 'M68.2 75.6L77.4 73.6L78.4 81.6L69.4 84Z', PAPER, { line: 0.6, flat: true }) + s;
+    const tail = 'M44.6 86.4C45.4 90.6 47.2 93.6 49 94.4C49.6 92.4 50.4 92.4 51 94.4C52.8 93.6 54.6 90.6 55.4 86.4Z';
+    s = shape(ctx, tail, mix(c, DEEP, 0.3)) + s;
+    const cap = 'M28.4 56.6C30.2 46.4 38.6 40.2 50 40.2C61.4 40.2 69.8 46.4 71.6 56.6C64.4 53.4 57.6 52.2 50 52.4C42.4 52.2 35.6 53.4 28.4 56.6Z';
+    s += shape(ctx, cap, mix(c, DEEP, 0.2), { line: 0, op: 0.75 });
+    const tuft = 'M46.6 41.6C45.6 37.4 46.8 34 49.4 32.2C49 35 50.2 36.4 51.2 37C51.6 34.8 53.4 33.6 55.4 33.6C53.6 35.6 53.4 38.6 53.6 41.4Z';
+    s += shape(ctx, tuft, mix(c, DEEP, 0.15), { line: 0.8 });
+    const wingL = 'M32.8 60.6C29.8 67 30.4 75.6 34.6 81.4C37.2 84.8 40.6 86.2 43.2 85.4C41.8 80.6 41.4 74.8 42 69.2C42.4 64.8 41 61 38.2 59.4C36.4 58.8 34.2 59.2 32.8 60.6Z';
+    const wingR = mirror(wingL);
+    const wc = mix(c, COOL, 0.22);
+    // the wing away from the light sits a step deeper in shadow
+    s += shape(ctx, wingL, dir > 0 ? wc : mix(wc, DEEP, 0.18));
+    s += shape(ctx, wingR, dir > 0 ? mix(wc, DEEP, 0.18) : wc);
     if (!ctx.lite) {
-      const v = mix(c, CREAM, 0.55);
-      s += [[42, 60], [58, 60], [50, 67], [41, 73], [59, 73], [50, 80]]
-        .map(([x, y]) => `<path d="M${x - 3} ${y}Q${x} ${y + 2.6} ${x + 3} ${y}" fill="none" stroke="${v}" stroke-width="1.3" stroke-linecap="round" opacity="0.9"/>`)
+      const tip = mix(c, DEEP, 0.4);
+      const lit = mix(c, CREAM, 0.5);
+      // the bare back between the wings catches a soft warm wash
+      s += `<path d="${blob(50 - 3 * dir, 70, 6.5, 12, { wob: 0.08, seed: 23 })}" fill="${mix(c, CREAM, 0.4)}" opacity="0.3"/>`;
+      // feather tips along the trailing edge of each wing, and a lit edge
+      s += `<path d="M36 80.4Q38.4 82.6 41.4 82.2M33.6 74.6Q36.6 77.2 41 76.4M33 68Q36.4 70.6 41.2 70" fill="none" stroke="${tip}" stroke-width="1.1" stroke-linecap="round" opacity="0.6"/>`;
+      s += `<path d="${mirror('M36 80.4Q38.4 82.6 41.4 82.2M33.6 74.6Q36.6 77.2 41 76.4M33 68Q36.4 70.6 41.2 70')}" fill="none" stroke="${tip}" stroke-width="1.1" stroke-linecap="round" opacity="0.6"/>`;
+      s += `<path d="${dir > 0 ? 'M33.4 62.4C31.4 67 31.6 72.4 33.6 77' : mirror('M33.4 62.4C31.4 67 31.6 72.4 33.6 77')}" fill="none" stroke="${lit}" stroke-width="1.4" stroke-linecap="round" opacity="0.55"/>`;
+      // the spine line where the wings meet, lost in the middle
+      s += `<path d="M50 56.4C49.6 64 50.4 74 50 84" fill="none" stroke="${mix(c, DEEP, 0.45)}" stroke-width="0.9" stroke-dasharray="6 3 9 4" opacity="0.5"/>`;
+      // scalloped cap feathers
+      s += [[38, 50.4], [44, 48.6], [50, 48], [56, 48.6], [62, 50.4]]
+        .map(([x, y]) => `<path d="M${x - 2.6} ${y}Q${x} ${y + 2.4} ${x + 2.6} ${y}" fill="none" stroke="${mix(c, CREAM, 0.35)}" stroke-width="1" stroke-linecap="round" opacity="0.6"/>`)
         .join('');
     }
-    s += nub(ctx, 25.5, 73, c, 12) + nub(ctx, 74.5, 73, c, -12);
+    s += nub(ctx, 25.5, 73, c, 12) + nub(ctx, 74.5, 76, c, -24, 4.3, 5.6);
     return s;
   }
   if (!ctx.lite) {
@@ -744,7 +798,9 @@ export function spriteSVG(id, opts = {}) {
   const lite = opts.lite ?? size < 40;
   const showMarker = opts.marker !== false;
   const showShadow = opts.shadow !== false;
-  const ctx = makeCtx(lite, opts.pose || {});
+  const light = LIGHTS[opts.light] ? opts.light : LIGHT;
+  const ctx = makeCtx(lite, opts.pose || {}, light);
+  const L = ctx.L;
   const look = state === 'traveling' ? 'working' : state;
   const art = DRAW[key](ctx, look, facing === 'back');
 
@@ -753,11 +809,14 @@ export function spriteSVG(id, opts = {}) {
     const sh = ctx.id('s');
     ctx.defs.push(`<filter id="${sh}" x="-30%" y="-100%" width="160%" height="300%"><feGaussianBlur stdDeviation="1.3"/></filter>`);
     const rx = key === 'icon' ? 18 : key === 'keeper' ? 25 : 21;
-    // soft contact shadow, a little off center toward the cool side
+    // soft contact shadow cast away from the light: short by day, long and
+    // thin at sunset, faint under the moon; a dark core right under the feet
+    const cx = r2(50 + (L.sh.x / 100) * rx * 2 * 0.5);
+    const lx = r2(rx * L.sh.s);
     shadow =
-      `<g class="p-shadow" filter="url(#${sh})"><ellipse cx="50" cy="94.6" rx="${r2(rx * 1.35)}" ry="5" fill="${BOUNCE}" opacity="0.15"/>` +
-      `<ellipse cx="51.5" cy="94.2" rx="${rx}" ry="3.4" fill="${CONTACT}" opacity="0.3"/>` +
-      `<ellipse cx="50.5" cy="93.8" rx="${r2(rx * 0.55)}" ry="1.8" fill="${CONTACT}" opacity="0.18"/></g>`;
+      `<g class="p-shadow" filter="url(#${sh})" opacity="${L.sh.o}"><ellipse cx="50" cy="94.6" rx="${r2(rx * 1.35)}" ry="5" fill="${BOUNCE}" opacity="0.15"/>` +
+      `<ellipse cx="${cx}" cy="94.2" rx="${lx}" ry="${L.sh.s > 1.3 ? 2.6 : 3.4}" fill="${CONTACT}" opacity="0.3"/>` +
+      `<ellipse cx="${r2(50 + 1 * L.dir)}" cy="93.8" rx="${r2(rx * 0.55)}" ry="1.8" fill="${CONTACT}" opacity="0.2"/></g>`;
   }
   let mk = '';
   const kind = showMarker ? markerKind(state) : null;
@@ -783,11 +842,18 @@ export function spriteSVG(id, opts = {}) {
     );
     paper = ` filter="url(#${f})"`;
   }
+  // the scene light glazes the whole figure (sunset warms it, the moon cools it)
+  let glaze = '';
+  if (L.grade) {
+    const g = ctx.id('g');
+    ctx.defs.push(`<filter id="${g}" color-interpolation-filters="sRGB"><feColorMatrix type="matrix" values="${L.grade}"/></filter>`);
+    glaze = ` filter="url(#${g})"`;
+  }
   return (
     `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="${size}" height="${size}" class="sao-sprite-svg" data-sprite="${key}" aria-hidden="true" focusable="false" overflow="visible">` +
     `<title>${name}</title><defs>${ctx.defs.join('')}</defs>` +
     shadow +
-    `<g class="p-all" ${org(50, 93)}><g${paper}>${art}</g></g>` +
+    `<g class="p-all" ${org(50, 93)}><g${glaze}><g${paper}>${art}</g></g></g>` +
     mk +
     `</svg>`
   );
@@ -804,9 +870,9 @@ const CSS = `
 .sao-bot:focus-visible{outline:2px solid #E8C88E;outline-offset:2px}
 .sao-bot .sao-body{position:absolute;left:50%;bottom:0;transform-origin:50% 94%;will-change:transform;pointer-events:none}
 .sao-bot .sao-body svg,.sao-bot .sao-body img{display:block;width:100%;height:100%;user-select:none;-webkit-user-drag:none}
-.sao-bot .sao-shadow{position:absolute;left:50%;bottom:0;border-radius:50% 46% 52% 48%;background:radial-gradient(closest-side,rgba(94,106,138,.3),rgba(94,106,138,.24) 45%,rgba(94,106,138,.1) 78%,rgba(94,106,138,0));margin-left:5%;pointer-events:none;mix-blend-mode:multiply}
+.sao-bot .sao-shadow{position:absolute;left:50%;bottom:0;border-radius:50% 46% 52% 48%;background:radial-gradient(closest-side,rgba(94,106,138,.3),rgba(94,106,138,.24) 45%,rgba(94,106,138,.1) 78%,rgba(94,106,138,0));opacity:var(--sho,1);pointer-events:none;mix-blend-mode:multiply}
 .sao-bot .sao-shadow::after{content:"";position:absolute;left:30%;right:18%;top:22%;bottom:30%;border-radius:50%;background:radial-gradient(closest-side,rgba(78,74,96,.22),rgba(78,74,96,0))}
-.sao-bot .sao-body>svg,.sao-bot .sao-body>img{filter:drop-shadow(-1px -.6px .7px var(--rim,rgba(244,226,190,.5)))}
+.sao-bot .sao-body>svg,.sao-bot .sao-body>img{filter:drop-shadow(var(--rimx,-1px) var(--rimy,-.6px) .7px var(--rim,rgba(244,226,190,.5)))}
 .sao-crowd.is-quiet{--rim:rgba(196,206,232,.28)}
 .sao-bot .sao-mark{position:absolute;left:50%;bottom:0;pointer-events:none}
 .sao-bot .sao-mark svg{display:block;width:100%;height:100%}
@@ -963,7 +1029,7 @@ function visualState(a) {
 // idle habit plays (those animate parts of the drawing).
 const RASTER = new Map();
 function rasterURL(core, st, facing, lite, size, blink, stepF) {
-  const key = `${core}|${st}|${facing}|${lite ? 1 : 0}|${size}|${blink ? 1 : 0}${stepF}`;
+  const key = `${core}|${st}|${facing}|${lite ? 1 : 0}|${size}|${blink ? 1 : 0}${stepF}|${LIGHT}`;
   const hit = RASTER.get(key);
   if (hit) return hit.url;
   if (RASTER.size > 400) RASTER.clear();
@@ -1010,7 +1076,7 @@ function renderSprite(a) {
   a.footKey = '';
   const kind = st === 'reading' || st === 'done' ? null : markerKind(a.mode === 'nap' ? 'sleeping' : a.state);
   a.markEl.innerHTML = kind ? markerSVG(a.mode === 'nap' ? 'sleeping' : a.state, roleColor(a.core), { lite: a.lite }) : '';
-  a.renderKey = `${st}|${a.facing}|${a.lite}|${a.state}|${a.mode === 'nap'}|${a.live ? 1 : 0}`;
+  a.renderKey = `${st}|${a.facing}|${a.lite}|${a.state}|${a.mode === 'nap'}|${a.live ? 1 : 0}|${LIGHT}`;
 }
 
 function makeActor(spec, i) {
@@ -1304,15 +1370,15 @@ function place(a, T = nowS()) {
   const size = c.base * s;
   const lite = size < 40;
   if (lite !== a.lite) a.lite = lite;
-  const key = `${visualState(a)}|${a.facing}|${a.lite}|${a.state}|${a.mode === 'nap'}|${a.live ? 1 : 0}`;
+  const key = `${visualState(a)}|${a.facing}|${a.lite}|${a.state}|${a.mode === 'nap'}|${a.live ? 1 : 0}|${LIGHT}`;
   if (key !== a.renderKey) renderSprite(a);
   if (a.imgEl) {
     const blink = T < a.blinkUntil;
     const l = a.mode === 'walk' ? a.lift || 0 : 0;
     const stepF = l > 0.35 ? 1 : l < -0.35 ? -1 : 0;
     const fk = `${blink ? 1 : 0}${stepF}`;
-    if (fk !== a.frameKey) {
-      a.frameKey = fk;
+    if (fk + LIGHT !== a.frameKey) {
+      a.frameKey = fk + LIGHT;
       a.imgEl.src = rasterURL(a.core, visualState(a), a.facing, a.lite, Math.round(c.base), blink, stepF);
     }
   }
@@ -1356,7 +1422,9 @@ function place(a, T = nowS()) {
   const sx = 1 + (1 - sy) * 0.9;
   const hopPx = a.hop * size * 0.07;
   a.bodyEl.style.transform = `translate(-50%,${(c.base * 0.06).toFixed(1)}px) translateY(${(-hopPx).toFixed(1)}px) scale(${(s * sx).toFixed(3)},${(s * sy).toFixed(3)}) rotate(${a.rot.toFixed(2)}deg)`;
-  a.shadowEl.style.transform = `translate(-50%,50%) scale(${(s * (1 - a.hop * 0.28)).toFixed(3)})`;
+  const SH = (LIGHTS[LIGHT] || LIGHTS.day).sh;
+  const shk = s * (1 - a.hop * 0.28);
+  a.shadowEl.style.transform = `translate(${(-50 + SH.x).toFixed(1)}%,50%) scale(${(shk * SH.s).toFixed(3)},${(shk * (SH.s > 1.3 ? 0.8 : 1)).toFixed(3)})`;
   const my = MARK_Y[a.core] ?? 24;
   const ms = Math.max(s, 0.72);
   const up = ((94 - my) / 100) * c.base * s * sy + hopPx;
@@ -1470,6 +1538,23 @@ export function unmountCrowd() {
   crowd = null;
 }
 
+// The bots stand in the scene light: rim, cool side and cast shadow follow the
+// time of day (sun from the left by day, low and warm from the right at
+// sunset, cool moonlight at night).
+function applyLight(key) {
+  if (!crowd) return;
+  const L = LIGHTS[key] || LIGHTS.day;
+  const st = crowd.root.style;
+  st.setProperty('--rimx', L.css[0]);
+  st.setProperty('--rimy', L.css[1]);
+  if (!crowd.quiet) st.setProperty('--rim', L.css[2]);
+  else st.removeProperty('--rim');
+  st.setProperty('--sho', String(L.sh.o));
+  if (key === LIGHT) return;
+  LIGHT = key;
+  for (const a of crowd.actors.values()) a.renderKey = '';
+}
+
 export function setScene(placeId, bots = [], { quiet = false, reduced } = {}) {
   if (!crowd) {
     pending = { placeId, bots, opts: { quiet, reduced } };
@@ -1484,6 +1569,7 @@ export function setScene(placeId, bots = [], { quiet = false, reduced } = {}) {
   crowd.root.classList.toggle('is-reduced', crowd.reduced);
   crowd.root.classList.toggle('is-quiet', crowd.quiet);
   crowd.root.style.setProperty('--q', crowd.quiet ? '2' : '1');
+  applyLight(sceneLight());
   const place = PLACE[placeId];
   if (placeChanged) {
     for (const a of crowd.actors.values()) a.el.remove();

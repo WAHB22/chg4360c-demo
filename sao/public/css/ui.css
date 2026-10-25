@@ -438,6 +438,11 @@ h4 { margin: 0; font-weight: 400; line-height: var(--lh-title); }
 .btn-primary > span:first-child:not(:only-child) { color: var(--navy); }
 .btn-primary:hover:not(:disabled) { background: #FFFBF1; }
 .btn-small { padding: 0 var(--s-12); font-size: var(--fs-13); }
+/* the chosen path: a thin gold line, cream type, no fill; it sinks when pressed */
+.btn-path { background: transparent; color: var(--cream); border: 1px solid #C9A86A; box-shadow: none; }
+.btn-path:hover:not(:disabled) { background: rgba(201, 168, 106, 0.1); border-color: #D8BC84; }
+.btn-path:active:not(:disabled) { background: rgba(201, 168, 106, 0.18); box-shadow: inset 0 1px 3px rgba(10, 14, 24, 0.45); transform: translateY(1px); }
+.btn-path[aria-pressed="true"], .btn-path.is-taken { background: rgba(201, 168, 106, 0.16); box-shadow: inset 0 1px 3px rgba(10, 14, 24, 0.45); }
 .btn-quiet { border-color: var(--edge-faint); color: var(--text-soft); }
 .btn-quiet.is-armed { border-color: var(--meter-high); color: var(--text); background: rgba(233, 168, 107, 0.12); }
 .btn-quiet.is-armed > span:first-child { color: var(--meter-high); }
@@ -1160,12 +1165,17 @@ h4 { margin: 0; font-weight: 400; line-height: var(--lh-title); }
 .floor.is-boss:not(.is-cleared) { border-color: rgba(20, 24, 34, 0.5); border-style: solid; }
 .floor.is-boss:not(.is-cleared) .floor-n { border-color: rgba(233, 168, 107, 0.6); }
 .floor.is-cleared {
+  /* cleared floors keep the stone and gain a thin gold edge, no muddy fill */
   border: 0; border-bottom: 1px solid rgba(20, 24, 34, 0.45);
   background-image:
-    linear-gradient(90deg, rgba(232, 200, 142, 0.26) 50%, rgba(232, 200, 142, 0) 50%),
-    linear-gradient(90deg, rgba(201, 192, 174, 0.14), rgba(142, 147, 168, 0.1));
-  background-size: 200% 100%, 100% 100%;
+    linear-gradient(90deg, rgba(232, 200, 142, 0.07) 50%, rgba(232, 200, 142, 0) 50%),
+    radial-gradient(18px 8px at 22% 30%, rgba(255, 246, 226, 0.06), transparent 70%),
+    linear-gradient(90deg, rgba(201, 192, 174, 0.15), rgba(201, 192, 174, 0.08) 62%, rgba(142, 147, 168, 0.12));
+  background-size: 200% 100%, 100% 100%, 100% 100%;
+  box-shadow: inset 0 0 0 1px rgba(201, 168, 106, 0.4), inset 2px 0 0 rgba(201, 168, 106, 0.4);
 }
+.floor.is-cleared .floor-title { color: var(--text); }
+.floor.is-cleared .floor-meta { color: #C9A86A; }
 .floor.is-cleared .floor-n { background: #C9A86A; border-color: #E8D2A0; color: #2A2630; }
 .floor.is-current {
   border: 0; border-bottom: 1px solid rgba(20, 24, 34, 0.5);

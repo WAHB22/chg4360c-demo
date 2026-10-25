@@ -920,70 +920,122 @@ function leaf(x, y, L, w, ang, fill, o) {
   return `<path d="M${P(0, 0)}Q${P(L * 0.45, -w)} ${P(L, 0)}Q${P(L * 0.45, w)} ${P(0, 0)}Z" fill="${fill}"${op(o)}/>`;
 }
 
-// A crown of foliage: clustered masses with a shadow side, a mid tone, lit
-// tops toward the light, broken edges and touches of neighboring hues.
+// A crown of foliage painted as 4 to 7 overlapping leaf clusters, the way a
+// background painter builds a tree: each cluster gets a cool shadow
+// underside, a mid tone body and a warm lit top, its rim is broken by small
+// leaf dabs, sky holes open between clusters with branches crossing them, and
+// a few touches of neighboring hues sit in the mass (broken color).
 function crown(c, r, x, cy, rx, ry, o = {}) {
   const { T, S } = c;
   const d = o.d || 0;
-  const pal = o.cols || S.leaf;
-  const base = r.pick(pal);
   const lx = T.litSide;
-  const n = o.n || Math.round(12 + rx / 4);
+  const autumn = !!S.fallen;
+  const pal = o.cols || S.leaf;
+  const turn = o.turn || (autumn && !o.cols ? r.pick([['#C9772F', '#E3A24A', '#8E5A34'], ['#D89A3E', '#EBC264', '#9A7040'], ['#B8662E', '#DD9450', '#7E5038'], ['#A8943E', '#D8B85A', '#66704A']]) : null);
+  const body = turn ? turn[0] : r.pick(pal);
+  const deep = turn ? turn[2] : pal[Math.min(2, pal.length - 1)];
+  const warm = autumn ? '#E8B860' : S.blossom ? '#F2E4B0' : mix(S.leafLight || pal[0], '#F0D890', 0.35);
+  const coolA = '#5E6A5A';
+  const coolB = '#4A4E5E';
+  const night = c.time === 'night';
+  const tall = ry > rx * 1.25;
+  const big = Math.max(rx, ry);
+  const n = o.n || clamp(Math.round(3.4 + big / 40), 4, 7);
   const cl = [];
+  const a0 = r.R(0, TAU);
   for (let k = 0; k < n; k++) {
-    const a = r.R(0, TAU);
-    const rr = Math.pow(r.r(), 0.5);
-    const px = x + Math.cos(a) * rx * 0.78 * rr;
-    const py = cy + Math.sin(a) * ry * 0.72 * rr * (Math.sin(a) > 0 ? 0.8 : 1);
-    cl.push([px, py, Math.max(rx, ry) * r.R(0.12, 0.21) + 5, r.ch(0.85) ? mix(base, r.pick(pal), r.R(0, 0.3)) : r.pick(pal)]);
+    let px;
+    let py;
+    let pr;
+    if (tall) {
+      const t = n > 1 ? k / (n - 1) : 0.5;
+      px = x + r.R(-0.3, 0.3) * rx;
+      py = cy + ry * (0.62 - t * 1.25);
+      pr = rx * r.R(0.55, 0.72) * (1 - Math.abs(t - 0.4) * 0.55);
+    } else if (k === 0) {
+      px = x + r.R(-0.12, 0.12) * rx;
+      py = cy - ry * r.R(0.05, 0.2);
+      pr = big * r.R(0.4, 0.5);
+    } else {
+      const a = a0 + (k / (n - 1)) * TAU + r.R(-0.4, 0.4);
+      const rr = r.R(0.45, 0.66);
+      px = x + Math.cos(a) * rx * rr;
+      py = cy + Math.sin(a) * ry * rr * (Math.sin(a) > 0 ? 0.62 : 0.95);
+      pr = big * r.R(0.28, 0.42);
+    }
+    cl.push([px, py, pr, r.ch(0.7) ? body : mix(body, r.pick(pal), r.R(0.2, 0.5))]);
   }
-  cl.sort((a, b) => a[1] - b[1]);
+  cl.sort((p1, p2) => p1[1] - p2[1]);
   const score = (px, py) => ((px - x) * lx) / rx - ((py - cy) / ry) * 1.15;
-  let shade = '';
   let mid = '';
-  let lit = '';
   let edgeL = '';
   let touch = '';
-  shade += pth(blob(r.r, x, cy + ry * 0.04, rx * 0.82, ry * 0.72, 0.25, 11), c.P(base, -0.85, d));
-  for (const [px, py, pr, col] of cl) shade += pth(blob(r.r, px, py, pr, pr * 0.85, 0.4, 9), c.P(col, -0.85, d));
+  // a soft dark mass behind everything so clusters read as one tree
+  const core = c.P(mix(deep, coolB, 0.35), -0.5, d);
+  mid += pth(blob(r.r, x - lx * rx * 0.05, cy + ry * 0.12, rx * 0.74, ry * 0.58, 0.35, 11, r.R(-0.3, 0.3)), core, 0.92);
   for (const [px, py, pr, col] of cl) {
     const sc = score(px, py);
-    if (sc < -0.55) continue;
-    mid += pth(blob(r.r, px + lx * pr * 0.22, py - pr * 0.24, pr * 0.8, pr * 0.66, 0.4, 9), c.P(col, sc > 0 ? 0.25 : -0.15, d), 0.95);
-  }
-  for (const [px, py, pr, col] of cl) {
-    const sc = score(px, py);
-    if (sc < 0.2) continue;
-    lit += pth(blob(r.r, px + lx * pr * 0.42, py - pr * 0.42, pr * 0.5, pr * 0.36, 0.45, 8), c.P(mix(col, S.leafLight || col, 0.5), 0.95, d), 0.9);
-  }
-  // broken silhouette: loose leaves on the edge
-  const ne = o.edgeLeaves != null ? o.edgeLeaves : Math.round(18 + rx / 4);
-  for (let k = 0; k < ne; k++) {
-    const a = r.R(0, TAU);
-    const ex = x + Math.cos(a) * rx * r.R(0.82, 1.02);
-    const ey = cy + Math.sin(a) * ry * r.R(0.78, 0.98);
-    const sc = score(ex, ey);
-    const L = Math.max(3, rx * r.R(0.06, 0.11));
-    edgeL += leaf(ex, ey, L, L * 0.38, a + r.R(-0.8, 0.8), c.P(r.pick(pal), sc > 0.3 ? 0.6 : sc > -0.3 ? -0.2 : -0.8, d), 0.95);
-  }
-  for (let k = 0; k < (o.touches || Math.round(rx / 3)); k++) {
-    const a = r.R(0, TAU);
-    const rr = Math.sqrt(r.r());
-    const tx = x + Math.cos(a) * rx * 0.85 * rr;
-    const ty = cy + Math.sin(a) * ry * 0.75 * rr;
-    const sc = score(tx, ty);
-    const col = S.blossom && r.ch(0.75) ? r.pick(S.blossom) : r.pick(pal);
-    touch += ell(tx, ty, rx * r.R(0.03, 0.07), rx * r.R(0.018, 0.035), c.P(col, sc > 0 ? 0.7 : -0.4, d), r.R(0.45, 0.85), r.R(-35, 35));
-  }
-  let holes = '';
-  if (o.holes !== false && rx > 70) {
-    for (let k = 0; k < 4; k++) {
-      const hx = x + r.R(-rx * 0.6, rx * 0.6);
-      const hy = cy + r.R(-ry * 0.3, ry * 0.35);
-      holes += ell(hx, hy, rx * r.R(0.03, 0.06), rx * r.R(0.02, 0.04), mix(T.sky[2][1], T.haze, 0.35), 0.55);
+    const B = (cx, cyy, a, b, j = 0.34, nn = 11) => blob(r.r, cx, cyy, a, b, j, nn, r.R(-0.5, 0.5));
+    // body: mid tone, slightly dirtied toward the deep color
+    mid += pth(B(px, py, pr, pr * r.R(0.72, 0.86)), c.P(mix(col, deep, 0.3), sc > 0 ? 0 : -0.25, d), 0.94);
+    // cool shadow underside, reflected sky in it
+    mid += pth(B(px - lx * pr * 0.12, py + pr * 0.32, pr * 0.9, pr * 0.48, 0.4, 9), c.P(deep, -0.6, d), 0.62);
+    mid += pth(B(px - lx * pr * 0.18, py + pr * 0.36, pr * 0.78, pr * 0.38, 0.42, 9), r.ch(0.5) ? coolA : coolB, 0.5);
+    // mid tone turning toward the light
+    mid += pth(B(px + lx * pr * 0.12, py - pr * 0.16, pr * 0.74, pr * 0.46, 0.4, 9), c.P(col, 0.2, d), 0.78);
+    // warm lit top, strongest on the clusters facing the light
+    if (sc > -0.9) {
+      const lk = clamp(0.45 + sc * 0.3, 0.3, 0.8);
+      // the lit top is a handful of dabs, not one disc
+      const nd = 3 + Math.floor(r.r() * 3);
+      for (let j = 0; j < nd; j++) {
+        const u = r.R(-0.55, 0.55);
+        mid += pth(B(px + lx * pr * 0.22 + u * pr * 0.8, py - pr * (0.38 + (0.3 - Math.abs(u) * 0.4) * 0.5) + r.R(-0.06, 0.08) * pr, pr * r.R(0.16, 0.3), pr * r.R(0.1, 0.17), 0.55, 7), c.P(j % 2 ? warm : mix(warm, col, 0.35), night ? 0 : 0.45, d), (night ? lk * 0.4 : lk) * r.R(0.75, 1));
+      }
+      if (sc > 0.1 && !night) mid += pth(B(px + lx * pr * 0.36, py - pr * 0.52, pr * 0.24, pr * 0.12, 0.5, 7), c.P(mix(warm, '#FFF2C8', 0.4), 0.7, d), 0.6);
+    }
+    // ragged rim: small leaf dabs breaking the silhouette, lit above, cool below
+    const m = Math.round(5 + pr / 4);
+    for (let j = 0; j < m; j++) {
+      const a = r.R(-Math.PI * 1.05, Math.PI * 0.15) + (r.ch(0.25) ? Math.PI * 0.8 : 0);
+      const ex = px + Math.cos(a) * pr * r.R(0.82, 1.06);
+      const ey = py + Math.sin(a) * pr * 0.8 * r.R(0.82, 1.04);
+      const up = -Math.sin(a);
+      const L = Math.max(2.6, pr * r.R(0.1, 0.18));
+      const tone = up > 0.3 ? (r.ch(0.5) ? c.P(warm, 0.35, d) : c.P(col, 0.3, d)) : up > -0.2 ? c.P(col, -0.1, d) : c.P(mix(deep, coolB, 0.3), -0.5, d);
+      edgeL += leaf(ex, ey, L, L * 0.42, a + r.R(-0.9, 0.9), tone, r.R(0.75, 0.95));
+    }
+    // broken color: a yellow, a blue and now and then a pink touch inside the mass
+    const tc = [warm, '#8E9CB8', mix(col, '#E2C25A', 0.5), '#7E9A6A'];
+    if (r.ch(0.3)) tc.push('#D8A0A6');
+    for (let j = 0; j < Math.round(2 + pr / 14); j++) {
+      const a = r.R(0, TAU);
+      const rr = Math.sqrt(r.r()) * pr * 0.7;
+      touch += ell(px + Math.cos(a) * rr, py + Math.sin(a) * rr * 0.7, pr * r.R(0.06, 0.12), pr * r.R(0.03, 0.06), c.P(r.pick(tc), 0, d), r.R(0.3, 0.6), r.R(-40, 40));
     }
   }
-  return { shade, mid, lit, edgeL, touch, holes };
+  // sky holes between the clusters, with branches crossing them
+  let holes = '';
+  if (o.holes !== false && big > 34) {
+    const sk = night ? mix(T.sky[2][1], '#2A3550', 0.3) : mix(T.sky[Math.min(2, T.sky.length - 1)][1], T.haze, 0.35);
+    const nh = clamp(Math.round(2 + big / 30), 3, 9);
+    const twig = c.P('#5A4334', -0.55, d);
+    for (let k = 0; k < nh; k++) {
+      const p1 = cl[k % cl.length];
+      const p2 = cl[(k * 3 + 1) % cl.length];
+      const t = r.R(0.35, 0.65);
+      const hx = lerp(p1[0], p2[0], t) + r.R(-0.15, 0.15) * rx;
+      const hy = lerp(p1[1], p2[1], t) + r.R(-0.1, 0.12) * ry;
+      if (Math.abs(hx - x) > rx * 0.82 || Math.abs(hy - cy) > ry * 0.7) continue;
+      const hr = big * r.R(0.025, 0.06);
+      holes += pth(blob(r.r, hx, hy, hr, hr * r.R(0.6, 0.9), 0.5, 7, r.R(-0.5, 0.5)), sk, r.R(0.7, 0.9));
+      if (r.ch(0.7)) {
+        const ang = r.R(-2.4, -0.7);
+        holes += spath(`M${pt(hx - Math.cos(ang) * hr * 1.6, hy - Math.sin(ang) * hr * 1.6)}Q${pt(hx + r.R(-2, 2), hy + r.R(-2, 2))} ${pt(hx + Math.cos(ang) * hr * 1.7, hy + Math.sin(ang) * hr * 1.7)}`, twig, Math.max(0.8, big * 0.012), 0.85);
+      }
+    }
+  }
+  return { shade: '', mid, lit: '', edgeL, touch, holes, turn, cl };
 }
 
 function tree(c, x, y, s, o = {}) {
@@ -1044,16 +1096,22 @@ function tree(c, x, y, s, o = {}) {
   let ccy = cy;
   if (kind === 'poplar') { rx = s * 0.42; ry = s * 1.15; ccy = y - th - s * 0.75; }
   const k = crown(c, r, x + lean, ccy, rx, ry, o);
-  const w = canopyWash(c, r, x + lean, ccy, rx, ry, d);
-  let lobe = { back: '', front: '', lost: '' };
-  if (kind === 'oak') {
-    const side = r.ch(0.5) ? 1 : -1;
-    lobe = canopyWash(c, r, x + lean + side * rx * r.R(0.6, 0.8), ccy + ry * r.R(0.05, 0.3), rx * r.R(0.38, 0.5), ry * r.R(0.4, 0.55), d, w.turn);
+  // branches climb from the trunk into each low cluster; seen in the gaps and below the crown
+  let limbs = '';
+  const top = [x + lean, y - th - s * 0.08];
+  for (const [px, py, pr] of k.cl) {
+    if (py < ccy - ry * 0.45 && kind !== 'poplar') continue;
+    const ex = px + r.R(-pr * 0.2, pr * 0.2);
+    const ey = py + pr * r.R(0.1, 0.35);
+    limbs += spath(`M${pt(top[0], top[1] + s * 0.05)}Q${pt(lerp(top[0], ex, 0.35) + r.R(-6, 6), lerp(top[1], ey, 0.7))} ${pt(ex, ey)}`, trunk, Math.max(1, tw * r.R(0.3, 0.5)), 0.95);
   }
-  // the trunk vanishes into the crown: a shadow pocket where it enters
-  const pocket = pth(blob(r.r, x + lean, ccy + ry * 0.55, rx * 0.32, ry * 0.16, 0.4, 8), mix(c.P(c.S.leaf[0], -0.9, d), '#2E3A3A', 0.4), 0.55);
-  out.push(shadow + g(w.back + lobe.back, `filter="${c.f('pig')}"`) + g(tr + br, `filter="${c.f('arch')}"`) + g(pocket, `filter="${c.f('b4')}"`) + g(w.front + lobe.front, `filter="${c.f('pig')}"`) + g(w.lost, `filter="${c.f('b4')}"`) +
-    g(k.lit + k.edgeL + k.touch + k.holes, `filter="${c.f('leaf')}" opacity="0.78"`));
+  // the trunk enters the crown in shadow: a cool pocket and a dark stub
+  const pocket = pth(blob(r.r, x + lean, ccy + ry * 0.48, rx * 0.34, ry * 0.18, 0.4, 8), mix(c.P(k.turn ? k.turn[2] : S.leaf[0], -0.9, d), '#3A4250', 0.45), 0.6);
+  const stub = pth(`M${pt(x + lean - tw * 0.45, y - th + s * 0.02)}L${pt(x + lean - tw * 0.25, ccy + ry * 0.3)}L${pt(x + lean + tw * 0.25, ccy + ry * 0.3)}L${pt(x + lean + tw * 0.45, y - th + s * 0.02)}Z`, mix(trunk, '#2E3440', 0.35), 0.8);
+  // a lost edge: the lit top melts into the air
+  const lost = pth(blob(r.r, x + lean + lx * rx * 0.25, ccy - ry * 0.35, rx * 0.6, ry * 0.4, 0.35, 10), c.P(k.turn ? k.turn[1] : (S.leafLight || S.leaf[0]), 0.6, Math.max(d, 0.4)), 0.16);
+  out.push(shadow + g(tr + br + limbs, `filter="${c.f('arch')}"`) + g(k.mid, `filter="${c.f('pig')}"`) + g(pocket, `filter="${c.f('b4')}"`) + g(stub, `filter="${c.f('arch')}" opacity="0.7"`) +
+    g(k.holes, `filter="${c.f('wc')}"`) + g(k.edgeL + k.touch, `filter="${c.f('leaf')}"`) + g(lost, `filter="${c.f('b10')}"`));
 }
 
 // A canopy painted as 3 to 4 overlapping transparent washes: a cool shadow
@@ -3893,9 +3951,22 @@ function marketHall(c) {
   const wood = '#8A6446';
   let s = '';
   // dark interior and the stone floor
-  s += rect(392, 462, 816, 108, c.P('#4E3E32', -0.6));
+  // the hall interior: a cool green grey shade warming toward the floor, never a black hole
+  s += rect(392, 462, 816, 108, c.lg([[0, c.P('#3A4A4E', -0.1)], [1, c.P('#4E4438', 0)]]), 0.85);
   s += rect(384, 566, 832, 12, c.P('#CFC2A6', 0.4), 1, edge(c, 0.6));
   c.land.push(s);
+  {
+    // three warm lamp pools and a wet in wet bloom so the shade breathes
+    const ri = c.sub('hallin');
+    let lp = '';
+    for (const [x, w] of [[486, 70], [742, 96], [1084, 80]]) {
+      lp += pth(blob(ri.r, x + ri.R(-10, 10), 534, w, 34, 0.4, 10), '#E8C890', 0.35);
+      lp += pth(blob(ri.r, x + ri.R(-8, 8), 520, w * 0.45, 16, 0.4, 9), '#F2DCA8', 0.25);
+    }
+    let bl = '';
+    for (let k = 0; k < 7; k++) bl += pth(blob(ri.r, ri.R(410, 1190), ri.R(470, 560), ri.R(30, 80), ri.R(12, 30), 0.5, 9), ri.pick(['#5E6E6A', '#6A5A48', '#4A5A62', '#7A6A52']), ri.R(0.18, 0.32));
+    c.land.push(g(bl, `filter="${c.f('wet')}"`) + g(lp, `filter="${c.f('b10')}"`));
+  }
   // stalls with striped awnings, counters and produce
   const awn = ['#C98A4E', '#5E9A8E', '#9A5A4A', '#7FA05A', '#E7C66A', '#D2A256', '#8E9A6A', '#B9876A'];
   const posts = [];
@@ -4002,11 +4073,76 @@ function marketHall(c) {
   const D = [560, 370];
   rf += pg([A, B, Cc, D], c.lg([[0, c.P(roof, 0.55)], [1, c.P(roof, 0.1)]], 0, 1, 0, 0), 1, edge(c, 1));
   rf += roofTiles(c, A, B, Cc, D, roof, 0);
-  for (let k = 1; k < 18; k++) {
-    const t = k / 18;
-    rf += line(lerp(A[0], B[0], t), 460, lerp(D[0], Cc[0], t), 370, c.P(roof, -0.4), 0.6, 0.25);
+  {
+    // five or six tile courses laid by hand: each band wobbles, lit on its
+    // upper half, shaded where the next course overlaps it; moss and gaps
+    const rb = c.sub('roofbands');
+    const nb = 6;
+    const xa = (y) => lerp(560, 370, (y - 370) / 90);
+    const xb = (y) => lerp(1040, 1230, (y - 370) / 90);
+    const wob = (y, amp) => {
+      const pts = [];
+      const n = 14;
+      for (let i = 0; i <= n; i++) {
+        const t = i / n;
+        const yy = y + rb.R(-amp, amp) + Math.sin(t * 7 + y) * amp * 0.5;
+        pts.push([lerp(xa(yy), xb(yy), t), yy]);
+      }
+      return pts;
+    };
+    const edges = [];
+    for (let k = 0; k <= nb; k++) edges.push(wob(370 + (90 * k) / nb + (k > 0 && k < nb ? rb.R(-3, 3) : 0), k === 0 ? 0.6 : k === nb ? 1.5 : 2.4));
+    let bands = '';
+    for (let k = 0; k < nb; k++) {
+      const top = edges[k];
+      const bot = edges[k + 1];
+      const lit = k % 2 === 0;
+      bands += pth(crPath([...top, ...bot.slice().reverse()], true), c.P(rb.pick(['#B8744A', '#C47E50', '#A86A44', '#BC7A56']), lit ? 0.45 : -0.05), 0.55);
+      // the shadow line where the course above laps over this one
+      const sh = top.map(([x, y]) => [x, y + rb.R(1.5, 3.5)]);
+      bands += spath(crPath(sh, false), mix(c.P('#6E4434', -0.4), '#4A4E5E', 0.4), rb.R(2.2, 3.6), 0.5);
+      // lit lip of each course
+      bands += spath(crPath(bot.map(([x, y]) => [x, y - 2]), false), c.P('#E8B48A', 0.5), 1.2, 0.35);
+    }
+    // missing tiles: dark notches showing the battens
+    for (let k = 0; k < 6; k++) {
+      const e = edges[rb.RI(1, nb - 1)];
+      const [x, y] = e[rb.RI(2, e.length - 3)];
+      bands += pth(blob(rb.r, x, y + 5, rb.R(5, 9), rb.R(3, 5), 0.3, 6), c.P('#4E3A32', -0.3), 0.75);
+      bands += line(x - 6, y + 5, x + 6, y + 5.5, c.P('#8A6446', 0), 0.8, 0.6);
+    }
+    // moss gathers on the shaded lower courses and toward the left hip
+    let moss = '';
+    for (let k = 0; k < 16; k++) {
+      const y = rb.R(410, 456);
+      const x = lerp(xa(y), xb(y), Math.pow(rb.r(), 1.6) * 0.8);
+      moss += pth(blob(rb.r, x, y, rb.R(8, 22), rb.R(2.5, 5), 0.5, 8), rb.pick(['#7E8A52', '#6E7E4E', '#9A9A5A']), rb.R(0.25, 0.5));
+    }
+    rf += bands + g(moss, `filter="${c.f('pig')}"`);
+    // rafters drawn by hand, not by ruler
+    for (let k = 1; k < 18; k += 2) {
+      const t = k / 18 + rb.R(-0.008, 0.008);
+      rf += spath(`M${f1(lerp(A[0], B[0], t))},460Q${f1(lerp(lerp(A[0], B[0], t), lerp(D[0], Cc[0], t), 0.5) + rb.R(-3, 3))},415 ${f1(lerp(D[0], Cc[0], t))},371`, c.P(roof, -0.4), 0.6, 0.14);
+    }
   }
-  rf += pg([[368, 458], [1232, 458], [1232, 468], [368, 468]], c.P(wood, -0.3), 1, edge(c, 0.6));
+  {
+    // the eave: a timber fascia with a 2 to 4 px wobble and a broken cool shadow beneath
+    const re = c.sub('eave');
+    const top = [];
+    const bot = [];
+    for (let i = 0; i <= 16; i++) {
+      const x = lerp(368, 1232, i / 16);
+      top.push([x, 458 + re.R(-1.5, 1.5) + Math.sin(i * 0.9) * 1.2]);
+      bot.push([x, 468 + re.R(-2, 2) + Math.sin(i * 0.7 + 1) * 1.4 + (i > 6 && i < 11 ? 1.5 : 0)]);
+    }
+    rf += pth(crPath([...top, ...bot.reverse()], true), c.P(wood, -0.3), 1, edge(c, 0.6));
+    let es = '';
+    for (let k = 0; k < 22; k++) {
+      const x = re.R(380, 1210);
+      es += pth(blob(re.r, x, 474 + re.R(-1, 3), re.R(18, 60), re.R(3, 7), 0.5, 8), re.ch(0.5) ? '#4A4E5E' : '#5A4A60', re.R(0.22, 0.42));
+    }
+    c.land.push(g(es, `filter="${c.f('wc')}"`));
+  }
   // ridge vent
   rf += pg([[946, 371], [984, 370], [983, 356], [947, 357]], c.P('#D8C9AE', T.frontK - 0.1), 1, edge(c, 0.6)) + pg([[940, 358], [990, 357], [967, 345]], c.P(roof, 0.25), 1, edge(c, 0.6));
   // the roof in two tones: a sun warmed run and a weathered patch, tiles laid in dry brush
@@ -4169,9 +4305,34 @@ function stronghold(c) {
   for (let i = 0; i < 4; i++) tw += rect(948 + i * 23, 270, 13, 13, c.P(st, (i < 2) === (T.litSide < 0) ? 0.6 : -0.2), 1, edge(c, 0.6));
   tw += rect(987, 340, 6, 22, c.P('#2E3440', 0)) + rect(987, 410, 6, 20, c.P('#2E3440', 0));
   const rg = c.lg(T.litSide < 0 ? [[0, c.P('#6E7486', 0.7)], [0.6, c.P('#5E6476', 0)], [1, c.P('#4E5466', -0.7)]] : [[0, c.P('#4E5466', -0.7)], [0.4, c.P('#5E6476', 0)], [1, c.P('#6E7486', 0.7)]], 0, 0, 1, 0);
-  tw += pg([[938, 272], [1042, 272], [990, 206]], rg, 1, edge(c, 0.9));
-  tw += line(990, 206, 990, 190, c.P('#3A3F48', 0), 1.6) + circ(990, 189, 2.4, c.P('#E8C88E', 0.4));
-  if (S.snow) tw += pg([[954, 262], [1026, 262], [990, 210]], '#F4F6F9', 0.8);
+  {
+    // the cone in two planes: a lit plane and a cool shaded plane, slates in dabs,
+    // a ridge that is not quite straight and a finial bent by the wind
+    const rt = c.sub('towercone');
+    const ax = 992;
+    const ay = 205;
+    const litL = T.litSide < 0;
+    const pL = [[938, 272], [948, 266], [966, 270], [ax - 4, 240], [ax, ay]];
+    const ridgeX = 978;
+    tw += pg([[938, 272], [ridgeX, 274], [ax, ay]], c.P('#7A8098', litL ? 0.55 : -0.5), 1, edge(c, 0.9));
+    tw += pg([[ridgeX, 274], [1042, 272], [ax, ay]], c.P('#5E6476', litL ? -0.55 : 0.5), 1, edge(c, 0.9));
+    let sl = '';
+    for (let k = 0; k < 46; k++) {
+      const t = Math.sqrt(rt.r());
+      const u = rt.R(-1, 1);
+      const yy = lerp(ay, 271, t);
+      const half = lerp(0, 52, t);
+      const x = ax + u * half * 0.95 - (ax - ridgeX) * t * (u > 0 ? 0 : 0.3);
+      const onLit = (x < lerp(ax, ridgeX, t)) === litL;
+      sl += ell(x, yy, rt.R(2.5, 6), rt.R(1, 2), onLit ? rt.pick(['#9AA0B4', '#B0A8B4', '#8A90A6']) : rt.pick(['#4E5466', '#5A5A6E', '#46505E']), rt.R(0.35, 0.7));
+    }
+    tw += sl;
+    tw += spath(`M938,272Q990,${f1(276 + rt.R(-1, 2))} 1042,272`, c.P('#4A4E5E', -0.2), 2, 0.55);
+    tw += spath(`M${ax},${ay}L${ridgeX},274`, c.P('#E6D8BC', 0.3), 1, 0.4);
+    tw += spath(`M${ax},${ay}q1,-7 3,-10q2,-3 4,-5`, c.P('#3A3F48', 0), 1.6) + circ(ax + 7.5, ay - 15.5, 2.3, c.P('#E8C88E', 0.4));
+    void pL;
+  }
+  if (S.snow) tw += pg([[954, 262], [1026, 262], [992, 210]], '#F4F6F9', 0.8);
   c.land.push(g(tw, `filter="${c.f('arch')}"`));
   // thick walls with a battered foot and buttresses
   const b = block(c, { x: X0, y: BY, w: X1 - X0, h: BY - TOP, d: 120, side: 1, kind: 'flat', wall: st, roofTop: '#9A958C' });
@@ -4192,24 +4353,74 @@ function stronghold(c) {
     s += pg([b.F(a, 0.98), b.F(a + 0.012, 0.98), b.F(a + 0.008, r.R(0.55, 0.85)), b.F(a + 0.002, r.R(0.55, 0.85))], c.P('#5E5A58', -0.3), 0.18);
   }
   if (!S.snow) for (let k = 0; k < 10; k++) s += ell(...b.F(r.R(0.02, 0.98), r.R(0.02, 0.35)), r.R(8, 20), r.R(3, 6), c.P(r.pick(['#6F8A52', '#5E7A48', '#8A9A5A']), 0.1), 0.55);
-  for (let i = 0; i < 15; i++) s += rect(X0 + 2 + i * 25.4, TOP - 14, 15, 14, c.P(st, 0.5), 1, edge(c, 0.6));
+  // merlons laid by hand: every third or fourth one has settled, two have lost a corner
+  {
+    const rm = c.sub('merlons');
+    let nextDrop = rm.RI(2, 3);
+    for (let i = 0; i < 15; i++) {
+      let dy = rm.R(-0.6, 0.6);
+      if (i === nextDrop) { dy += rm.R(2, 5); nextDrop += rm.RI(3, 4); }
+      const x = X0 + 2 + i * 25.4 + rm.R(-1, 1);
+      const w = 15 + rm.R(-1, 1.2);
+      const y0 = TOP - 14 + dy;
+      if (i === 4 || i === 11) {
+        const left = i === 4;
+        const pts = left ? [[x, TOP], [x, y0 + 5], [x + 4, y0 + 1], [x + 6, y0], [x + w, y0], [x + w, TOP]] : [[x, TOP], [x, y0], [x + w - 6, y0], [x + w - 3, y0 + 3], [x + w, y0 + 6], [x + w, TOP]];
+        s += pg(pts, c.P(st, 0.5), 1, edge(c, 0.6));
+        s += pg(left ? [[x, y0 + 5], [x + 4, y0 + 1], [x + 5, y0 + 4]] : [[x + w - 6, y0], [x + w - 3, y0 + 3], [x + w - 5, y0 + 3]], c.P('#8E95A8', -0.2), 0.6);
+      } else s += rect(x, y0, w, TOP - y0, c.P(st, 0.5), 1, edge(c, 0.6));
+      // lit top edge of each merlon
+      s += line(x + 1, y0 + 1, x + w - 1, y0 + 1, c.P('#E6D8BC', 0.5), 1, 0.45);
+    }
+  }
   s += rect(X0, TOP - 2, X1 - X0, 6, c.P(st, -0.6), 0.5);
   for (const bx of [X0 + 70, X1 - 70]) s += pg([[bx - 16, BY + 2], [bx + 16, BY + 2], [bx + 10, BY - 92], [bx - 10, BY - 92]], c.P(st, faceK(c, bx < 800 ? -1 : 1) * 0.5), 1, edge(c, 0.8));
   for (const ax of [X0 + 40, X1 - 40]) s += rect(ax - 3, 450, 6, 24, c.P('#2E3440', 0));
-  // the heavy iron bound door with the key on it
-  s += pth('M762,578L762,508A38,32 0 0 1 838,508L838,578Z', c.P('#2E2A2A', -0.3), 1, edge(c, 0.9));
-  s += pth('M768,578L768,509A32,27 0 0 1 832,509L832,578Z', c.P('#5A4434', -0.1));
-  for (let k = 1; k < 5; k++) s += line(768 + k * 12.8, 486, 768 + k * 12.8, 577, c.P('#4A3628', -0.3), 0.8, 0.6);
-  for (const y of [518, 542, 566]) s += line(768, y, 832, y, c.P('#3A4048', 0.2), 3.4);
-  for (const y of [518, 542, 566]) for (const x of [774, 788, 812, 826]) s += circ(x, y, 1.5, c.P('#A9AEB5', 0.5));
-  s += circ(800, 528, 7, 'none', 1, ` stroke="${c.P('#D2AE62', 0.5)}" stroke-width="2.6"`) + line(800, 535, 800, 558, c.P('#D2AE62', 0.5), 2.8) + line(800, 550, 807, 550, c.P('#D2AE62', 0.5), 2.6) + line(800, 556, 806, 556, c.P('#D2AE62', 0.5), 2.6);
+  // the heavy iron bound door sits off the axis, nearer the left buttress:
+  // oak planks in dry brush, three iron straps, studs, the key on it
+  {
+    const DX = -64;
+    const rd = c.sub('vaultdoor');
+    let dd = `<g transform="translate(${DX} 0)">`;
+    dd += pth('M762,578L762,508Q764,478 800,476Q836,478 838,508L838,578Z', c.P('#3E3230', -0.3), 1, edge(c, 0.9));
+    dd += pth('M768,578L768,509Q770,484 800,482Q830,484 832,509L832,578Z', c.P('#6A4E38', -0.05));
+    for (let k = 1; k < 5; k++) { const x = 768 + k * 12.8 + rd.R(-1, 1); dd += spath(`M${f1(x)},${f1(486 + Math.abs(k - 2.5) * 3)}L${f1(x + rd.R(-0.8, 0.8))},577`, c.P('#4A3628', -0.3), 0.9, 0.65); }
+    let grain = '';
+    for (let k = 0; k < 26; k++) { const x = rd.R(770, 830); const y = rd.R(492, 570); grain += spath(`M${f1(x)},${f1(y)}l${f1(rd.R(-0.6, 0.6))},${f1(rd.R(8, 22))}`, rd.ch(0.5) ? '#8E6A4A' : '#4A3628', rd.R(0.8, 1.8), rd.R(0.3, 0.6)); }
+    dd += `<g filter="${c.f('dry')}">${grain}</g>`;
+    dd += pth('M768,578L768,509Q770,484 800,482Q830,484 832,509L832,578Z', '#4A4E5E', 0.22);
+    for (const y of [518, 542, 566]) {
+      const yy = y + rd.R(-1, 1);
+      dd += spath(`M768,${f1(yy)}L800,${f1(yy + rd.R(-0.8, 0.8))}L832,${f1(yy + rd.R(-1, 1))}`, c.P('#3A4048', 0.1), 3.4, 0.95);
+      dd += spath(`M770,${f1(yy - 1.2)}L830,${f1(yy - 1.4)}`, c.P('#9A8A7A', 0.3), 0.7, 0.4);
+      dd += pth(blob(rd.r, rd.R(780, 820), yy + 1, rd.R(4, 8), 1.6, 0.4, 6), '#9A5A3A', 0.45);
+      for (const x of [774, 788, 812, 826]) dd += circ(x, yy, 1.5, c.P('#A9AEB5', 0.5));
+    }
+    dd += circ(800, 528, 7, 'none', 1, ` stroke="${c.P('#D2AE62', 0.5)}" stroke-width="2.6"`) + line(800, 535, 800, 558, c.P('#D2AE62', 0.5), 2.8) + line(800, 550, 807, 550, c.P('#D2AE62', 0.5), 2.6) + line(800, 556, 806, 556, c.P('#D2AE62', 0.5), 2.6);
+    dd += '</g>';
+    s += dd;
+  }
   // one small barred window
   s += rect(787, 440, 26, 20, c.P('#2E3440', -0.2), 1, edge(c, 0.6));
   for (const x of [793, 800, 807]) s += line(x, 440, x, 460, c.P('#6A707A', 0.3), 1.7);
   c.land.push(g(s, `filter="${c.f('arch')}"`));
   // lantern by the door
-  c.land.push(line(846, 500, 858, 500, c.P('#3A3F48', 0), 1.6) + rect(852, 502, 10, 14, c.P('#3E4A5E', 0)) + rect(853.5, 504, 7, 10, c.P('#E8DEC2', 0.2), 0.8));
-  addLight(c, 857, 509, 3.2, { halo: 56, col: '#FFD27E' });
+  c.land.push(line(782, 500, 794, 500, c.P('#3A3F48', 0), 1.6) + rect(788, 502, 10, 14, c.P('#3E4A5E', 0)) + rect(789.5, 504, 7, 10, c.P('#E8DEC2', 0.2), 0.8));
+  addLight(c, 793, 509, 3.2, { halo: 56, col: '#FFD27E' });
+  {
+    // the stone in watercolor: a warm grey wash, a cool glaze over the shaded
+    // right face and the lower third, a warm glaze on the lit top left edge
+    const rv = c.sub('vaultglaze');
+    const lo = BY - (BY - TOP) * 0.36;
+    let gz = pg([b.F(0, 0), b.F(1, 0), b.F(1, 1), b.F(0, 1)], '#B8B0A2', 0.18);
+    gz += pg([b.S(0, 0), b.S(1, 0), b.S(1, 1), b.S(0, 1)], '#8E95A8', 0.3);
+    gz += pth(crPath([[X0 - 14, BY + 2], [X0 + 120, lo + rv.R(-6, 6)], [X0 + 260, lo + rv.R(-10, 4)], [X1 - 60, lo + rv.R(-6, 6)], [X1 + 14, lo + 10], [X1 + 14, BY + 2]], true), '#8E95A8', 0.3);
+    gz += pth(crPath([[X0 - 2, TOP - 2], [X0 + 170, TOP - 4], [X0 + 120, TOP + 26], [X0 + 30, TOP + 70], [X0 - 2, TOP + 110]], true), '#E6D8BC', 0.35);
+    c.land.push(g(gz, `filter="${c.f('wet')}"`));
+    let bl = '';
+    for (let k = 0; k < 9; k++) bl += pth(blob(rv.r, rv.R(X0, X1), rv.R(TOP + 10, BY - 10), rv.R(20, 60), rv.R(10, 30), 0.5, 9), rv.pick(['#C9BEA8', '#9A9AAE', '#B8A88E', '#A8B0A0']), rv.R(0.12, 0.22));
+    c.land.push(g(bl, `filter="${c.f('pig')}"`));
+  }
   castShadow(c, X0 - 14, X1 + 14, 578, 150, { op: 0.3 });
 }
 

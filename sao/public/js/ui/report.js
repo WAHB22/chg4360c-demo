@@ -64,7 +64,7 @@ export function reportView(act) {
           'li',
           { class: 'rpath is-first' },
           h('p', { class: 'rpath-main' }, h('span', { class: 'rtext', text: txt(d) }), by(d)),
-          h('button', { class: 'btn btn-primary btn-small', type: 'button', onclick: (e) => act.path(txt(d), e.currentTarget) }, 'Take this path'),
+          h('button', { class: 'btn btn-path btn-small', type: 'button', onclick: (e) => act.path(txt(d), e.currentTarget) }, 'Take this path'),
         )
       : h(
           'li',

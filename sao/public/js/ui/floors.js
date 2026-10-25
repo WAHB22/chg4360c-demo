@@ -5,7 +5,7 @@
 
 import { h, clean, store, play } from './dom.js';
 import { icon } from './icons.js';
-import { st, daysLeft, daysText } from './store.js';
+import { st, daysLeft } from './store.js';
 import { COPY } from './copy.js';
 
 const TABS = [
@@ -83,7 +83,7 @@ function renderTower(list, id, now) {
         'div',
         { class: 'floor-main' },
         h('p', { class: 'floor-title' }, boss ? h('span', { class: 'floor-crest', html: icon('crest', { size: 16 }), 'aria-hidden': 'true' }) : null, h('span', { text: clean(f.title) })),
-        h('p', { class: 'floor-meta' }, h('span', { class: 'sr-only', text: `Floor ${f.n ?? i + 1}, ${boss ? 'boss deadline, ' : ''}${status}. ` }), h('span', { 'aria-hidden': 'true', text: cleared ? clean(f.date) || 'Cleared' : current ? 'You are here' : boss && left != null ? `${clean(f.date)}, ${daysText(left)}` : clean(f.date) || 'Ahead' })),
+        h('p', { class: 'floor-meta' }, h('span', { class: 'sr-only', text: `Floor ${f.n ?? i + 1}, ${boss ? 'boss deadline, ' : ''}${status}. ` }), h('span', { 'aria-hidden': 'true', text: cleared ? clean(f.date) || 'Cleared' : current ? 'You are here' : clean(f.date) || 'Ahead' })),
       ),
       boss && left != null && !cleared ? h('span', { class: 'floor-days', 'aria-hidden': 'true' }, h('b', { text: String(Math.max(0, left)) }), h('small', { text: left === 1 ? 'day' : 'days' })) : null,
     );
