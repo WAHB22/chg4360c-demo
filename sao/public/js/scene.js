@@ -3536,13 +3536,16 @@ BUILD.home = (c, pl) => {
   ground(c, slope, { d: 0.04, dabs: 650, persp: [470, 900], key: 'slope', strokes: 650, leaves: 160 });
   treeline(c, -20, 420, (x) => slope.at(x) + 4, { d: 0.12, min: 18, max: 30 });
   mist(c, 470, 40);
+  // the cottage and its garden sit left of centre (about 0.38 of the frame)
+  shifted(c, () => {
   // vegetable garden: rows that follow the slope in curves, uneven gaps, a few missing plants
   let gd = '';
   const rgd = c.sub('garden');
   let gy0 = 594;
   for (let row = 0; row < 4; row++) {
     const y = gy0;
-    gy0 += rgd.R(13, 20);
+    gy0 += rgd.R(11, 23);
+    const gd0 = gd.length;
     const x0 = 380 + rgd.R(-10, 14) + row * 4;
     const x1 = 560 + rgd.R(-16, 10) + row * 10;
     const bow = rgd.R(4, 9);
@@ -3555,6 +3558,9 @@ BUILD.home = (c, pl) => {
       gd += pth(blob(rgd.r, x, yA(x) - 5, big, big * 0.7, 0.4, 7), c.P(S.snow ? '#F2F5F8' : rgd.pick(['#6FA457', '#8FB860', '#5E9A4E', '#9AAE5A', '#7E8E4E']), rgd.R(0, 0.45)), 0.92);
       if (rgd.ch(0.3)) gd += leaf(x, yA(x) - 7, big * 1.4, big * 0.4, -Math.PI / 2 + rgd.R(-0.7, 0.7), c.P('#A8C470', 0.5), 0.6);
     }
+    // each row is dug by hand: a small tilt of its own
+    const rowS = gd.slice(gd0);
+    gd = gd.slice(0, gd0) + g(rowS, `transform="rotate(${f2((rgd.ch(0.5) ? 1 : -1) * rgd.R(1, 3))} ${f1((x0 + x1) / 2)} ${f1(y)})"`);
   }
   // the garden fence: uneven posts, a lean here and there, one rail sagging
   let fx0 = 362;
@@ -3568,7 +3574,7 @@ BUILD.home = (c, pl) => {
   gd += spath(`M362,652Q440,650 520,652L560,649`, c.P('#8A6446', 0.05), 1.1, 0.7, ' stroke-dasharray="70 16 120 30"');
   c.land.push(g(gd, `filter="${c.f('arch')}"`));
   // the cottage
-  const b = house3q(c, { x: 540, y: 568, w: 290, h: 118, ds: 150, hz: 412, roofH: 92, wall: '#EFE4CF', sideWall: '#E6DAC6', roof: '#8C8794', tiles: false });
+  const b = house3q(c, { x: 540, y: 568, w: 290, h: 118, ds: 150, hz: 412, roofH: 92, wall: '#E6D8BC', sideWall: '#D9CBB2', roof: '#7E7E8C', tiles: false });
   {
     // the roof in three tones: lit slate, a shadow wash pooling toward the eave, moss dabs;
     // the ridge sags a little and the eave shadow breaks
@@ -3588,8 +3594,8 @@ BUILD.home = (c, pl) => {
         const u2 = Math.min(1, u + rr.R(0.08, 0.3));
         const a1 = lerpP(p, q, u);
         const a2 = lerpP(p, q, u2);
-        const dark = rr.ch(0.6);
-        rf += spath(`M${pt(a1[0], a1[1] + rr.R(-1, 1))}Q${pt((a1[0] + a2[0]) / 2, (a1[1] + a2[1]) / 2 + rr.R(-1.6, 1.6))} ${pt(a2[0], a2[1] + rr.R(-1, 1))}`, dark ? '#6F6A7E' : '#CFC3B4', rr.R(1.1, 2.4), dark ? 0.4 : 0.35);
+        const dark = rr.ch(0.55);
+        rf += spath(`M${pt(a1[0], a1[1] + rr.R(-1, 1))}Q${pt((a1[0] + a2[0]) / 2, (a1[1] + a2[1]) / 2 + rr.R(-1.6, 1.6))} ${pt(a2[0], a2[1] + rr.R(-1, 1))}`, dark ? rr.pick(['#6C7080', '#72768A', '#7A7A88']) : rr.pick(['#8C8A92', '#9A98A2', '#B4ACA8']), rr.R(1.4, 3), dark ? 0.5 : 0.45);
         u = u2 + rr.R(0.02, 0.1);
       }
     }
@@ -3612,8 +3618,10 @@ BUILD.home = (c, pl) => {
     // the gable end is the same warm stone as the front, in shade: a stone
     // underpaint, then a cool glaze, clearly lighter than the slate roof
     const gab = [b.Ft, b.Bt, b.apex];
-    c.land.push(g(pg(b.sidePoly, '#CFC6BA', 0.85) + pg(gab, '#D6CDBF', 0.9), `filter="${c.f('arch')}"`));
-    c.land.push(g(g(pg(b.sidePoly, '#8E8FB0', 0.35), `filter="${c.f('wet')}"`), `clip-path="${c.clip(pg(b.sidePoly, '#000'))}" style="mix-blend-mode:multiply"`));
+    c.land.push(g(pg(b.sidePoly, '#DCCDB2', 0.85) + pg(gab, '#DED0B6', 0.9), `filter="${c.f('arch')}"`));
+    c.land.push(g(g(pg(b.sidePoly, '#8E8EA4', 0.5), `filter="${c.f('wet')}"`), `clip-path="${c.clip(pg(b.sidePoly, '#000'))}" style="mix-blend-mode:multiply"`));
+    // warm bounce light from the grass at the foot of the shaded wall
+    c.land.push(g(pg(quad(b.S, -0.02, -0.02, 1.02, 0.3), '#D9C7A4', 0.15), `filter="${c.f('soft')}" clip-path="${c.clip(pg(b.sidePoly, '#000'))}"`));
     // dry brush stone dabs on the gable end
     {
       const rg = c.sub('gabstone');
@@ -3670,10 +3678,18 @@ BUILD.home = (c, pl) => {
   const [bx, by] = b.F(0.6, 0);
   c.land.push(ell(bx - T.litSide * 6, by + 9, 8, 2, T.shade, 0.35) + circ(bx, by + 3, 6.5, c.P('#F3EFE6', 0.4)) + circ(bx - 1.5, by + 2, 2, c.P('#3A3F48', 0)) + circ(bx + 3, by + 5.5, 1.4, c.P('#3A3F48', 0)) + circ(bx + 2.6, by - 1, 1.3, c.P('#3A3F48', 0)));
   castShadow(c, 540, 840, 570, 100, { op: 0.26 });
+  {
+    // the cottage throws its shadow across the grass, away from the light
+    const dx = -T.litSide * 120;
+    const [ax, ay] = b.F(0, 0);
+    const sp = [[ax - 4, ay + 1], [b.Fb[0], b.Fb[1] + 1], [b.Bb[0], b.Bb[1]], [b.Bb[0] + dx, b.Bb[1] + 16], [b.Fb[0] + dx * 0.9, b.Fb[1] + 30], [ax + dx * 0.6, ay + 34]];
+    c.land.push(g(pth(crPath(sp, true), '#4E5A48', 0.35), `filter="${c.f('b4')}" style="mix-blend-mode:multiply"`));
+  }
+  }, -130);
   // the big seasonal tree beside the cottage
   // it stands close: its crown overlaps the far corner of the cottage a little
   tree(c, 1170, 626, 176, { touches: 70, dapple: true, kind: 'oak' });
-  const rd = road(c, pl.path, { w0: 240, w1: 40, kind: 'dirt' });
+  const rd = road(c, bendPath(c, pl.path, 60), { w0: 240, w1: 40, kind: 'dirt' });
   // a small wooden gate at the bottom
   const gy = 800;
   const gx = rd.at(gy);
@@ -3689,10 +3705,10 @@ BUILD.home = (c, pl) => {
     gt += spath(`M${pt(px, gy - 30)}Q${pt((px + ex) / 2, gy - 26 + side * 3)} ${pt(ex, gy - 37)}`, c.P(wood, 0), 4);
     const rgt = c.sub('gatefence' + side);
     for (let k = 1; k <= 9; k++) {
-      if (k === 6 && side > 0) continue;
+      if ((k === 6 && side > 0) || rgt.ch(0.2)) continue;
       const tx = lerp(px, ex, (k + rgt.R(-0.3, 0.3)) / 9);
-      const lean = rgt.R(-4, 4);
-      const top0 = gy - 76 - (k / 9) * 6 + rgt.R(-6, 8);
+      const lean = rgt.R(-11, 11);
+      const top0 = gy - 76 - (k / 9) * 6 + rgt.R(-6, 8) + (k > 6 ? rgt.R(10, 34) : 0);
       gt += spath(`M${pt(tx, gy + 2 - (k / 9) * 6)}L${pt(tx + lean, top0)}`, c.P(wood, rgt.R(-0.25, 0.4)), rgt.R(4, 6.5), 1);
     }
   }
@@ -4108,9 +4124,20 @@ BUILD.market = (c, pl) => {
   {
     const rd = c.sub('dirt');
     const dirt = S.snow ? '#E6EAF0' : '#C7B08A';
-    let dw = pth(crPath([[330, 580], [700, 566], [1180, 572], [1330, 640], [1300, 700], [820, 716], [300, 704], [236, 650]], true), c.P(dirt, 0.2), 0.75);
+    let dw = pth(crPath([[330, 580], [700, 566], [1180, 572], [1330, 640], [1300, 700], [820, 716], [300, 704], [236, 650]], true), c.P(dirt, 0.2), 0.62);
     dw += pth(crPath([[420, 600], [900, 586], [1200, 620], [1060, 690], [600, 690], [360, 660]], true), c.P('#A99A80', -0.1), 0.25);
-    c.land.push(g(dw, `filter="${c.f('wet')}"`));
+    // the forecourt feathers into the grass instead of ending on a hard edge
+    c.land.push(g(g(dw, `filter="${c.f('wet')}"`), `filter="${c.f('b10')}"`));
+    // dry brush streaks that run toward the hall, following the perspective
+    let st = '';
+    for (let i = 0; i < 70; i++) {
+      const y = rd.R(584, 706);
+      const x = rd.R(330, 1240);
+      const L = rd.R(18, 60) * ((y - 560) / 140);
+      const ux = (800 - x) / (y - 420);
+      st += spath(`M${f1(x)},${f1(y)}l${f1(ux * L * 0.5)},${f1(-L * 0.5)}`, '#9A8A6A', rd.R(1.2, 3.2), 0.3);
+    }
+    c.land.push(g(st, `filter="${c.f('dry')}"`));
     let cb = '';
     for (let i = 0; i < 900; i++) {
       const y = rd.R(574, 712);
@@ -4135,9 +4162,15 @@ BUILD.market = (c, pl) => {
   const hx0 = 300;
   const hx1 = 1260;
   const hor = 420;
-  const sc = (x) => 1 - 0.17 * clamp((x - hx0) / (hx1 - hx0), 0, 1);
-  const X = (x) => { const u = clamp(x, hx0, hx1) - hx0; return hx0 + u - (0.17 / (hx1 - hx0)) * u * u * 0.5 + (x > hx1 ? (x - hx1) * sc(hx1) : 0) + (x < hx0 ? x - hx0 : 0); };
-  c.hallMap = (x, y) => [X(x) + 120, hor + (y - hor) * sc(x)];
+  // the left end recedes: its posts stand about 15 percent shorter
+  const RA = 0.15;
+  const sc = (x) => 1 - RA * (1 - clamp((x - hx0) / (hx1 - hx0), 0, 1));
+  const X = (x) => { const u = clamp(x, hx0, hx1) - hx0; return hx0 + u * (1 - RA) + (RA / (hx1 - hx0)) * u * u * 0.5 + (x > hx1 ? x - hx1 : 0) + (x < hx0 ? (x - hx0) * (1 - RA) : 0); };
+  // the whole hall stands a little farther off, right of centre
+  const HK = 0.8;
+  const HTX = 363;
+  const HTY = 574 * (1 - HK);
+  c.hallMap = (x, y) => [X(x) * HK + HTX, (hor + (y - hor) * sc(x)) * HK + HTY];
   marketHall(c);
   const hall = c.land.splice(n0).join('');
   c.hallMap = null;
@@ -4149,20 +4182,20 @@ BUILD.market = (c, pl) => {
     const ca = Math.max(hx0, xa);
     const cb = Math.min(hx1, xb);
     const k = sc((ca + cb) / 2);
-    const cp = c.clip(rect(xa - 0.6, 200, xb - xa + 1.2, 560, '#000'));
+    const cp = c.clip(rect(xa - 1.2, 200, xb - xa + 2.4, 560, '#000'));
     strips += g(g(hall, `clip-path="${cp}"`), `transform="translate(${f2(X(ca) - ca * k)} ${f2(hor - hor * k)}) scale(${f2(k)})"`);
   }
-  c.land.push(g(strips, 'transform="translate(120 0)"'));
-  c.land.push(g(rect(500, 572, 900, 26, c.lg([[0, '#5A4A60', 0.3], [1, '#5A4A60', 0]])), `filter="${c.f('b4')}"`));
+  c.land.push(g(strips, `transform="translate(${HTX} ${f1(HTY)}) scale(${HK})"`));
+  c.land.push(g(rect(640, 562, 680, 24, c.lg([[0, '#6E7490', 0.3], [1, '#6E7490', 0]])), `filter="${c.f('b4')}" style="mix-blend-mode:multiply"`));
   // a loose cluster of shoppers, crates and baskets, never in a row
   const rf = c.sub('folk');
   const folk = [[612, 606, 36, '#6A7E9A'], [636, 614, 22, '#B5654A'], [884, 592, 26, '#7E8A5A'], [1172, 630, 44, '#8C6A86'], [1198, 626, 30, '#C9A15A'], [1214, 632, 18, '#9A5A4A'], [356, 656, 52, '#4E6A78'], [990, 600, 28, '#6A6E8A']];
   for (const [x, y, h, col] of folk) figure(c, x, y, h, col, rf);
   for (const [x, y, w] of [[676, 616, 26], [700, 622, 20], [1236, 640, 30], [1140, 640, 18]]) crate(c, x, y, w, rf);
-  road(c, pl.path, { w0: 240, w1: 80, kind: 'dirt', col: S.snow ? '#E6EAF0' : '#CDBB9A', edges: false, dapple: true });
+  road(c, bendPath(c, pl.path, 44), { w0: 240, w1: 80, kind: 'dirt', col: S.snow ? '#E6EAF0' : '#CDBB9A', edges: false, dapple: true });
   handCart(c, 520, 660);
   for (const [x, y] of [[1050, 640], [1090, 652], [430, 622]]) {
-    c.land.push(g(ell(x - T.litSide * 8, y + 3, 16, 3, T.shade, 0.3) + pth(blob(c.sub('sack' + x).r, x, y - 10, 13, 14, 0.2, 8), c.P('#D8C49A', 0.4)) + line(x - 6, y - 22, x + 6, y - 22, c.P('#8A6446', 0), 1.4), `filter="${c.f('arch')}"`));
+    c.land.push(g(ell(x - T.litSide * 18, y + 4, 26, 4.5, mix(T.shade, '#4E5068', 0.5), 0.45, -T.litSide * 4) + pth(blob(c.sub('sack' + x).r, x, y - 10, 13, 14, 0.2, 8), c.P('#D8C49A', 0.4)) + line(x - 6, y - 22, x + 6, y - 22, c.P('#8A6446', 0), 1.4), `filter="${c.f('arch')}"`));
   }
   tree(c, 150, 660, 120, {});
   tree(c, 1470, 680, 130, {});
@@ -4196,7 +4229,8 @@ function marketHall(c) {
     c.land.push(g(bl, `filter="${c.f('wet')}"`) + g(lp, `filter="${c.f('b10')}"`));
   }
   // stalls with striped awnings, counters and produce
-  const awn = ['#C98A4E', '#5E9A8E', '#9A5A4A', '#7FA05A', '#E7C66A', '#D2A256', '#8E9A6A', '#B9876A'];
+  // three colour sets for the cloth, not a repeating stripe
+  const awn = ['#C98A4E', '#5E9A8E', '#9A5A4A', '#C98A4E', '#5E9A8E', '#9A5A4A', '#5E9A8E', '#C98A4E'];
   const posts = [];
   {
     // bays built one at a time: none the same width
@@ -4300,7 +4334,6 @@ function marketHall(c) {
   const Cc = [1040, 370];
   const D = [560, 370];
   rf += pg([A, B, Cc, D], c.lg([[0, c.P(roof, 0.55)], [1, c.P(roof, 0.1)]], 0, 1, 0, 0), 1, edge(c, 1));
-  rf += roofTiles(c, A, B, Cc, D, roof, 0);
   {
     // five or six tile courses laid by hand: each band wobbles, lit on its
     // upper half, shaded where the next course overlaps it; moss and gaps
@@ -4325,7 +4358,7 @@ function marketHall(c) {
       const top = edges[k];
       const bot = edges[k + 1];
       const lit = k % 2 === 0;
-      bands += pth(crPath([...top, ...bot.slice().reverse()], true), c.P(rb.pick(['#B8744A', '#C47E50', '#A86A44', '#BC7A56']), lit ? 0.45 : -0.05), 0.55);
+      bands += pth(crPath([...top, ...bot.slice().reverse()], true), c.P(rb.pick(['#B5653A', '#8E4A2E', '#D08A5A']), lit ? 0.3 : -0.05), 0.55);
       // the shadow line where the course above laps over this one
       const sh = top.map(([x, y]) => [x, y + rb.R(1.5, 3.5)]);
       bands += spath(crPath(sh, false), mix(c.P('#6E4434', -0.4), '#4A4E5E', 0.4), rb.R(2.2, 3.6), 0.5);
@@ -4348,7 +4381,7 @@ function marketHall(c) {
     }
     rf += bands + g(moss, `filter="${c.f('pig')}"`);
     // rafters drawn by hand, not by ruler
-    for (let k = 1; k < 18; k += 2) {
+    for (let k = 1; k < 0; k += 2) {
       const t = k / 18 + rb.R(-0.008, 0.008);
       rf += spath(`M${f1(lerp(A[0], B[0], t))},460Q${f1(lerp(lerp(A[0], B[0], t), lerp(D[0], Cc[0], t), 0.5) + rb.R(-3, 3))},415 ${f1(lerp(D[0], Cc[0], t))},371`, c.P(roof, -0.4), 0.6, 0.14);
     }
@@ -4367,7 +4400,7 @@ function marketHall(c) {
     let es = '';
     for (let k = 0; k < 22; k++) {
       const x = re.R(380, 1210);
-      es += pth(blob(re.r, x, 474 + re.R(-1, 3), re.R(18, 60), re.R(3, 7), 0.5, 8), re.ch(0.5) ? '#4A4E5E' : '#5A4A60', re.R(0.22, 0.42));
+      es += pth(blob(re.r, x, 474 + re.R(-1, 3), re.R(18, 60), re.R(3, 7), 0.5, 8), '#4A2E22', re.R(0.45, 0.6));
     }
     c.land.push(g(es, `filter="${c.f('wc')}"`));
   }
@@ -4392,7 +4425,7 @@ function marketHall(c) {
   if (S.snow) rf += pg([[380, 452], [1220, 452], [1040, 372], [560, 372]], '#F4F6F9', 0.88);
   c.land.push(g(rf, `filter="${c.f('arch')}"`));
   // warm violet shade under the eave, deepening toward the back of the hall
-  c.land.push(g(rect(392, 466, 816, 30, '#5A4A60', 0.35) + rect(392, 492, 816, 76, c.lg([[0, '#5A4A60', 0.22], [1, '#5A4A60', 0]]), 1), `filter="${c.f('b4')}"`));
+  c.land.push(g(rect(392, 466, 816, 30, '#6E7490', 0.3) + rect(392, 492, 816, 76, c.lg([[0, '#6E7490', 0.3], [1, '#6E7490', 0]]), 1), `filter="${c.f('b4')}" style="mix-blend-mode:multiply"`));
   // a painted sign hung from the beam over the open bay, a little crooked
   {
     let sg = '';
