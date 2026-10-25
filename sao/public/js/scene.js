@@ -2360,11 +2360,11 @@ function houseWash(c, b, r) {
 
 // Paint fn() and slide what it laid down (land and lights) as one piece, so a
 // subject can sit off centre without retyping every coordinate inside it.
-function shifted(c, fn, dx, dy = 0) {
+function shifted(c, fn, dx, dy = 0, k = 1, ox = 800, oy = 548) {
   const l0 = c.land.length;
   const g0 = c.lights.length;
   const out = fn();
-  const tr = `transform="translate(${dx},${dy})"`;
+  const tr = k === 1 ? `transform="translate(${dx},${dy})"` : `transform="translate(${dx + ox * (1 - k)},${dy + oy * (1 - k)}) scale(${k})"`;
   const lm = c.land.splice(l0).join('');
   if (lm) c.land.push(g(lm, tr));
   const gm = c.lights.splice(g0).join('');
@@ -2485,11 +2485,11 @@ BUILD.campus = (c, pl) => {
     tabaret(c);
     tabaretGlaze(c);
     // the portico recess is deep warm shadow between the columns
-    c.land.push(g(rect(640, 400, 320, 148, '#3E352C', 0.42), `filter="${c.f('wet')}" style="mix-blend-mode:multiply"`));
-  }, -60);
+    c.land.push(g(rect(640, 400, 320, 148, '#3E352C', 0.6), `filter="${c.f('wet')}" style="mix-blend-mode:multiply"`));
+  }, -180, 0, 0.9);
   // the walk bends in from the right and meets the steps a little left of
   // center, so the hall is seen slightly from the side, not as a flat elevation
-  const walk = pl.path.map(([px, py], i) => [px + 2 - 9.5 * Math.pow(i / Math.max(1, pl.path.length - 1), 1.3) + (i === 1 ? 1.2 : 0), py]);
+  const walk = pl.path.map(([px, py], i) => [px + 2 - 17 * Math.pow(i / Math.max(1, pl.path.length - 1), 1.3) + (i === 1 ? 1.2 : 0), py]);
   const rd = road(c, walk, { w0: 392, w1: 232, kind: 'stone', col: S.snow ? '#E6EAF0' : '#D9C9A8', pow: 1.1 });
   // warm stone broken with cooler and greyer dabs, larger toward the viewer
   {
@@ -2503,7 +2503,7 @@ BUILD.campus = (c, pl) => {
     }
     c.land.push(g(wd, `filter="${c.f('pig')}"`));
   }
-  shifted(c, () => stairs(c), -60);
+  shifted(c, () => stairs(c), -180, 0, 0.9);
   // shade of the big elm out of frame falls across the walk, broken by light
   dapple(c, [T.litSide < 0 ? 760 : 380, 600, T.litSide < 0 ? 1320 : 940, 900], { n: 34, key: 'walk' });
   // flower beds and red iron lamp posts along the walkway
@@ -3727,6 +3727,9 @@ BUILD.kitchen = (c, pl) => {
   ground(c, yard, { d: 0.03, dabs: 640, persp: [500, 900], key: 'yard', strokes: 620, leaves: 160 });
   // the fieldstone farmhouse kitchen
   // three quarter view: the side wall recedes to the right, the big tree stands in front of its far corner
+  // the cottage, its well and logs sit left of centre; the walk comes from low right
+  const kl0 = c.land.length;
+  const kg0 = c.lights.length;
   const b = house3q(c, { x: 470, y: 574, w: 470, h: 140, ds: 124, hz: 432, roofH: 76, wall: '#CDBC9F', sideWall: '#C4B496', roof: '#8C6A56' });
   let stn = '';
   const rs = c.sub('fieldstone');
@@ -3811,10 +3814,17 @@ BUILD.kitchen = (c, pl) => {
   tree(c, 196, 626, 96, {});
   well(c, 386, 630, 22);
   bush(c, 452, 600, 30, {});
+  {
+    const lm = c.land.splice(kl0).join('');
+    c.land.push(g(lm, 'transform="translate(-140,0)"'));
+    const gm = c.lights.splice(kg0).join('');
+    if (gm) c.lights.push(g(gm, 'transform="translate(-140,0)"'));
+  }
   bush(c, 1230, 640, 44, {});
-  tree(c, 1196, 670, 160, { touches: 40, dapple: true });
+  // the orange tree steps back a layer: half the size, paler, with cool air in front
+  tree(c, 1236, 612, 80, { d: 0.34, touches: 30 });
   if (S.flowers) for (const [x, y] of [[612, 590], [905, 594]]) c.land.push(g(pth(`M${x - 9},${y - 14}L${x + 9},${y - 14}L${x + 7},${y}L${x - 7},${y}Z`, c.P('#C8774A', 0.3)) + circ(x - 4, y - 18, 4, c.P(S.flowers[0], 0.3)) + circ(x + 4, y - 19, 3.6, c.P(S.flowers[1], 0.3)) + ell(x, y - 15, 9, 4, c.P(S.leaf[2] || '#5E9A4E', 0), 0.8), `filter="${c.f('arch')}"`));
-  road(c, pl.path, { w0: 230, w1: 50, kind: 'dirt' });
+  road(c, [[66, 99], [60, 91], [52, 83], [46, 76], [42, 67]], { w0: 230, w1: 50, kind: 'dirt' });
   warmLight(c);
   vignette(c, 0.3);
   frame(c, { tl: 1, tr: 1, bl: 0.9, br: 0.8 });
@@ -3865,11 +3875,24 @@ function fort(c) {
   let blk = '';
   for (let i = 0; i < 52; i++) blk += pth(blob(r.r, ...F(r.R(0.01, 0.99), r.R(0.05, 0.95)), r.R(6, 13), r.R(3, 6), 0.3, 7), r.pick(['#CFC6B4', '#9E9585']), 0.25);
   let mer = '';
-  for (let i = 0; i < 30; i++) {
-    if (i === 9 || i === 21) continue;
-    const hh = (r.ch(0.2) ? r.R(7, 10) : 12) + r.R(-3, 3);
-    const mx = 472 + i * 22 + r.R(-2, 2);
-    mer += pg([[mx + r.R(-0.5, 1), 392 - hh + r.R(-0.8, 0.8)], [mx + 13 + r.R(-1, 0.5), 392 - hh + r.R(-1.2, 0.8)], [mx + 13.4, 393], [mx - 0.4, 393]], c.P(st, i % 3 ? 0.55 : 0.35));
+  // hand laid merlons: widths and gaps vary, and over two or three spans the
+  // wall top is lost to weather, a soft broken rim instead of teeth
+  {
+    let mx = 472 + r.R(0, 4);
+    let i = 0;
+    while (mx < 1118) {
+      const mw = 13 * r.R(0.78, 1.22);
+      const gap = 9 * r.R(0.72, 1.3);
+      const lost = (mx > 640 && mx < 700) || (mx > 930 && mx < 1010);
+      if (lost) {
+        mer += pth(blob(r.r, mx + mw / 2, 391 - r.R(0, 3), mw * 0.9, r.R(2, 4), 0.5, 7), c.P(st, 0.3), r.R(0.5, 0.8));
+      } else if (i !== 9) {
+        const hh = (r.ch(0.2) ? r.R(7, 10) : 12) + r.R(-3, 3);
+        mer += pg([[mx + r.R(-0.5, 1), 392 - hh + r.R(-0.8, 0.8)], [mx + mw + r.R(-1, 0.5), 392 - hh + r.R(-1.6, 1)], [mx + mw + r.R(0, 0.8), 393], [mx - r.R(0, 0.8), 393]], c.P(st, i % 3 ? 0.55 : 0.35));
+      }
+      mx += mw + gap;
+      i++;
+    }
   }
   s += g(cool, `filter="${c.f('wet')}"`) + g(blk, `filter="${c.f('pig')}"`) + mer;
   s += pg(quad(F, 0, 0, 1, 0.14), c.P(st, -0.5), 0.3);
@@ -3887,7 +3910,7 @@ function fort(c) {
     for (let i = 0; i < 5; i++) {
       if (x > 800 && (i === 1 || i === 3)) continue;
       if (x > 800 && i === 4) { t += pth(blob(c.sub('crumb').r, x - (wd + 8) / 2 + 8 + i * ((wd + 8) / 4.6), 314 + dy, 7, 4, 0.4, 7), c.P(st, -0.1)); continue; }
-      t += rect(x - (wd + 8) / 2 + 2 + i * ((wd + 8) / 4.6), 306 + dy + (dy && i === 4 ? 3 : 0), 12, 13 - (dy && i === 4 ? 3 : 0), c.P(st, (i < 2) === (T.litSide < 0) ? 0.6 : -0.2), 1, edge(c, 0.6));
+      t += rect(x - (wd + 8) / 2 + 2 + i * ((wd + 8) / 4.6) + [0, 1.5, -1, 2, 0][i], 306 + dy + (dy && i === 4 ? 3 : 0) + [0, 1, 0, 2, 0][i], [12, 10, 13.5, 11, 12][i], 13 - (dy && i === 4 ? 3 : 0) - [0, 1, 0, 2, 0][i], c.P(st, (i < 2) === (T.litSide < 0) ? 0.6 : -0.2), 1, edge(c, 0.6));
     }
     t += rect(x - 3, 400 + dy * 0.6, 6, 22, c.P('#2E3A3C', 0)) + (x > 800 ? '' : rect(x - 2.5, 462, 5, 16, c.P('#2E3A3C', 0)));
     // the east tower stands farther back: the air comes between
@@ -3896,7 +3919,7 @@ function fort(c) {
       const hz = c.sub('towerhaze');
       const tp = `<path d="M${f1(x - wd / 2)},498L${f1(x - wd / 2 + 3)},${f1(338 + dy)}L${f1(x - wd / 2 - 4)},${f1(338 + dy)}L${f1(x - wd / 2 - 4)},${f1(318 + dy)}L${f1(x + wd / 2 + 4)},${f1(318 + dy)}L${f1(x + wd / 2 + 4)},${f1(338 + dy)}L${f1(x + wd / 2 - 3)},${f1(338 + dy)}L${f1(x + wd / 2)},498Z"/>`;
       let hb = '';
-      for (let k = 0; k < 5; k++) hb += pth(blob(hz.r, x + hz.R(-30, 30), hz.R(400, 490), hz.R(30, 70), hz.R(30, 60), 0.45, 9), hz.pick(['#B9C4D6', '#C7CCDD', '#D4CFDA']), hz.R(0.14, 0.26));
+      for (let k = 0; k < 5; k++) hb += pth(blob(hz.r, x + hz.R(-30, 30), hz.R(400, 490), hz.R(30, 70), hz.R(30, 60), 0.45, 9), hz.pick(['#B9C4D6', '#C7CCDD', '#A9B4C8']), hz.R(0.06, 0.12));
       t += g(g(hb, `filter="${c.f('soft')}"`), `clip-path="${c.clip(tp)}"`);
     }
     if (S.snow) t += rect(x - 50, 316 + dy, 100, 3, '#F4F6F9', 0.9);
@@ -3924,7 +3947,7 @@ function fort(c) {
     const rv = c.sub('fortval');
     let sv = pth(`M470,393C600,395 700,393 820,396C940,399 1040,394 1130,396L1130,${f1(404 + rv.R(2, 5))}C1000,410 900,404 800,409C680,412 560,404 470,410Z`, '#8C8AA6', 0.48);
     sv += pth('M760,488L760,452C764,430 836,430 840,452L840,488Z', '#4A4E66', 0.35);
-    for (const [x, wd] of [[478, 78], [1132, 84]]) {
+    for (const [x, wd] of [[478, 78]]) {
       const sx = T.litSide < 0 ? x + wd * 0.12 : x - wd * 0.5;
       sv += pth(`M${f1(sx)},358C${f1(sx + 4)},400 ${f1(sx - 3)},450 ${f1(sx + 2)},498L${f1(sx + wd * 0.38)},498C${f1(sx + wd * 0.4)},440 ${f1(sx + wd * 0.36)},400 ${f1(sx + wd * 0.38)},358Z`, '#9C9AB0', 0.42);
     }
@@ -3946,8 +3969,16 @@ function fort(c) {
     }
     const wallP = '<path d="M470,392L1130,392L1130,488L470,488Z"/>';
     c.land.push(g(g(rect(460, 380, 680, 120, '#C9BBA0', 0.34), `filter="${c.f('wet')}"`) + g(jn, `filter="${c.f('dry')}"`), `clip-path="${c.clip(wallP)}" style="mix-blend-mode:multiply"`));
-    const ex = T.litSide < 0 ? 1132 + 4 : 1132 - 46;
-    c.land.push(g(pth(`M${ex},356C${ex + 3},400 ${ex - 2},450 ${ex + 1},498L${ex + 40},498C${ex + 42},440 ${ex + 38},400 ${ex + 40},356Z`, '#7C8496', 0.5), `filter="${c.f('pig')}" style="mix-blend-mode:multiply"`));
+    // the east tower's shade face: one vertical wash, cooler at the foot, clipped
+    // to the tower body so it never drifts off the stone, its inner edge soft
+    const tw = '<path d="M1090,498L1093,358L1086,358L1086,338L1178,338L1178,358L1171,358L1174,498Z"/>';
+    const sxe = T.litSide < 0 ? 1136 : 1090;
+    const sxw = T.litSide < 0 ? 1180 : 1128;
+    const wash = c.lg([[0, '#9A9CB0', 0.5], [1, '#7C8496', 0.62]], 0, 0, 0, 1);
+    const inner = T.litSide < 0 ? sxe : sxw;
+    const outer = T.litSide < 0 ? sxw : sxe;
+    const sf = pth(`M${inner},336C${inner - 3},380 ${inner + 4},430 ${inner - 2},500L${outer},500L${outer},336Z`, wash, 1);
+    c.land.push(g(g(sf, `filter="${c.f('wet')}"`), `clip-path="${c.clip(tw)}" style="mix-blend-mode:multiply"`));
   }
   // the cloth banner over the gate with three round shields (the weekly gym shields)
   const cloth = '#41607E';
@@ -3995,7 +4026,25 @@ function fort(c) {
       const hh = ry.R(4, 10);
       tuft += spath(`M${pt(x, y)}l${f1(ry.R(-2, 2))},${f1(-hh)}`, ry.pick(['#7F8A5A', '#8E9A5E', '#6E7E4E', '#A8A060']), 1.4, 0.6);
     }
-    c.land.push(g(yw, `filter="${c.f('wet')}"`) + g(fp, `filter="${c.f('pig')}"`) + g(spath(yard.replace(/Z$/, ''), '#7F8A5A', 14, 0.28), `filter="${c.f('soft')}"`) + tuft);
+    // the oval is broken: grass tongues push into the sand at the rim, and dry
+    // brush drags of warm and darker sand follow the yard's slope
+    let tongue = '';
+    for (const [tx, ty, rx2, ry2] of [[452, 548, 34, 16], [520, 604, 48, 10], [760, 616, 40, 8], [1010, 604, 56, 11], [1176, 540, 30, 22], [610, 498, 40, 7], [1060, 494, 26, 6]]) tongue += pth(blob(ry.r, tx + ry.R(-6, 6), ty, rx2, ry2, 0.6, 9), ry.pick(['#8E9A5E', '#9AA466', '#A8A060']), ry.R(0.28, 0.45));
+    for (let i = 0; i < 46; i++) {
+      const t = ry.r();
+      const x = lerp(450, 1180, t);
+      const y = ry.R(500, 606);
+      const hh = ry.R(3, 8);
+      tuft += spath(`M${pt(x, y)}l${f1(ry.R(-2, 2))},${f1(-hh)}M${pt(x + 2, y)}l${f1(ry.R(0, 3))},${f1(-hh * 0.7)}`, ry.pick(['#7F8A5A', '#8E9A5E', '#6E7E4E']), 1.2, ry.R(0.35, 0.6));
+    }
+    let drag = '';
+    for (let i = 0; i < 34; i++) {
+      const x = ry.R(470, 1150);
+      const y = ry.R(506, 600);
+      const len = ry.R(30, 120);
+      drag += spath(`M${pt(x, y)}q${f1(len / 2)},${f1(ry.R(-3, 3))} ${f1(len)},${f1(ry.R(-2, 4))}`, ry.ch(0.55) ? '#B89A70' : '#9A7A58', ry.R(2, 6), ry.R(0.2, 0.42));
+    }
+    c.land.push(g(yw, `filter="${c.f('wet')}"`) + g(drag, `filter="${c.f('dry')}"`) + g(fp, `filter="${c.f('pig')}"`) + g(spath(yard.replace(/Z$/, ''), '#7F8A5A', 14, 0.28), `filter="${c.f('soft')}"`) + g(tongue, `filter="${c.f('wet')}"`) + tuft);
   }
   // posts and ropes
   const wood = '#7A5A40';
@@ -4690,12 +4739,15 @@ BUILD.fields = (c, pl) => {
   const n = noise1(c.r);
   const back = profile(-20, W + 20, 10, (x) => 452 + fbm(n, x / 160) * 6);
   ground(c, back, { d: 0.3, dabs: 100, key: 'back', nearDark: 0 });
-  treeline(c, -20, 1040, (x) => back.at(x) + 8, { d: 0.32, min: 12, max: 26 });
+  // the far hedge is clumps with gaps of light between, never an even band
+  for (const [a, b2] of [[-20, 230], [300, 520], [610, 760], [820, 1040]]) treeline(c, a, b2, (x) => back.at(x) + 8, { d: 0.32, min: 10, max: 26 });
   village(c, 1040, 1590, (x) => back.at(x) + 12, { d: 0.3, min: 10, max: 16 });
   const field = profile(-20, W + 20, 10, (x) => 466 + fbm(n, x / 260 + 4) * 6);
   ground(c, field, { d: 0.02, dabs: 700, persp: [466, 900], key: 'field', strokes: 700, size: [3, 10] });
   mist(c, 470, 40);
   // the pitch: two loose wet washes of green with sun dabs, chalk lines broken by wear
+  // the pitch slides left so the kiosk owns the right middle distance
+  const pitchFrom = c.land.length;
   const FL = [520, 484];
   const FR = [1080, 484];
   const NR = [1190, 604];
@@ -4715,14 +4767,27 @@ BUILD.fields = (c, pl) => {
       sd += ell(x + rw.R(-30, 30), y, lerp(6, 20, v) * rw.R(0.6, 1.4), lerp(1.4, 4, v), c.P(rw.ch(0.75) ? '#E3CF8A' : '#C9C27A', 0.3), rw.R(0.18, 0.4), rw.R(-8, 8));
     }
     c.land.push(g(sd, `filter="${c.f('pig')}"`));
+    // broken colour glazed over the green: ochre sun dabs, cool blue in the
+    // hollows, one pink touch, all multiplied so the grass shows through
+    let bc = '';
+    for (let i = 0; i < 26; i++) {
+      const [x, y] = P(rw.R(0, 1), rw.R(0.05, 1));
+      bc += pth(blob(rw.r, x, y, rw.R(18, 60), rw.R(4, 12), 0.6, 8), '#C9B85A', 0.25);
+    }
+    for (let i = 0; i < 14; i++) {
+      const [x, y] = P(rw.R(0, 1), rw.R(0.3, 1));
+      bc += pth(blob(rw.r, x, y, rw.R(24, 70), rw.R(5, 12), 0.6, 8), '#8FA3B8', 0.18);
+    }
+    { const [x, y] = P(0.7, 0.62); bc += pth(blob(rw.r, x, y, 46, 9, 0.6, 8), '#D9A3A0', 0.1); }
+    c.land.push(g(bc, `filter="${c.f('wet')}" style="mix-blend-mode:multiply"`));
   }
   const rc = c.sub('chalk');
-  const chalkCol = c.P('#EDE6D2', 0.3);
+  const chalkCol = '#EDE7D6';
   let ch = '';
   // a stroke along a polyline: dabs of chalk with gaps every 40 to 90 px, lost in the far third
   const chalk = (pts, wk = 1) => {
     let acc = 0;
-    let next = rc.R(40, 90);
+    let next = rc.R(14, 90);
     let on = true;
     let d = '';
     for (let i = 0; i < pts.length - 1; i++) {
@@ -4739,14 +4804,14 @@ BUILD.fields = (c, pl) => {
         if (acc > next) {
           acc = 0;
           on = !on;
-          next = on ? rc.R(40, 90) : rc.R(4, 14);
+          next = on ? rc.R(14, 96) : rc.R(3, 16);
         }
         const v = clamp((ay - 484) / 120, 0, 1);
         if (!on || (v < 0.33 && rc.ch(0.5 - v))) continue;
         d += `M${f1(ax)},${f1(ay + rc.R(-0.4, 0.4))}L${f1(bx)},${f1(by + rc.R(-0.4, 0.4))}`;
       }
     }
-    ch += spath(d, chalkCol, 3 * wk, 0.55);
+    ch += spath(d, chalkCol, 3 * wk * rc.R(0.75, 1.1), 0.6);
   };
   const along = (fn, n = 12) => {
     const out = [];
@@ -4772,6 +4837,17 @@ BUILD.fields = (c, pl) => {
     gl += spath(`M${pt(gx + 1, gy - 30)}L${pt(gx + sx * 1.6, gy - 8)}`, c.P('#EDE6D2', 0), 0.8, 0.4);
   }
   c.land.push(g(gl, `filter="${c.f('arch')}"`));
+  // long low sun: the goal frames throw thin shadows far across the grass
+  {
+    let gs = '';
+    for (const u of [0, 1]) {
+      const [gx, gy] = P(u, 0.5);
+      const L = 32 * 2.6 * (T.shadowLen || 1);
+      const dx = -(T.litSide || 1) * L;
+      gs += pg([[gx - 1, gy + 1], [gx + 9, gy + 1], [gx + 9 + dx, gy + 7], [gx - 1 + dx, gy + 9]], '#4E5A48', 0.35);
+    }
+    c.land.push(g(gs, `filter="${c.f('b2')}" style="mix-blend-mode:multiply"`));
+  }
   // a run club warming up along the left touchline
   {
     const rr = c.sub('runclub');
@@ -4782,8 +4858,9 @@ BUILD.fields = (c, pl) => {
       figure(c, x - 18 - rr.R(0, 26) * v, y + 2, lerp(11, 17, v) * rr.R(0.9, 1.1), rr.pick(kit), rr);
     }
   }
+  if (c.land.length > pitchFrom) c.land.splice(pitchFrom, c.land.length - pitchFrom, g(c.land.slice(pitchFrom).join(''), 'transform="translate(-180,0)"'));
   // string lights on three crooked poles at uneven spacing; each span sags its own way
-  const poles = [[468, 498, 98], [742, 482, 114], [1150, 494, 86]];
+  const poles = [[292, 498, 98], [566, 482, 114], [1150, 494, 86]];
   let sl = '';
   for (const [x, y, ph] of poles) {
     sl += pth(`M${f1(x - 2.8)},${f1(y)}L${f1(x - 1.6 + 2)},${f1(y - ph)}L${f1(x + 1.6 + 2)},${f1(y - ph)}L${f1(x + 2.8)},${f1(y)}Z`, c.P('#7A5A40', T.litSide < 0 ? 0.3 : -0.1));
@@ -4811,19 +4888,20 @@ BUILD.fields = (c, pl) => {
     }
   }
   c.land.push(g(sl, `filter="${c.f('arch')}"`));
+  {
+    let ps = '';
+    for (const [x, y, ph] of poles) {
+      const dx = -(T.litSide || 1) * ph * 1.6 * (T.shadowLen || 1);
+      ps += pg([[x - 3, y], [x + 3, y], [x + 3 + dx, y + 10], [x - 1 + dx, y + 13]], '#4E5A48', 0.35);
+    }
+    c.land.push(g(ps, `filter="${c.f('b2')}" style="mix-blend-mode:multiply"`));
+  }
   for (const [bx, by] of bulbs) addLight(c, bx, by, 2.2, { halo: 14, col: '#FFE2A0' });
-  // the small wooden stage
-  const wood = '#A57A52';
-  const st = block(c, { x: 236, y: 532, w: 180, h: 26, d: 70, side: 1, kind: 'flat', wall: wood, roofTop: '#C49A6C' });
-  for (let k = 1; k < 8; k++) c.land.push(line(...st.F(k / 8, 0), ...st.F(k / 8, 1), c.P(wood, -0.5), 0.8, 0.4));
-  let stg = '';
-  for (const x of [250, 402]) stg += rect(x - 3, 420, 6, 90, c.P('#7A5A40', 0));
-  stg += pg([[240, 424], [412, 424], [432, 412], [262, 412]], c.P('#8C6A56', 0.4), 1, edge(c, 0.7));
-  stg += pg([[256, 430], [398, 430], [398, 502], [256, 502]], c.P('#E9DFC8', 0.2), 0.95, edge(c, 0.6));
-  for (let k = 0; k < 6; k++) stg += line(262 + k * 26, 432, 262 + k * 26, 500, c.P('#C9BCA0', -0.2), 0.8, 0.5);
-  c.land.push(g(stg, `filter="${c.f('arch')}"`));
+  // the old stage is gone from the left: it hid under the traveller card
   // café kiosk
-  const k = block(c, { x: 1236, y: 612, w: 132, h: 74, d: 64, side: -1, kind: 'gable', roofH: 46, wall: '#B08A5E', roof: '#8C6A56' });
+  // the café kiosk is the subject: bigger, right of centre, the walk ends at its counter
+  castShadow(c, 940, 1190, 586, 90, {});
+  const k = block(c, { x: 962, y: 586, w: 210, h: 116, d: 96, side: -1, kind: 'gable', roofH: 72, wall: '#B08A5E', roof: '#8C6A56' });
   windowOn(c, k.F, 0.15, 0.3, 0.85, 0.75, { rows: 0, mullions: 0, glass: c.P('#3A3030', -0.3), litP: c.T.lit ? 1 : 0, keep: true });
   let aw = '';
   for (let i = 0; i < 6; i++) {
@@ -4832,9 +4910,9 @@ BUILD.fields = (c, pl) => {
     aw += pg([[ax0, ay0], [ax1, ay0], [ax1 + 2, ay0 + 12], [ax0 + 2, ay0 + 12]], i % 2 ? c.P('#EFE6D2', 0.4) : c.P('#5E9A8E', 0.3));
   }
   c.land.push(g(aw, `filter="${c.f('arch')}"`));
-  board(c, 1176, 618, 40, 26, { papers: 5 });
+  board(c, 1214, 604, 40, 26, { papers: 5 });
   bench(c, 352, 664, 64);
-  bench(c, 1090, 640, 50);
+  bench(c, 1236, 650, 56);
   // the flower meadow along the edge (it blooms when an idea is approved)
   if (S.flowers) {
     const rf = c.sub('meadow');
@@ -4848,7 +4926,8 @@ BUILD.fields = (c, pl) => {
     }
     c.land.push(g(fl, `filter="${c.f('leaf')}"`));
   }
-  road(c, pl.path, { w0: 180, w1: 30, kind: 'dirt' });
+  // the walk comes in from the bottom left and bends up to the kiosk counter
+  road(c, [[36, 99], [42, 91], [51, 83], [59, 75], [65, 66.5]], { w0: 190, w1: 40, kind: 'dirt' });
   tree(c, 104, 612, 128, {});
   tree(c, 1452, 566, 84, {});
   warmLight(c);
