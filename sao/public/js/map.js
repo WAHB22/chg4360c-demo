@@ -1198,6 +1198,7 @@ let M = null;
 
 function reducedMotion() {
   try {
+    if (document.documentElement.classList.contains('reduce-motion')) return true;
     return window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   } catch (e) {
     return false;
@@ -1550,10 +1551,87 @@ function layout() {
   M.frame.querySelector('.sm-burn-a').setAttribute('d', `M-60,-60H${W + 60}V${H + 60}H-60Z ` + ring(22, 30).split('Z ')[1]);
   M.frame.querySelector('.sm-burn-b').setAttribute('d', `M-60,-60H${W + 60}V${H + 60}H-60Z ` + ring(5, 12).split('Z ')[1]);
 
+  bake();
   renderBots();
   const c = M.current && anchor(M.current);
   const target = c || anchor('town');
   centerOn(target[0], target[1] - 30, false);
+}
+
+// The paper, the sea, the land and the burnt frame never change between
+// layouts, but their ink and paper filters are costly to draw. They go in as
+// images, so the browser rasterizes them once instead of on every bob of a dot
+// or pulse of a lantern. If anything fails, the live groups keep showing.
+function svgBlob(markup) {
+  try {
+    if (typeof Blob !== 'function' || !URL.createObjectURL) return null;
+    return URL.createObjectURL(new Blob([markup], { type: 'image/svg+xml' }));
+  } catch (e) {
+    return null;
+  }
+}
+
+function swapIn(img, url, hideNodes) {
+  const old = img.getAttribute('data-url');
+  img.setAttribute('data-url', url);
+  const done = () => {
+    if (img.getAttribute('data-url') !== url) return;
+    for (const n of hideNodes) if (n) n.style.display = 'none';
+    img.style.visibility = 'visible';
+  };
+  img.addEventListener('load', done, { once: true });
+  if (img instanceof HTMLImageElement) img.src = url;
+  else img.setAttribute('href', url);
+  if (old) setTimeout(() => { try { URL.revokeObjectURL(old); } catch (e) { /* gone */ } }, 4000);
+}
+
+function bake() {
+  if (!M || !M.vb || typeof XMLSerializer !== 'function') return;
+  try {
+    const ser = new XMLSerializer();
+    const out = (n) => {
+      if (!n) return '';
+      const c = n.cloneNode(true);
+      c.removeAttribute('style');
+      return ser.serializeToString(c);
+    };
+    const { svg, vb, s, frame, W, H } = M;
+    const sea = svg.querySelector('.sm-sea');
+    const land = svg.querySelector('.sm-land');
+    const base = `<svg xmlns="${NS}" viewBox="${f(vb.x)} ${f(vb.y)} ${f(vb.w)} ${f(vb.h)}" width="${f(vb.w * s)}" height="${f(vb.h * s)}">${out(svg.querySelector('style'))}${out(svg.querySelector('defs'))}${out(sea)}${out(land)}</svg>`;
+    const u1 = svgBlob(base);
+    if (u1) {
+      let img = svg.querySelector('.sm-baked');
+      if (!img) {
+        img = el('image', { class: 'sm-baked', 'aria-hidden': 'true', preserveAspectRatio: 'none' });
+        img.style.visibility = 'hidden';
+        svg.insertBefore(img, sea);
+      }
+      img.setAttribute('x', f(vb.x));
+      img.setAttribute('y', f(vb.y));
+      img.setAttribute('width', f(vb.w));
+      img.setAttribute('height', f(vb.h));
+      if (sea) sea.style.display = '';
+      if (land) land.style.display = '';
+      swapIn(img, u1, [sea, land]);
+    }
+    const edge = `<svg xmlns="${NS}" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" overflow="visible">${out(svg.querySelector('defs'))}${Array.from(frame.childNodes).map((n) => (n.nodeType === 1 ? ser.serializeToString(n) : '')).join('')}</svg>`;
+    const u2 = svgBlob(edge);
+    if (u2) {
+      let pic = M.root.querySelector('.sm-frame-pic');
+      if (!pic) {
+        pic = document.createElement('img');
+        pic.className = 'sm-frame-pic';
+        pic.alt = '';
+        pic.setAttribute('aria-hidden', 'true');
+        pic.decoding = 'async';
+        pic.style.cssText = 'position:absolute;left:0;top:0;width:100%;height:100%;pointer-events:none;visibility:hidden';
+        M.root.appendChild(pic);
+      }
+      frame.style.display = '';
+      swapIn(pic, u2, [frame]);
+    }
+  } catch (e) { /* the live groups keep showing */ }
 }
 
 // ------------------------------------------------------------------ live layer

@@ -26,7 +26,7 @@ Then open http://127.0.0.1:3210. There is nothing to install: the engine is one 
 SAO_ORIGINS=https://your-deployment.vercel.app npm start
 ```
 
-Several addresses can be listed, separated by commas. Anywhere else the deployment cannot reach the laptop and shows the demo world.
+Several addresses can be listed, separated by commas. Then open the deployment once on the laptop with `?engine=on` added to the address; that browser remembers it (`?engine=off` forgets it). Without that opt in, the deployment never calls the laptop: every visitor sees the demo world, with no refused connections in the console and no local network prompt.
 
 A deploy only happens when Wahb says go.
 
@@ -36,7 +36,7 @@ No personal data is ever deployed. The deployment holds only the code and `publi
 
 ## Adding paintings
 
-Place paintings go in `public/assets/places/` as `<place>-<time>.webp`, for example `bobino-sunset.webp`. Places: `town`, `campus`, `bobino`, `tower`, `home`, `kitchen`, `gym`, `market`, `vault`, `fields`, `lighthouse`. Times: `morning`, `day`, `sunset`, `night`. Each painting is 16:9 and at least 2400 px wide. Until a painting exists, the world paints its own placeholder and shows a small tag, Painting coming.
+Place paintings go in `public/assets/places/` as `<place>-<time>.webp`, for example `bobino-sunset.webp`. Places: `town`, `campus`, `bobino`, `tower`, `home`, `kitchen`, `gym`, `market`, `vault`, `fields`, `lighthouse`. Times: `morning`, `day`, `sunset`, `night`. Each painting is 16:9 and at least 2400 px wide. Add each file name to `public/assets/places/paintings.json` too: the world only loads the paintings listed there, so a missing one never causes an error. Until a painting is listed, the world paints its own placeholder and shows a small tag, Painting coming.
 
 Logos go in `public/assets/logos/<place>.png`; character art notes are in `public/assets/characters/README.md`.
 

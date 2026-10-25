@@ -1,0 +1,4 @@
+{
+  "note": "List each painting file in this folder here, for example bobino-sunset.webp. The world only loads the files listed, so a missing painting never shows an error.",
+  "paintings": []
+}

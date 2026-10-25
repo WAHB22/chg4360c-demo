@@ -1,0 +1,4 @@
+{
+  "engine": false,
+  "note": "A static host serves this file. The local engine (server.mjs) answers this same path with engine true, so the page only calls /api when an engine is there."
+}

@@ -586,6 +586,9 @@ async function handle(req, res) {
   }
   const pathname = url.pathname;
 
+  // A static host serves public/engine.json ({"engine": false}); the engine
+  // answers the same path with true, so the page only calls /api where one is.
+  if (pathname === '/engine.json' && (req.method === 'GET' || req.method === 'HEAD')) return send(res, 200, { engine: true, api: '/api' });
   if (!pathname.startsWith('/api/')) return serveStatic(req, res, pathname);
 
   const origin = req.headers.origin;

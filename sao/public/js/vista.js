@@ -33,6 +33,7 @@ let onTap = null;
 
 let current = null; // { id, stage, front, image }
 let pendingId = null;
+let heading = null; // the place a travel is going to, from its first frame
 const amb = { time: 'day', season: 'autumn', weather: 'clear', quiet: false };
 let quietTimer = null;
 let swapTimer = null;
@@ -42,7 +43,8 @@ let geom = { w: 0, h: 0, cw: 0, ch: 0, left: 0, top: 0, scale: 1 };
 const imageCache = new Map();
 
 const mq = typeof matchMedia === 'function' ? matchMedia('(prefers-reduced-motion: reduce)') : null;
-const reduced = () => !!(mq && mq.matches);
+// the system setting, or the in app "Reduce motion" switch (a class on <html>)
+const reduced = () => !!(mq && mq.matches) || (typeof document !== 'undefined' && document.documentElement.classList.contains('reduce-motion'));
 
 /* ----------------------------------------------------------------- styles */
 
@@ -138,9 +140,30 @@ function assetUrl(id, time) {
   }
 }
 
+// The paintings that exist are listed in assets/places/paintings.json, so the
+// world never asks for a file that is not there (no 404s in the console).
+let listed = null;
+function paintingList() {
+  if (listed) return listed;
+  let url = 'assets/places/paintings.json';
+  try { url = new URL('../assets/places/paintings.json', import.meta.url).href; } catch (e) { /* relative */ }
+  listed = (typeof fetch === 'function' ? fetch(url, { cache: 'no-cache' }) : Promise.reject(new Error('no fetch')))
+    .then((r) => (r.ok ? r.json() : { paintings: [] }))
+    .then((j) => new Set((j && Array.isArray(j.paintings) ? j.paintings : []).map((n) => String(n).trim())))
+    .catch(() => new Set());
+  return listed;
+}
+
 function probe(url) {
   if (imageCache.has(url)) return imageCache.get(url);
-  const p = new Promise((resolve) => {
+  const name = String(url).split('/').pop();
+  const p = paintingList().then((set) => (set.has(name) ? load(url) : false));
+  imageCache.set(url, p);
+  return p;
+}
+
+function load(url) {
+  return new Promise((resolve) => {
     try {
       const img = new Image();
       img.decoding = 'async';
@@ -151,8 +174,6 @@ function probe(url) {
       resolve(false);
     }
   });
-  imageCache.set(url, p);
-  return p;
 }
 
 function nextFrame() {
@@ -169,10 +190,12 @@ function animate(node, frames, ms, easing = 'cubic-bezier(.22,.61,.36,1)') {
     return Promise.resolve();
   }
   const a = node.animate(frames, { duration: ms, easing, fill: 'forwards' });
-  return a.finished.then(() => {
+  const settle = () => {
     Object.assign(node.style, frames[frames.length - 1]);
-    a.cancel();
-  }).catch(() => {});
+    try { a.cancel(); } catch (e) { /* gone */ }
+  };
+  // a busy or hidden tab may stall the frames: the travel never waits on them
+  return Promise.race([a.finished, wait(ms + 400)]).then(settle, settle);
 }
 
 /* ----------------------------------------------------------------- geometry */
@@ -194,9 +217,13 @@ function fit() {
   placeHit();
 }
 
+function hereId() {
+  return heading || (current ? current.id : pendingId);
+}
+
 function placeHit() {
   if (!hitEl) return;
-  const id = current ? current.id : pendingId;
+  const id = hereId();
   const pl = PLACE[id];
   if (!pl) {
     hitEl.hidden = true;
@@ -514,7 +541,7 @@ export function mountVista(container, { onPlaceTap } = {}) {
   setTag(false);
 
   hitEl.addEventListener('click', () => {
-    const id = current ? current.id : pendingId;
+    const id = hereId();
     if (onTap && id) onTap(id);
   });
   root.addEventListener('pointermove', onPointer, { passive: true });
@@ -524,13 +551,22 @@ export function mountVista(container, { onPlaceTap } = {}) {
   document.addEventListener('visibilitychange', () => {
     if (root) root.dataset.paused = document.hidden ? 'on' : 'off';
   });
-  if (mq && typeof mq.addEventListener === 'function') {
-    mq.addEventListener('change', () => {
-      px.tx = px.ty = px.x = px.y = px.vx = px.vy = 0;
-      applyParallax();
-      syncLights();
-      buildWeather();
-    });
+  const motionChanged = () => {
+    px.tx = px.ty = px.x = px.y = px.vx = px.vy = 0;
+    applyParallax();
+    syncLights();
+    buildWeather();
+  };
+  if (mq && typeof mq.addEventListener === 'function') mq.addEventListener('change', motionChanged);
+  if (typeof MutationObserver === 'function') {
+    let was = reduced();
+    new MutationObserver(() => {
+      const now = reduced();
+      if (now !== was) {
+        was = now;
+        motionChanged();
+      }
+    }).observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
   }
   fit();
   applyGrade();
@@ -549,8 +585,12 @@ export async function showPlace(placeId, { instant } = {}) {
     pendingId = id;
     return;
   }
-  if (current && current.id === id && current.time === amb.time) return;
+  if (heading ? heading === id : current && current.id === id && current.time === amb.time) return;
   const token = ++travelToken;
+  // the hit area and its label follow the destination at once, so a tap during
+  // the travel opens the place Wahb is going to
+  heading = instant ? null : id;
+  placeHit();
   const old = current;
   const rec = buildStage(id);
   const fast = reduced();
@@ -558,6 +598,7 @@ export async function showPlace(placeId, { instant } = {}) {
     dropRec(old);
     mountRec(rec);
     current = rec;
+    heading = null;
     placeHit();
     setTag(!rec.image);
     if (!instant && !old) {
@@ -579,7 +620,12 @@ export async function showPlace(placeId, { instant } = {}) {
   mountRec(rec);
   if (fast) {
     await rec.ready;
+    if (token !== travelToken) {
+      dropRec(rec);
+      return;
+    }
     current = rec;
+    heading = null;
     placeHit();
     setTag(!rec.image);
     await Promise.all([
@@ -605,6 +651,7 @@ export async function showPlace(placeId, { instant } = {}) {
     return;
   }
   current = rec;
+  heading = null;
   placeHit();
   setTag(!rec.image);
   await Promise.all([
@@ -645,7 +692,7 @@ export function crowdLayer() {
 }
 
 export function subjectRect() {
-  const id = current ? current.id : pendingId;
+  const id = hereId();
   const pl = PLACE[id];
   if (!pl || !root) return { x: 0, y: 0, width: 0, height: 0, left: 0, top: 0, right: 0, bottom: 0 };
   const s = pl.subject;
@@ -663,5 +710,5 @@ export function toScreen(xPct, yPct) {
 }
 
 export function currentPlace() {
-  return current ? current.id : pendingId;
+  return hereId();
 }

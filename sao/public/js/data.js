@@ -1,9 +1,10 @@
 // SAO data: where the world state comes from and where Wahb's actions go.
 //
-// Served by the local engine (127.0.0.1 or localhost): same origin /api.
-// Anywhere else (the Vercel deployment): try the engine on Wahb's own laptop,
-// http://127.0.0.1:3210/api, for 1.5 s; if it does not answer, load the
-// invented demo state that ships with the site. ?demo=1 forces the demo.
+// Served by the local engine (it answers engine.json with true): same origin
+// /api. Anywhere else (the Vercel deployment, a static server): the invented
+// demo state that ships with the site, unless this browser opted in once with
+// ?engine=on to reach the engine on Wahb's laptop (http://127.0.0.1:3210/api,
+// 1.5 s timeout, then the demo). ?engine=off forgets it; ?demo=1 forces the demo.
 // In demo mode every action is kept in this browser only (localStorage).
 
 const ENGINE_DEFAULT = 'http://127.0.0.1:3210/api';
@@ -66,21 +67,56 @@ async function fetchWithTimeout(url, opts = {}, ms = TIMEOUT_MS) {
   }
 }
 
-// The engine bases to try, in order.
-function engineCandidates() {
+const ENGINE_KEY = 'sao.data.engine.v1';
+const MARKER_URL = new URL('../engine.json', import.meta.url).href;
+
+function remembered(value) {
+  try {
+    if (value === undefined) return localStorage.getItem(ENGINE_KEY);
+    if (value === null) localStorage.removeItem(ENGINE_KEY);
+    else localStorage.setItem(ENGINE_KEY, value);
+  } catch (e) { /* storage blocked */ }
+  return null;
+}
+
+// Is this page served by the engine itself? The engine answers engine.json
+// with true; a static host (Vercel, a plain file server) serves the file with
+// false. Asking for a file that always exists keeps the console free of 404s.
+async function servedByEngine() {
+  try {
+    const r = await fetchWithTimeout(MARKER_URL, { headers: { Accept: 'application/json' } }, TIMEOUT_MS);
+    if (!r.ok) return false;
+    const j = await r.json();
+    return !!(j && j.engine === true);
+  } catch (e) {
+    return false;
+  }
+}
+
+// The engine bases to try, in order. Another origin (the deployment, a static
+// server) only calls the laptop engine when this browser asked for it once with
+// ?engine=on (port 3210) or ?engine=http://127.0.0.1:PORT; ?engine=off forgets
+// it. Visitors never see a refused connection or a local network prompt.
+async function engineCandidates() {
   const list = [];
   const here = typeof location !== 'undefined' ? location : null;
-  const local = here && /^https?:$/.test(here.protocol) && isLocalHost(here.hostname);
-  if (local) list.push(`${here.origin}/api`);
-  // ?engine=http://127.0.0.1:4000 points at an engine on another port of this machine
-  const custom = param('engine');
-  if (custom) {
+  if (here && /^https?:$/.test(here.protocol) && (await servedByEngine())) list.push(`${here.origin}/api`);
+  const ask = param('engine');
+  if (ask === 'off') remembered(null);
+  else if (ask === 'on' || ask === '1') remembered(ENGINE_DEFAULT);
+  else if (ask) {
     try {
-      const u = new URL(custom);
-      if (u.protocol === 'http:' && isLocalHost(u.hostname)) list.push(`${u.origin}/api`);
+      const u = new URL(ask);
+      if (u.protocol === 'http:' && isLocalHost(u.hostname)) remembered(`${u.origin}/api`);
     } catch (e) { /* ignore a bad override */ }
   }
-  if (!local || here.port !== '3210') list.push(ENGINE_DEFAULT);
+  const saved = remembered();
+  if (saved) {
+    try {
+      const u = new URL(saved);
+      if (u.protocol === 'http:' && isLocalHost(u.hostname)) list.push(`${u.origin}/api`);
+    } catch (e) { remembered(null); }
+  }
   return [...new Set(list)];
 }
 
@@ -131,8 +167,9 @@ async function post(path, body) {
 
 export async function loadState() {
   if (param('demo') === '1') return loadDemo(null);
-  let lastError = 'engine unavailable';
-  for (const base of engineCandidates()) {
+  // no engine expected here: the demo, with no error to report
+  let lastError = null;
+  for (const base of await engineCandidates()) {
     try {
       const { state, text } = await readEngine(base);
       api = base;

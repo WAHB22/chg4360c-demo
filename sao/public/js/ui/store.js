@@ -89,7 +89,9 @@ export function allDrafts() {
 }
 
 export function botName(core) {
-  return BOT[core] ? BOT[core].name : core ? clean(core) : '';
+  if (BOT[core]) return BOT[core].name;
+  if (String(core || '').toLowerCase() === 'icon') return 'ICON';
+  return core ? clean(core) : '';
 }
 
 export function placeName(id) {

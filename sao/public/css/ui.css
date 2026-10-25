@@ -953,6 +953,8 @@ h4 { margin: 0; font-weight: 400; line-height: var(--lh-title); }
   .dock-btn:focus-visible .dock-face { outline: 2px solid var(--gold); outline-offset: 3px; }
   .dock-name { font-size: var(--fs-13); }
   .has-sheet .dock { visibility: hidden; }
+  /* the bottom sheet covers the caption; its text must not read through the glass */
+  .has-sheet .caption-slot { visibility: hidden; }
 
   /* the map is a full screen sheet */
   .mapband {

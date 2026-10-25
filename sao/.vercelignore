@@ -1,0 +1,9 @@
+# Only public/ ships (vercel.json outputDirectory). Never upload the engine,
+# the build notes or the screenshots, and never anything from the repo root.
+server.mjs
+SPEC.md
+README.md
+shots/
+node_modules/
+*.log
+.env*
