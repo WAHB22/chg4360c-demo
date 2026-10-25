@@ -342,9 +342,9 @@ function paint(T, col, k = 0, d = 0) {
 function filters(c) {
   const s = c.seed % 997;
   const p = c.p;
-  const washF = (name, col, seed) => {
+  const washF = (name, col, seed, bf = '0.0022 0.0045') => {
     const [r0, g0, b0] = rgb(col).map((v) => f2(v / 255));
-    return `<filter id="${p}${name}" x="0" y="0" width="100%" height="100%" filterUnits="userSpaceOnUse"><feTurbulence type="fractalNoise" baseFrequency="0.0022 0.0045" numOctaves="3" seed="${seed}"/><feColorMatrix type="matrix" values="0 0 0 0 ${r0} 0 0 0 0 ${g0} 0 0 0 0 ${b0} 1.7 0 0 0 -0.72"/></filter>`;
+    return `<filter id="${p}${name}" x="0" y="0" width="100%" height="100%" filterUnits="userSpaceOnUse"><feTurbulence type="fractalNoise" baseFrequency="${bf}" numOctaves="3" seed="${seed}"/><feColorMatrix type="matrix" values="0 0 0 0 ${r0} 0 0 0 0 ${g0} 0 0 0 0 ${b0} 1.7 0 0 0 -0.72"/></filter>`;
   };
   return [
     // soft watercolor edge
@@ -368,6 +368,13 @@ function filters(c) {
     // big soft washes that break flat gradients (tinted: one lighter, one cooler)
     washF('washL', mix(c.T.light, '#FFFFFF', 0.35), s + 8),
     washF('washS', c.T.shade, s + 12),
+    // smaller blooms for glazes over buildings (wet in wet, pigment pooling)
+    washF('bloomL', mix(c.T.light, '#FFF4DC', 0.3), s + 14, '0.011 0.016'),
+    washF('bloomS', mix(c.T.shade, '#5E5E9A', 0.3), s + 15, '0.009 0.014'),
+    // dry brush: strokes skip over the paper tooth
+    `<filter id="${p}dry" x="-5%" y="-30%" width="110%" height="160%"><feTurbulence type="fractalNoise" baseFrequency="0.55 0.05" numOctaves="2" seed="${s + 13}" result="n"/><feColorMatrix in="n" type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 3.2 -1.25" result="m"/><feDisplacementMap in="SourceGraphic" in2="n" scale="4" xChannelSelector="R" yChannelSelector="G" result="d"/><feComposite in="d" in2="m" operator="in"/></filter>`,
+    // hand drawn architecture: long lines bow gently, then a fine wobble
+    `<filter id="${p}archP" x="-4%" y="-6%" width="108%" height="112%"><feTurbulence type="fractalNoise" baseFrequency="0.009" numOctaves="2" seed="${s + 16}" result="n1"/><feDisplacementMap in="SourceGraphic" in2="n1" scale="7" xChannelSelector="R" yChannelSelector="G" result="d1"/><feTurbulence type="fractalNoise" baseFrequency="0.07" numOctaves="2" seed="${s + 17}" result="n2"/><feDisplacementMap in="d1" in2="n2" scale="2.2" xChannelSelector="R" yChannelSelector="G"/></filter>`,
     // paper grain
     `<filter id="${p}paper" x="0" y="0" width="100%" height="100%" filterUnits="userSpaceOnUse"><feTurbulence type="fractalNoise" baseFrequency="0.85" numOctaves="2" seed="${s + 9}" stitchTiles="stitch"/><feColorMatrix type="matrix" values="0 0 0 0 0.3 0 0 0 0 0.24 0 0 0 0 0.2 0 0 -2.2 0 1.25"/></filter>`,
   ].join('');
@@ -1124,7 +1131,7 @@ function faceK(c, s) {
 }
 
 function edge(c, w = 1) {
-  return ` stroke="${c.lineCol}" stroke-width="${w}" stroke-opacity="0.55" stroke-linejoin="round"`;
+  return ` stroke="${c.edgeCol || c.lineCol}" stroke-width="${w}" stroke-opacity="${c.edgeO != null ? c.edgeO : 0.55}" stroke-linejoin="round"`;
 }
 
 // A light: emissive core plus halo, in the lights layer (pulses, dims at quiet hours)
@@ -1593,12 +1600,96 @@ function sail(c, pts, o = {}) {
   (o.to || c.land).push(s);
 }
 
+
+/* ------------------------------------------------------- painterly glazes */
+
+// Transparent layered washes over a subject, clipped to its silhouette:
+// warm light glaze on the lit side, cool violet glaze on the far side,
+// wet in wet blooms, broken color dabs and dry brush on stone or brick.
+function glaze(c, shape, box, o = {}) {
+  const { T } = c;
+  const [x0, y0, x1, y1] = box;
+  const w = x1 - x0;
+  const h = y1 - y0;
+  const cp = c.clip(shape);
+  const r = c.sub('glaze' + (o.key || '') + Math.round(x0));
+  const litL = T.litSide < 0;
+  const warm = mix(T.light, '#FFDDA6', 0.45);
+  const cool = mix(T.shade, '#6C6CA6', 0.4);
+  // evening light is already one warm glaze: keep the overlays thin so lit windows still glow
+  const k = (o.k != null ? o.k : 1) * ({ morning: 0.85, day: 1, sunset: 0.5, night: 0.35 }[c.time] || 1);
+  let s = '';
+  s += rect(x0, y0, w, h, c.lg([[0, warm, 0.34 * k], [0.5, warm, 0.06 * k], [0.62, cool, 0.03 * k], [1, cool, 0.24 * k]], litL ? 0 : 1, 0.1, litL ? 1 : 0, 0.5), 1, ' style="mix-blend-mode:soft-light"');
+  // light falls off toward the foot of the wall, the foot picks up ground bounce
+  s += rect(x0, y0, w, h, c.lg([[0, warm, 0.16 * k], [0.55, warm, 0], [0.86, cool, 0.12 * k], [1, mix(cool, '#7A6A4A', 0.4), 0.26 * k]]), 1);
+  s += rect(x0, y0, w, h, '#FFF', 1, ` filter="${c.f('bloomL')}" opacity="${f2(0.2 * k)}"`);
+  s += rect(x0, y0, w, h, '#FFF', 1, ` filter="${c.f('bloomS')}" opacity="${f2(0.42 * k)}" style="mix-blend-mode:multiply"`);
+  // broken color: the wall holds yellow, rose, blue and green dabs
+  const cols = o.cols || ['#F0CF7A', '#E6A79C', '#9EB0D8', '#B9C98C', '#F4E3C0', '#C99A7A'];
+  let d = '';
+  const n = o.n || Math.round((w * h) / 700);
+  for (let i = 0; i < n; i++) {
+    const x = r.R(x0, x1);
+    const y = r.R(y0, y1);
+    const side = (x - x0) / w;
+    const lean = litL ? 1 - side : side;
+    const col = r.ch(0.35 + lean * 0.3) ? r.pick(cols.slice(0, 2).concat(cols[4])) : r.pick(cols);
+    d += ell(x, y, r.R(4, 15), r.R(2, 6), c.P(col, 0.1), r.R(0.14, 0.32) * Math.min(1, k * 1.3), r.R(-25, 25));
+  }
+  s += g(d, `filter="${c.f('pig')}"`);
+  // dry brush: horizontal strokes catch the tooth of the paper
+  if (o.dry !== false) {
+    let db = '';
+    const m = o.dryN || Math.round(h / 3);
+    for (let i = 0; i < m; i++) {
+      const y = r.R(y0, y1);
+      const xa = r.R(x0 - 20, x1 - 30);
+      const len = r.R(30, 160);
+      const lean = litL ? 1 - (xa - x0) / w : (xa - x0) / w;
+      const light = r.ch(0.35 + lean * 0.35);
+      const col = light ? mix(warm, '#FFF6E2', 0.4) : mix(cool, o.dark || '#5A4A4A', 0.3);
+      db += spath(`M${f1(xa)},${f1(y)}q${f1(len / 2)},${f1(r.R(-2, 2))} ${f1(len)},${f1(r.R(-1.5, 1.5))}`, col, r.R(1.4, 4), r.R(0.25, 0.55));
+    }
+    s += g(db, `filter="${c.f('dry')}"`);
+  }
+  c.land.push(g(s, `clip-path="${cp}"`));
+}
+
+// Lost edges: the far side of a subject dissolves into the air.
+function loseEdge(c, d, w = 10, o = 0.5) {
+  c.land.push(g(spath(d, mix(c.T.haze, c.T.sky[3][1], 0.4), w, o), `filter="${c.f('b4')}"`));
+}
+
+// Dappled shade from trees out of frame, falling across lawn and path.
+function dapple(c, box, o = {}) {
+  const { T } = c;
+  const [x0, y0, x1, y1] = box;
+  const r = c.sub('dapple' + (o.key || ''));
+  const sh = mix(T.shade, '#4E4A86', 0.35);
+  const lt = mix(T.light, '#FFE7B8', 0.4);
+  let s = '';
+  let l = '';
+  const n = o.n || 40;
+  const ang = -T.litSide * 12;
+  for (let i = 0; i < n; i++) {
+    const x = r.R(x0, x1);
+    const y = r.R(y0, y1);
+    const k = 0.5 + (y - y0) / Math.max(1, y1 - y0);
+    s += pth(blob(r.r, x, y, r.R(30, 120) * k, r.R(6, 18) * k, 0.5, 9, 0), sh, r.R(0.14, 0.3) * (o.k || 1), ` transform="rotate(${f1(ang)} ${f1(x)} ${f1(y)})"`);
+    if (r.ch(0.5) && !T.lit) l += ell(x + r.R(-60, 60), y + r.R(-10, 10), r.R(8, 30) * k, r.R(2, 6) * k, lt, r.R(0.12, 0.3), ang);
+  }
+  c.land.push(g(s, `filter="${c.f('b4')}" style="mix-blend-mode:multiply"`) + g(l, `filter="${c.f('b2')}"`));
+}
+
 /* ---------------------------------------------------------------- places */
 
 const BUILD = {};
 
 BUILD.campus = (c, pl) => {
   const { T, S } = c;
+  // soft warm brown drawing line, half lost, instead of an even dark outline
+  c.edgeO = 0.3;
+  c.edgeCol = mix(c.lineCol, '#6A4A3A', 0.5);
   sky(c, { horizon: 410 });
   cloudSky(c, { big: 2 });
   range(c, { base: 408, amp: 50, d: 0.66, col: '#8090BA', scale: 600, key: 'far' });
@@ -1609,10 +1700,11 @@ BUILD.campus = (c, pl) => {
     s += rect(x, 418 - h, w, h, mix(c.P('#B47E62', 0.2), fh, 0.66));
     s += rect(x + (T.litSide < 0 ? w * 0.62 : 0), 418 - h, w * 0.38, h, mix(c.P('#B47E62', -0.5), fh, 0.62), 0.8);
     s += rect(x - 2, 418 - h - 3, w + 4, 3, mix(c.P('#B47E62', 0.4), fh, 0.6));
-    for (let yy = 418 - h + 7; yy < 412; yy += 7) s += line(x + 4, yy, x + w - 4, yy, mix('#5E6A82', fh, 0.6), 1, 0.5);
+    for (let yy = 418 - h + 7; yy < 412; yy += 7) s += line(x + 4, yy, x + w - 4, yy, mix('#5E6A82', fh, 0.6), 1, 0.3);
     if (T.lit) for (let k = 0; k < 5; k++) s += rect(x + 5 + c.L.R(0, w - 12), 418 - h + c.L.R(6, h - 12), 2.5, 2, '#FFD58A', c.L.R(0.4, 0.8));
   }
-  c.land.push(g(s, `filter="${c.f('arch')}"`));
+  // distant towers stay a pale wash, their tops lost in the haze
+  c.land.push(g(s, `filter="${c.f('wc')}" opacity="0.8"`));
   hazeBand(c, 410, 60, 0.6);
   water(c, { y0: 416, y1: 452, shape: 'M-20,418C140,416 380,420 590,430L590,442C390,450 160,452 -20,454Z', n: 40, sx1: 590 });
   footbridge(c, 150, 434, 250, 0.45);
@@ -1629,8 +1721,11 @@ BUILD.campus = (c, pl) => {
     c.land.push(circ(x + w / 2, b.top - w * 0.16, w * 0.07, c.P('#E8C88E', 0.5, 0.15)) + circ(x + w / 2, b.top - w * 0.16, w * 0.04, c.P('#B89A62', 0, 0.15)));
   }
   tabaret(c);
+  tabaretGlaze(c);
   const rd = road(c, pl.path, { w0: 560, w1: 330, kind: 'stone', col: S.snow ? '#E6EAF0' : '#D9CDB6', pow: 1.05 });
   stairs(c);
+  // shade of the big elm out of frame falls across the walk, broken by light
+  dapple(c, [T.litSide < 0 ? 760 : 380, 600, T.litSide < 0 ? 1320 : 940, 900], { n: 34, key: 'walk' });
   // flower beds and red iron lamp posts along the walkway
   for (const side of [-1, 1]) {
     const bed = [];
@@ -1651,6 +1746,9 @@ BUILD.campus = (c, pl) => {
   const bx = rd.at(735) - (rd.wAt(735) / 2 + 34 * rd.wAt(735) / 560);
   const by = 735 - 250 * (rd.wAt(735) / 560) * 0.84;
   c.land.push(g(pg([[bx + 3, by], [bx + 34, by + 3], [bx + 34, by + 78], [bx + 18, by + 70], [bx + 3, by + 78]], c.P('#EFE6D2', 0.4), 1, edge(c, 0.8)) + pg([[bx + 7, by + 6], [bx + 30, by + 8], [bx + 30, by + 62], [bx + 7, by + 62]], 'none', 1, ` stroke="${c.P('#E8C88E', 0.2)}" stroke-width="1.2"`), `filter="${c.f('arch')}"`));
+  // an old maple stands off center in front of the west wing, so the facade
+  // is never a clean symmetric elevation
+  tree(c, 432, 612, 168, { n: 9, touches: 46, wide: 1.15 });
   tree(c, 1450, 820, 210, { n: 10, touches: 50 });
   tree(c, 120, 640, 110, { d: 0.05 });
   warmLight(c);
@@ -1686,7 +1784,7 @@ function tabaret(c) {
   s += pth('M786,197A14,12 0 0 1 814,197Z', c.P('#99A3AB', 0.3), 1, edge(c, 0.8));
   s += line(800, 185, 800, 172, c.P('#99A3AB', 0), 2);
   s += circ(800, 172, 3, c.P('#E8C88E', 0.4));
-  c.land.push(g(s, `filter="${c.f('arch')}"`));
+  c.land.push(g(s, `filter="${c.f('archP')}"`));
   // wings with two rows of tall windows
   for (const [x0, x1] of [[468, 650], [950, 1132]]) {
     const F = face([x0, 548], [x1 - x0, 0], [0, -150]);
@@ -1694,7 +1792,7 @@ function tabaret(c) {
       pg(quad(F, 0, 0, 1, 0.1), c.P(sand, -0.45), 0.6) +
       pg(quad(F, -0.02, 0.97, 1.02, 1.06), c.P(sand, 0.5), 1, edge(c, 0.8)) +
       pg(quad(F, -0.01, 1.06, 1.01, 1.12), c.P(sand, 0.1), 1, edge(c, 0.6)) +
-      pg([F(-0.01, 1.12), F(1.01, 1.12), [x1 + (x0 < 800 ? -10 : 10), 548 - 150 * 1.12 - 14], [x0 + (x0 < 800 ? 10 : -10), 548 - 150 * 1.12 - 14]], c.P('#9AA0A6', 0.4), 1, edge(c, 0.6)), `filter="${c.f('arch')}"`));
+      pg([F(-0.01, 1.12), F(1.01, 1.12), [x1 + (x0 < 800 ? -10 : 10), 548 - 150 * 1.12 - 14], [x0 + (x0 < 800 ? 10 : -10), 548 - 150 * 1.12 - 14]], c.P('#9AA0A6', 0.4), 1, edge(c, 0.6)), `filter="${c.f('archP')}"`));
     // balusters
     let bal = '';
     for (let a = 0.02; a < 1; a += 0.035) bal += line(...F(a, 1.065), ...F(a, 1.115), c.P(sand, -0.4), 1.2, 0.6);
@@ -1747,7 +1845,7 @@ function tabaret(c) {
     cols += rect(x - 14, 398, 28, 8, c.P(sand, 0.5), 1, edge(c, 0.7));
     cols += pth(`M${x - 15},398Q${x - 17},392 ${x - 11},392L${x + 11},392Q${x + 17},392 ${x + 15},398Z`, c.P(sand, 0.6), 1, edge(c, 0.6));
   }
-  c.land.push(g(cols, `filter="${c.f('arch')}"`));
+  c.land.push(g(cols, `filter="${c.f('archP')}"`));
   // entablature and pediment with its green copper roof
   let pe = '';
   pe += rect(630, 372, 340, 20, c.P(sand, 0.45), 1, edge(c, 1));
@@ -1767,8 +1865,29 @@ function tabaret(c) {
   }
   // oculus in the tympanum
   pe += circ(800, 350, 9, c.P(sand, -0.6)) + circ(800, 350, 6, c.P('#55627A', -0.2));
-  c.land.push(g(pe, `filter="${c.f('arch')}"`));
+  c.land.push(g(pe, `filter="${c.f('archP')}"`));
   if (S.snow) c.land.push(pg([[612, 371], [800, 308], [800, 300], [604, 364]], '#F4F6F9', 0.85) + pg([[988, 371], [800, 308], [800, 300], [996, 364]], '#E4EAF2', 0.85) + pth('M724,290A76,40 0 0 1 876,290L860,282A60,30 0 0 0 740,282Z', '#F4F6F9', 0.8));
+}
+
+function tabaretGlaze(c) {
+  const { T } = c;
+  const shape = '<path d="M468,548L468,366L612,366L800,296L718,296L718,288L722,288A78,74 0 0 1 878,288L882,288L882,296L800,296L988,366L1132,366L1132,548Z"/>';
+  glaze(c, shape, [460, 160, 1140, 556], { key: 'tab', cols: ['#F2D27E', '#E9AE98', '#A2B2DA', '#BFCB8E', '#F6E6C2', '#C79A74'], dark: '#6A5444' });
+  // weather stains run down from the cornice; a little green from the copper
+  const r = c.sub('stains');
+  let st = '';
+  for (let i = 0; i < 26; i++) {
+    const x = r.R(470, 1130);
+    if (x > 640 && x < 960) continue;
+    const y = r.R(372, 386);
+    st += spath(`M${f1(x)},${f1(y)}q${f1(r.R(-2, 2))},${f1(r.R(20, 40))} ${f1(r.R(-3, 3))},${f1(r.R(40, 110))}`, r.pick(['#8A7A62', '#7E9A8A', '#9A8A70']), r.R(2, 6), r.R(0.06, 0.14));
+  }
+  c.land.push(g(st, `filter="${c.f('soft')}"`));
+  // lost and found: the shadow side of the dome and the far wing melt into the air
+  const far = T.litSide < 0 ? 1 : -1;
+  loseEdge(c, far > 0 ? 'M878,288A78,74 0 0 0 840,224' : 'M722,288A78,74 0 0 1 760,224', 12, 0.45);
+  loseEdge(c, far > 0 ? 'M1132,366L1132,470' : 'M468,366L468,470', 14, 0.4);
+  loseEdge(c, far > 0 ? 'M1000,364L1132,366' : 'M468,366L600,364', 8, 0.35);
 }
 
 function stairs(c) {
@@ -1787,7 +1906,7 @@ function stairs(c) {
     const x = 800 + side * 214;
     s += pg([[x - 12, 590], [x + 12, 590], [x + 12 - side * 26, 546], [x - 12 - side * 26, 546]], c.P(sand, side === c.T.litSide ? 0.6 : -0.3), 1, edge(c, 0.8));
   }
-  c.land.push(g(s, `filter="${c.f('arch')}"`));
+  c.land.push(g(s, `filter="${c.f('archP')}"`));
 }
 
 BUILD.town = (c, pl) => {
@@ -1913,6 +2032,8 @@ BUILD.town = (c, pl) => {
 
 BUILD.bobino = (c, pl) => {
   const { T, S } = c;
+  c.edgeO = 0.3;
+  c.edgeCol = mix(c.lineCol, '#6A4A3A', 0.5);
   sky(c, { horizon: 420 });
   cloudSky(c, { big: 2 });
   range(c, { base: 422, amp: 46, d: 0.66, col: '#8090BA', scale: 520, key: 'far' });
@@ -1920,7 +2041,8 @@ BUILD.bobino = (c, pl) => {
   const n = noise1(c.r);
   ground(c, profile(-20, W + 20, 10, (x) => 440 + fbm(n, x / 180) * 14), { d: 0.3, dabs: 200, key: 'back', nearDark: 0 });
   // tall trees behind the café
-  for (const [x, y, sz] of [[250, 506, 64], [390, 482, 96], [560, 468, 116], [720, 462, 128], [905, 462, 126], [1080, 468, 118], [1240, 482, 100], [1400, 500, 80], [1530, 512, 60]]) tree(c, x, y, sz, { d: 0.14 });
+  // an uneven stand of old trees, grown where they grew, not planted in a row
+  for (const [x, y, sz, d] of [[214, 504, 58, 0.2], [372, 486, 112, 0.16], [520, 474, 84, 0.18], [664, 462, 140, 0.13], [842, 470, 98, 0.16], [1012, 456, 152, 0.12], [1178, 478, 90, 0.17], [1318, 488, 124, 0.15], [1512, 508, 70, 0.2]]) tree(c, x, y, sz, { d });
   mist(c, 480, 60);
   const lot = profile(-20, W + 20, 10, (x) => 516 + fbm(n, x / 260 + 9) * 10);
   ground(c, lot, { d: 0.02, dabs: 520, persp: [516, 900], key: 'lot', strokes: 420, leaves: 140 });
@@ -1942,7 +2064,11 @@ BUILD.bobino = (c, pl) => {
   c.land.push(g(ell(1040 - T.litSide * 30 * T.shadowLen, 604, 70, 5, T.shade, 0.3) + bk, `filter="${c.f('arch')}"`));
   // the blank chalkboard by the door
   c.land.push(g(ell(892 - T.litSide * 10, 600, 16, 3, T.shade, 0.3) + pg([[880, 600], [886, 568], [900, 568], [906, 600]], c.P('#6A5240', 0)) + pg([[883, 596], [888, 572], [898, 572], [903, 596]], c.P('#2F3A3A', -0.1)) + line(889, 580, 897, 580, c.P('#E8E2D2', 0.2), 0.8, 0.4), `filter="${c.f('arch')}"`));
+  // shade of the street trees crosses the lot and the path
+  dapple(c, [360, 600, 1300, 900], { n: 30, key: 'lot', k: 0.9 });
   bush(c, 300, 600, 40, { cols: [S.leaf[5] || S.leaf[0], S.leaf[1]] });
+  // a young maple on the left edge of the lot breaks the long low line of the building
+  tree(c, 286, 664, 150, { n: 8, touches: 40, wide: 1.1 });
   bush(c, 1330, 612, 44, { cols: [S.leaf[0], S.leaf[5] || S.leaf[2]] });
   warmLight(c);
   vignette(c, 0.3);
@@ -2034,7 +2160,8 @@ function cafe(c) {
     bagels += `<circle cx="${f1(x + 6 + (k % 3) * 9)}" cy="${f1(y - 34 - Math.floor(k / 3) * 8)}" r="3.6" fill="none" stroke="${c.P('#C98E4A', 0.4)}" stroke-width="2.4"/>`;
   }
   // shade sails and terrace
-  c.land.push(g(wallS + brick, `filter="${c.f('arch')}"`) + g(glass + g(people, `filter="${c.f('b2')}"`), `filter="${c.f('arch')}"`));
+  c.land.push(g(wallS + brick, `filter="${c.f('archP')}"`) + g(glass + g(people, `filter="${c.f('b2')}"`), `filter="${c.f('archP')}"`));
+  cafeGlaze(c, base, hs, lit);
   if (lit) {
     c.land.push(glassLit);
     for (let i = 4; i < base.length - 4; i += 6) {
@@ -2042,7 +2169,7 @@ function cafe(c) {
       addLight(c, x, y - hs[i] * 0.4, 0, { halo: 70, always: true });
     }
   }
-  c.land.push(g(frames + roof + bagels + shapeAll, `filter="${c.f('arch')}"`));
+  c.land.push(g(frames + roof + bagels + shapeAll, `filter="${c.f('archP')}"`));
   // the blank sign area on the curved corner
   const [sx, sy] = base[24];
   c.land.push(g(rect(sx - 38, sy - hs[24] + 8, 76, 22, c.P('#F3EFE6', 0.45), 1, ` rx="4"${edge(c, 0.8)}`) + rect(sx - 33, sy - hs[24] + 12, 66, 14, 'none', 1, ` rx="3" stroke="${c.P('#E8C88E', 0.2)}" stroke-width="1" stroke-opacity="0.8"`), `filter="${c.f('arch')}"`));
@@ -2079,6 +2206,47 @@ function cafe(c) {
     c.land.push(rect(wx - 8, wy - 50, 16, 11, c.P('#E8C88E', 0.4), 1, edge(c, 0.6)));
   }
   castShadow(c, 452, 1226, 566, 60, { op: 0.22 });
+}
+
+function cafeGlaze(c, base, hs, lit) {
+  const { T } = c;
+  const P = (t) => base.map(([x, y], i) => [x, y - hs[i] * t]);
+  const toD = (pts) => 'M' + pts.map(([x, y]) => `${f1(x)},${f1(y)}`).join('L') + 'Z';
+  const top = P(1);
+  const band = P(0.72);
+  const foot = P(0.04);
+  // brick: broken rose, ochre and violet over the pink, dry brush mortar
+  glaze(c, `<path d="${toD([...top, ...band.slice().reverse()])}"/>`, [440, 390, 1240, 460], { key: 'brick', cols: ['#F0B48E', '#E59A8A', '#A898C8', '#C9A06A', '#F6D8C0', '#B8746A'], dark: '#7A4A44', n: 120 });
+  // glass: the trees across the street and the sky reflected, warm room behind
+  const gp = [...band, ...foot.slice().reverse()];
+  const r = c.sub('reflect');
+  let s = '';
+  if (!lit) {
+    for (let i = 0; i < 26; i++) {
+      const k = r.RI(1, base.length - 2);
+      const [x, y] = base[k];
+      const hh = hs[k];
+      s += ell(x + r.R(-10, 10), y - hh * r.R(0.3, 0.55), r.R(10, 30), hh * r.R(0.14, 0.3), r.pick([mix(c.S.leaf[0], '#2E4A4A', 0.5), mix(c.S.leaf[1] || c.S.leaf[0], '#3A4E5A', 0.45), '#3E5A62']), r.R(0.18, 0.36));
+    }
+    for (let i = 0; i < 9; i++) {
+      const k = r.RI(2, base.length - 3);
+      const [x, y] = base[k];
+      const hh = hs[k];
+      const x0 = x + r.R(-6, 6);
+      s += pg([[x0, y - hh * 0.72], [x0 + r.R(8, 22), y - hh * 0.72], [x0 - r.R(14, 26), y - hh * 0.04], [x0 - r.R(30, 44), y - hh * 0.04]], mix(T.sky[3][1], '#FFFFFF', 0.5), r.R(0.1, 0.22));
+    }
+  } else {
+    for (let i = 0; i < 18; i++) {
+      const k = r.RI(1, base.length - 2);
+      const [x, y] = base[k];
+      s += ell(x, y - hs[k] * r.R(0.2, 0.5), r.R(12, 34), r.R(8, 20), r.pick(['#FFE2A2', '#FFC27A', '#F7A86A']), r.R(0.12, 0.3));
+    }
+  }
+  c.land.push(g(g(s, `filter="${c.f('soft')}"`), `clip-path="${c.clip(`<path d="${toD(gp)}"/>`)}"`));
+  // the far end of the long wall dissolves into the trees
+  const far = T.litSide < 0 ? base.length - 1 : 0;
+  const [fx, fy] = base[far];
+  loseEdge(c, `M${f1(fx)},${f1(fy - hs[far])}L${f1(fx)},${f1(fy - 6)}`, 12, 0.35);
 }
 
 function trailer(c, x, y, k = 1) {

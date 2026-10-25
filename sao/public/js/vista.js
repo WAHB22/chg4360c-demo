@@ -60,9 +60,18 @@ const CSS = `
 .sv-clouds{overflow:hidden}
 .sv-cloudstrip{position:absolute;top:0;left:0;width:200%;height:100%;display:flex;will-change:transform;animation:svDrift var(--drift,60s) linear infinite}
 .sv-cloudstrip>svg,.sv-cloudstrip>img{width:50%;flex:0 0 50%;height:100%}
+canvas.sv-layer{display:block;width:100%;height:100%}
+canvas.sv-cloudstrip{display:block}
+.sv-cloudstrip.sv-cb{top:-3%;animation:svDrift var(--drift2,96s) linear infinite,svMorph 23s cubic-bezier(.45,0,.55,1) infinite alternate;opacity:.0}
+.sv-shafts{opacity:.5;transform-origin:20% 0;will-change:opacity,transform;animation:svShaft 11s cubic-bezier(.45,0,.55,1) infinite alternate}
+.sv-mist{will-change:transform,opacity;animation:svMist var(--mt,38s) cubic-bezier(.45,0,.55,1) infinite alternate}
+.sv-mist.m2{animation-duration:var(--mt2,53s);animation-direction:alternate-reverse}
+.sv-vista[data-breathe="on"] .sv-stage{animation:svBreathe 17s cubic-bezier(.45,0,.55,1) infinite alternate}
+.sv-vista[data-breathe="on"] .sv-frontwrap{animation:svBreatheF 13s cubic-bezier(.45,0,.55,1) infinite alternate}
 .sv-img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block}
-.sv-lights{mix-blend-mode:screen;transition:opacity 1.6s ease}
-.sv-vista[data-glow="on"] .sv-lights{animation:svPulse var(--pulse,4s) ease-in-out infinite alternate}
+.sv-lights{transition:opacity 1.6s ease;will-change:opacity}
+.sv-lights>canvas{position:absolute;inset:0;width:100%;height:100%;transition:opacity 1.4s cubic-bezier(.4,0,.2,1)}
+.sv-vista[data-glow="on"] .sv-lights{animation:svPulse var(--pulse,4.6s) cubic-bezier(.45,0,.55,1) infinite}
 .sv-lights .lw{transition:opacity .9s ease}
 .sv-vista[data-quiet="on"] .sv-lights{opacity:.7}
 .sv-crowd{position:absolute;inset:0;pointer-events:none}
@@ -80,17 +89,25 @@ const CSS = `
 .sv-wx i{position:absolute;top:0;display:block;will-change:transform}
 .sv-wx .sv-rain{width:1.5px;height:var(--len,18px);background:linear-gradient(rgba(220,230,245,0),rgba(228,236,248,.7));animation:svRain var(--dur,.7s) linear infinite;animation-delay:var(--delay,0s)}
 .sv-wx .sv-fall{animation:svFall var(--dur,12s) linear infinite;animation-delay:var(--delay,0s)}
-.sv-wx .sv-fall>b{display:block;animation:svSway var(--sway,4s) ease-in-out infinite alternate;animation-delay:var(--delay,0s)}
+.sv-wx .sv-fall>b{display:block;animation:svSway var(--sway,4s) cubic-bezier(.37,0,.63,1) infinite alternate;animation-delay:var(--delay,0s)}
+.sv-wx .sv-fall svg{will-change:transform;animation:svFlip var(--flip,1.8s) cubic-bezier(.45,.05,.55,.95) infinite;animation-delay:var(--delay,0s)}
 .sv-wx .sv-flake{width:var(--size,4px);height:var(--size,4px);border-radius:50%;background:rgba(246,248,252,.9);box-shadow:0 0 4px rgba(246,248,252,.5)}
 .sv-wx svg{display:block}
 .sv-vista[data-paused="on"] *{animation-play-state:paused!important}
 @keyframes svDrift{from{transform:translate3d(-50%,0,0)}to{transform:translate3d(0,0,0)}}
-@keyframes svPulse{from{opacity:.78}to{opacity:1}}
+@keyframes svPulse{0%{opacity:.8}22%{opacity:.97}38%{opacity:.9}61%{opacity:1}83%{opacity:.86}100%{opacity:.8}}
+@keyframes svMorph{0%,12%{opacity:0}100%{opacity:.55}}
+@keyframes svShaft{from{opacity:.32;transform:skewX(-2deg)}to{opacity:.72;transform:skewX(1.5deg)}}
+@keyframes svMist{from{transform:translate3d(-3%,0,0);opacity:.7}to{transform:translate3d(3%,-.6%,0);opacity:1}}
+@keyframes svBreathe{from{transform:scale(1)}to{transform:scale(1.012) translate3d(-3px,1px,0)}}
+@keyframes svBreatheF{from{transform:scale(1)}to{transform:scale(1.024) translate3d(5px,-2px,0)}}
+@keyframes svFlip{0%{transform:rotateX(0) rotateZ(0)}28%{transform:rotateX(70deg) rotateZ(16deg)}52%{transform:rotateX(175deg) rotateZ(-8deg)}79%{transform:rotateX(260deg) rotateZ(11deg)}100%{transform:rotateX(360deg) rotateZ(0)}}
 @keyframes svRain{from{transform:translate3d(0,-40px,0) rotate(12deg)}to{transform:translate3d(calc(var(--svh,900px) * -.21),calc(var(--svh,900px) + 40px),0) rotate(12deg)}}
 @keyframes svFall{from{transform:translate3d(0,-30px,0)}to{transform:translate3d(var(--dx,0px),calc(var(--svh,900px) + 30px),0)}}
-@keyframes svSway{from{transform:translate3d(calc(var(--amp,30px) * -1),0,0) rotate(calc(var(--rot,50deg) * -1))}to{transform:translate3d(var(--amp,30px),0,0) rotate(var(--rot,50deg))}}
+@keyframes svSway{0%{transform:translate3d(calc(var(--amp,30px) * -1),-7px,0) rotate(calc(var(--rot,50deg) * -1))}50%{transform:translate3d(0,5px,0) rotate(0)}100%{transform:translate3d(var(--amp,30px),-7px,0) rotate(var(--rot,50deg))}}
 @media (prefers-reduced-motion: reduce){
-  .sv-cloudstrip,.sv-vista[data-glow="on"] .sv-lights{animation:none}
+  .sv-cloudstrip,.sv-vista[data-glow="on"] .sv-lights,.sv-shafts,.sv-mist,.sv-vista .sv-stage,.sv-vista .sv-frontwrap{animation:none!important}
+  .sv-cloudstrip.sv-cb{opacity:.3}
   .sv-wx{display:none}
   .sv-grade,.sv-haze,.sv-lights{transition-duration:.2s}
 }
@@ -103,11 +120,6 @@ function injectStyle() {
   st.textContent = CSS;
   document.head.appendChild(st);
 }
-
-const GRAIN = (() => {
-  const svg = `<svg xmlns='http://www.w3.org/2000/svg' width='220' height='220'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 .5 0 0 0 0 .5 0 0 0 0 .5 0 0 0 1.2 -.1'/></filter><rect width='220' height='220' filter='url(%23n)'/></svg>`;
-  return `url("data:image/svg+xml;utf8,${svg.replace(/"/g, "'").replace(/</g, '%3C').replace(/>/g, '%3E')}")`;
-})();
 
 /* ----------------------------------------------------------------- helpers */
 
@@ -184,18 +196,18 @@ function wait(ms) {
   return new Promise((r) => setTimeout(r, ms));
 }
 
-function animate(node, frames, ms, easing = 'cubic-bezier(.22,.61,.36,1)') {
+function animate(node, frames, ms, easing = 'cubic-bezier(.22,.61,.36,1)', delay = 0) {
   if (!node || typeof node.animate !== 'function' || ms <= 0) {
     if (node && frames.length) Object.assign(node.style, frames[frames.length - 1]);
     return Promise.resolve();
   }
-  const a = node.animate(frames, { duration: ms, easing, fill: 'forwards' });
+  const a = node.animate(frames, { duration: ms, delay, easing, fill: 'both' });
   const settle = () => {
     Object.assign(node.style, frames[frames.length - 1]);
     try { a.cancel(); } catch (e) { /* gone */ }
   };
   // a busy or hidden tab may stall the frames: the travel never waits on them
-  return Promise.race([a.finished, wait(ms + 400)]).then(settle, settle);
+  return Promise.race([a.finished, wait(ms + delay + 400)]).then(settle, settle);
 }
 
 /* ----------------------------------------------------------------- geometry */
@@ -299,45 +311,256 @@ function sceneOpts(extra = {}) {
   return { time: amb.time, season: amb.season, weather: amb.weather, weekend: isWeekend(), quiet: amb.quiet, ...extra };
 }
 
+// The time of day grade, horizon haze and paper grain are baked into each
+// painted layer once (canvas), so nothing on screen blends live while the
+// clouds drift: the browser only moves finished bitmaps.
+const GRADE = {
+  morning: { op: 'soft-light', color: 'rgba(255,214,196,0.28)', haze: 'rgba(246,226,222,0.30)', hop: 'source-over' },
+  day: { op: null, color: null, haze: 'rgba(214,228,238,0.20)', hop: 'source-over' },
+  sunset: { op: 'soft-light', color: 'rgba(255,168,92,0.34)', haze: 'rgba(246,200,150,0.24)', hop: 'source-over' },
+  night: { op: 'multiply', color: 'rgba(64,84,138,0.26)', haze: 'rgba(60,84,124,0.20)', hop: 'screen' },
+};
+
+let paperTile = null;
+function paper() {
+  if (paperTile) return paperTile;
+  const c = document.createElement('canvas');
+  c.width = c.height = 160;
+  const x = c.getContext('2d');
+  if (!x) return null;
+  const d = x.createImageData(160, 160);
+  let seed = 9173;
+  for (let i = 0; i < d.data.length; i += 4) {
+    seed = (seed * 16807) % 2147483647;
+    const v = 96 + (seed % 120);
+    d.data[i] = v;
+    d.data[i + 1] = v * 0.97;
+    d.data[i + 2] = v * 0.9;
+    d.data[i + 3] = 255;
+  }
+  x.putImageData(d, 0, 0);
+  paperTile = c;
+  return c;
+}
+
+function bakeSize() {
+  const dpr = (typeof devicePixelRatio === 'number' && devicePixelRatio) || 1;
+  const k = Math.min(1.5, Math.max(0.7, (geom.scale || 1) * dpr));
+  return { w: Math.round(VW * k), h: Math.round(VH * k) };
+}
+
+function rasterize(svg) {
+  const u = svgUrl(svg);
+  if (!u) return Promise.resolve(null);
+  return new Promise((resolve) => {
+    const im = new Image();
+    im.decoding = 'async';
+    const done = (ok) => {
+      setTimeout(() => { try { URL.revokeObjectURL(u); } catch (e) { /* gone */ } }, 0);
+      resolve(ok ? im : null);
+    };
+    im.onload = () => done(im.naturalWidth > 0 || im.width > 0);
+    im.onerror = () => done(false);
+    im.src = u;
+  });
+}
+
+// draws one painted layer into a canvas, then lays the grade, haze and grain
+// only where that layer has paint (masked by its own alpha)
+function bake(cv, img, { grade = true, haze = false, grain = 0, twice = false, flip = false } = {}) {
+  const { w, h } = bakeSize();
+  const W2 = twice ? w * 2 : w;
+  cv.width = W2;
+  cv.height = h;
+  const x = cv.getContext('2d');
+  if (!x) return false;
+  const draw = (ctx) => {
+    if (flip) {
+      ctx.save();
+      ctx.translate(W2, 0);
+      ctx.scale(-1, 1);
+    }
+    ctx.drawImage(img, 0, 0, w, h);
+    if (twice) ctx.drawImage(img, w, 0, w, h);
+    if (flip) ctx.restore();
+  };
+  draw(x);
+  const G = GRADE[amb.time] || GRADE.day;
+  const passes = [];
+  if (grade && G.op) passes.push([G.op, (c) => { c.fillStyle = G.color; c.fillRect(0, 0, W2, h); }]);
+  if (haze) {
+    const fog = kindOf(amb.weather) === 'fog' ? 1.8 : 1;
+    passes.push([G.hop, (c) => {
+      const gr = c.createLinearGradient(0, 0, 0, h);
+      gr.addColorStop(0.3, 'rgba(0,0,0,0)');
+      gr.addColorStop(0.46, G.haze);
+      gr.addColorStop(0.62, 'rgba(0,0,0,0)');
+      c.globalAlpha = Math.min(1, 0.9 * fog);
+      c.fillStyle = gr;
+      c.fillRect(0, 0, W2, h);
+      if (fog > 1) {
+        c.globalAlpha = 0.22;
+        c.fillStyle = G.haze;
+        c.fillRect(0, 0, W2, h);
+      }
+    }]);
+  }
+  if (grain && paper()) {
+    passes.push(['soft-light', (c) => {
+      c.globalAlpha = grain;
+      c.fillStyle = c.createPattern(paper(), 'repeat');
+      c.fillRect(0, 0, W2, h);
+    }]);
+  }
+  if (passes.length) {
+    const t = document.createElement('canvas');
+    t.width = W2;
+    t.height = h;
+    const tx = t.getContext('2d');
+    if (tx) {
+      for (const [op, paint] of passes) {
+        tx.globalCompositeOperation = 'source-over';
+        tx.globalAlpha = 1;
+        tx.clearRect(0, 0, W2, h);
+        paint(tx);
+        tx.globalAlpha = 1;
+        tx.globalCompositeOperation = 'destination-in';
+        draw(tx);
+        x.globalCompositeOperation = op;
+        x.drawImage(t, 0, 0);
+      }
+      x.globalCompositeOperation = 'source-over';
+    }
+  }
+  return true;
+}
+
+// shafts of light through the sky at day and morning: soft wedges, baked once
+function bakeShafts(cv) {
+  const { w, h } = bakeSize();
+  cv.width = w;
+  cv.height = h;
+  const x = cv.getContext('2d');
+  if (!x) return;
+  const warm = amb.time === 'morning' ? '255,226,176' : '255,240,206';
+  if ('filter' in x) x.filter = `blur(${Math.round(w / 70)}px)`;
+  const sx = w * (amb.time === 'morning' ? 0.12 : 0.28);
+  const rays = [[0.18, 0.05, 0.13], [0.34, 0.035, 0.1], [0.47, 0.07, 0.08], [0.63, 0.03, 0.06]];
+  for (const [at, wid, a] of rays) {
+    const gx = sx + w * at;
+    const gr = x.createLinearGradient(sx, 0, gx, h * 0.85);
+    gr.addColorStop(0, `rgba(${warm},${a})`);
+    gr.addColorStop(0.7, `rgba(${warm},${a * 0.45})`);
+    gr.addColorStop(1, `rgba(${warm},0)`);
+    x.fillStyle = gr;
+    x.beginPath();
+    x.moveTo(sx - w * 0.01, -h * 0.05);
+    x.lineTo(sx + w * 0.012, -h * 0.05);
+    x.lineTo(gx + w * wid, h * 0.88);
+    x.lineTo(gx - w * wid * 0.7, h * 0.9);
+    x.closePath();
+    x.fill();
+  }
+}
+
+// morning mist and fog: long soft banks low over the land, baked once
+function bakeMist(cv, seed, dense) {
+  const { w, h } = bakeSize();
+  cv.width = w;
+  cv.height = h;
+  const x = cv.getContext('2d');
+  if (!x) return;
+  const col = amb.time === 'night' ? '150,170,200' : amb.time === 'sunset' ? '250,220,200' : '236,240,244';
+  if ('filter' in x) x.filter = `blur(${Math.round(w / 55)}px)`;
+  let r = seed;
+  const rand = () => ((r = (r * 16807) % 2147483647) / 2147483647);
+  const n = dense ? 14 : 9;
+  for (let i = 0; i < n; i++) {
+    const cx = w * (rand() * 1.1 - 0.05);
+    const cy = h * (0.56 + rand() * 0.2);
+    const rx = w * (0.12 + rand() * 0.18);
+    const ry = h * (0.025 + rand() * 0.04);
+    x.fillStyle = `rgba(${col},${((dense ? 0.26 : 0.1) + rand() * 0.1).toFixed(2)})`;
+    x.beginPath();
+    x.ellipse(cx, cy, rx, ry, (rand() - 0.5) * 0.06, 0, Math.PI * 2);
+    x.fill();
+  }
+}
+
+// gives every window halo one of four groups, so quiet hours can put the
+// windows out group by group while each group stays one baked bitmap
+function lightGroups(svg) {
+  let k = 0;
+  const tagged = svg.replace(/class="lw/g, () => `class="lw q${(k++ * 7) % 4}`);
+  const at = tagged.indexOf('>') + 1;
+  const only = (css) => tagged.slice(0, at) + `<style>${css}</style>` + tagged.slice(at);
+  const out = [only('.lw{display:none}')];
+  if (k) for (let q = 0; q < 4; q++) out.push(only(`.lw{display:none}.lw.q${q}{display:inline}`));
+  return out;
+}
+
 function buildStage(id) {
   const stage = el('div', 'sv-stage');
   const front = el('div', 'sv-frontwrap');
   const o = sceneOpts();
-  let sky = '';
-  let clouds = '';
-  let land = '';
-  let lights = '';
-  let fr = '';
+  let parts = null;
   try {
-    sky = paintPlace(id, { ...o, part: 'sky' });
-    clouds = paintPlace(id, { ...o, part: 'clouds' });
-    land = paintPlace(id, { ...o, part: 'land' });
-    lights = paintPlace(id, { ...o, part: 'lights' });
-    fr = paintPlace(id, { ...o, part: 'front' });
+    parts = {
+      sky: paintPlace(id, { ...o, part: 'sky' }),
+      clouds: paintPlace(id, { ...o, part: 'clouds' }),
+      land: paintPlace(id, { ...o, part: 'land' }),
+      lights: paintPlace(id, { ...o, part: 'lights' }),
+      front: paintPlace(id, { ...o, part: 'front' }),
+    };
   } catch (e) {
-    sky = paintPlace(id, o);
+    parts = { sky: paintPlace(id, o), clouds: '', land: '', lights: '', front: '' };
   }
   const drift = 40 + ((id.length * 7) % 30); // 40 to 70 s per pass
-  // The heavy painted layers go in as images: the browser rasterizes each one
-  // once and then only moves bitmaps around (clouds drift, parallax, fades).
-  const urls = [];
-  const img = (svg, cls) => {
-    const u = svgUrl(svg);
-    if (!u) return `<div class="sv-layer ${cls}">${svg}</div>`;
-    urls.push(u);
-    return `<img class="sv-layer sv-pic ${cls}" alt="" decoding="async" src="${u}">`;
+  const kind = kindOf(amb.weather);
+  const shafts = (amb.time === 'day' || amb.time === 'morning') && (kind === 'clear' || kind === 'clouds');
+  const mist = amb.time === 'morning' || kind === 'fog' || kind === 'rain';
+  const cv = (cls, parent) => {
+    const c = el('canvas', cls, parent);
+    c.setAttribute('aria-hidden', 'true');
+    return c;
   };
-  const cu = svgUrl(clouds);
-  if (cu) urls.push(cu);
-  const strip = cu ? `<img class="sv-pic" alt="" decoding="async" src="${cu}"><img class="sv-pic" alt="" decoding="async" src="${cu}">` : `${clouds}${clouds}`;
-  stage.innerHTML = `${img(sky, 'sv-sky')}<div class="sv-layer sv-clouds"><div class="sv-cloudstrip" style="--drift:${drift}s">${strip}</div></div>${img(land, 'sv-land')}<div class="sv-layer sv-lights">${lights}</div>`;
-  front.innerHTML = img(fr, 'sv-frontpic');
-  const pics = Array.from(stage.querySelectorAll('img')).concat(Array.from(front.querySelectorAll('img')));
-  const ready = Promise.race([
-    Promise.all(pics.map((p) => (typeof p.decode === 'function' ? p.decode().catch(() => {}) : Promise.resolve()))),
-    wait(2500),
-  ]);
-  const rec = { id, stage, front, image: false, time: amb.time, urls, ready };
+  const sky = cv('sv-layer sv-sky', stage);
+  const cl = el('div', 'sv-layer sv-clouds', stage);
+  const ca = cv('sv-cloudstrip', cl);
+  const cb = cv('sv-cloudstrip sv-cb', cl);
+  cl.style.setProperty('--drift', `${drift}s`);
+  cl.style.setProperty('--drift2', `${Math.round(drift * 1.7)}s`);
+  const land = cv('sv-layer sv-land', stage);
+  const sh = shafts ? cv('sv-layer sv-shafts', stage) : null;
+  const m1 = mist ? cv('sv-layer sv-mist', stage) : null;
+  const m2 = mist ? cv('sv-layer sv-mist m2', stage) : null;
+  const lightsEl = el('div', 'sv-layer sv-lights', stage);
+  const fr = cv('sv-layer sv-frontpic', front);
+  const rec = { id, stage, front, image: false, time: amb.time, urls: [], lightCanvases: [] };
+
+  const groups = parts.lights ? lightGroups(parts.lights) : [];
+  const jobs = [
+    rasterize(parts.sky).then((im) => im && bake(sky, im, { haze: true, grain: 0.1 })),
+    rasterize(parts.clouds).then((im) => {
+      if (!im) return;
+      bake(ca, im, { twice: true });
+      bake(cb, im, { twice: true, flip: true });
+    }),
+    rasterize(parts.land).then((im) => im && bake(land, im, { haze: true, grain: 0.12 })),
+    rasterize(parts.front).then((im) => im && bake(fr, im, { grain: 0.08 })),
+    ...groups.map((svg, i) => rasterize(svg).then((im) => {
+      if (!im) return;
+      const c = cv('', lightsEl);
+      bake(c, im, { grade: false });
+      if (i > 0) rec.lightCanvases.push(c);
+    })),
+  ];
+  if (sh) bakeShafts(sh);
+  if (m1) bakeMist(m1, 4111 + id.length, kind === 'fog');
+  if (m2) bakeMist(m2, 9277 + id.length * 3, kind === 'fog');
+  rec.ready = Promise.race([Promise.all(jobs).catch(() => {}), wait(4000)]).then(() => {
+    if (amb.quiet && rec.lightCanvases.length) rec.lightCanvases.forEach((c, i) => { c.style.opacity = i === 0 ? '0.6' : '0'; });
+  });
   const url = assetUrl(id, amb.time);
   probe(url).then((ok) => {
     if (!ok || !stage.isConnected) return;
@@ -391,22 +614,23 @@ function syncLights() {
   root.dataset.glow = glow ? 'on' : 'off';
   root.style.setProperty('--pulse', `${3 + (amb.time === 'night' ? 2 : 1)}s`);
   root.dataset.quiet = amb.quiet ? 'on' : 'off';
+  root.dataset.breathe = reduced() ? 'off' : 'on';
 }
 
 // The quiet hours: window halos go out one by one, then the land settles on
 // the version with most windows dark.
 function applyQuiet(on) {
   if (!current) return;
-  const halos = Array.from(current.stage.querySelectorAll('.sv-lights .lw'));
-  const order = halos.map((h, i) => [h, (i * 7919) % 97]).sort((a, b) => a[1] - b[1]).map((p) => p[0]);
-  order.forEach((h, k) => {
-    const keep = k % 5 === 0;
-    h.style.transitionDelay = on ? `${Math.min(6000, k * 320)}ms` : `${Math.min(2000, k * 80)}ms`;
-    h.style.opacity = on && !keep ? '0' : '';
+  const groups = current.lightCanvases || [];
+  const fast = reduced();
+  groups.forEach((c, k) => {
+    // one group of windows stays lit; the others go out one after another
+    c.style.transitionDelay = fast ? '0ms' : on ? `${k * 1500}ms` : `${k * 300}ms`;
+    c.style.opacity = on ? (k === 0 ? '0.6' : '0') : '';
   });
   clearTimeout(quietTimer);
-  const delay = on ? Math.min(6000, order.length * 320) + 900 : 0;
-  quietTimer = setTimeout(() => crossfade(reduced() ? 200 : 2000), reduced() ? 0 : delay);
+  const delay = on ? groups.length * 1500 + 1400 : 0;
+  quietTimer = setTimeout(() => crossfade(fast ? 200 : 2000), fast ? 0 : delay);
 }
 
 async function crossfade(ms) {
@@ -435,23 +659,10 @@ async function crossfade(ms) {
 /* ------------------------------------------------------------------ ambience */
 
 function applyGrade() {
-  if (!gradeEl || !hazeEl) return;
-  const t = amb.time;
-  const g = {
-    morning: ['soft-light', 'rgba(255,214,196,0.28)'],
-    day: ['normal', 'rgba(0,0,0,0)'],
-    sunset: ['soft-light', 'rgba(255,168,92,0.34)'],
-    night: ['multiply', 'rgba(64,84,138,0.26)'],
-  }[t] || ['normal', 'rgba(0,0,0,0)'];
-  gradeEl.style.mixBlendMode = g[0];
-  gradeEl.style.backgroundColor = g[1];
-  const hz = {
-    morning: 'rgba(246,226,222,0.30)', day: 'rgba(214,228,238,0.20)', sunset: 'rgba(246,200,150,0.24)', night: 'rgba(60,84,124,0.20)',
-  }[t];
-  const fog = kindOf(amb.weather) === 'fog' ? 1.8 : 1;
-  hazeEl.style.background = `linear-gradient(to bottom, rgba(0,0,0,0) 30%, ${hz} 46%, rgba(0,0,0,0) 62%)`;
-  hazeEl.style.opacity = String(Math.min(1, 0.9 * fog));
-  hazeEl.style.mixBlendMode = t === 'night' ? 'screen' : 'normal';
+  // the grade and the haze are baked into each painted layer (see bake), so
+  // the full screen overlays stay empty and nothing blends live
+  if (gradeEl) gradeEl.style.display = 'none';
+  if (hazeEl) hazeEl.style.display = 'none';
 }
 
 function rnd(a, b) {
@@ -493,8 +704,8 @@ function buildWeather() {
   }
   const leafy = (amb.season === 'autumn' || amb.season === 'spring') && kind !== 'rain' && kind !== 'snow';
   if (leafy) {
-    const n = amb.season === 'autumn' ? 16 : 10;
-    const cols = amb.season === 'autumn' ? ['#D9822B', '#E6A73E', '#C96A2C', '#B9783A', '#E9B04A'] : ['#F4C9D4', '#F8DDE4', '#EAB1C3'];
+    const n = amb.season === 'autumn' ? 12 : 8;
+    const cols = amb.season === 'autumn' ? ['#D9822B', '#E6A73E', '#C2672E', '#B9783A', '#E9B04A', '#A9552F', '#D7A24C'] : ['#F4C9D4', '#F8DDE4', '#EAB1C3'];
     const night = amb.time === 'night';
     for (let i = 0; i < Math.min(20, n); i++) {
       const d = el('i', 'sv-fall');
@@ -509,6 +720,7 @@ function buildWeather() {
       b.style.setProperty('--sway', `${rnd(2.2, 4).toFixed(1)}s`);
       b.style.setProperty('--amp', `${Math.round(rnd(18, 46))}px`);
       b.style.setProperty('--rot', `${Math.round(rnd(35, 80))}deg`);
+      b.style.setProperty('--flip', `${rnd(1.2, 2.6).toFixed(2)}s`);
       frag.appendChild(d);
     }
   }
@@ -534,8 +746,6 @@ export function mountVista(container, { onPlaceTap } = {}) {
   hazeEl = el('div', 'sv-haze', root);
   wxEl = el('div', 'sv-wx', root);
   wxEl.setAttribute('aria-hidden', 'true');
-  const grain = el('div', 'sv-grain', root);
-  grain.style.backgroundImage = GRAIN;
   tagEl = el('div', 'sv-tag', root);
   tagEl.textContent = 'Painting coming';
   setTag(false);
@@ -549,7 +759,13 @@ export function mountVista(container, { onPlaceTap } = {}) {
   if (typeof ResizeObserver === 'function') new ResizeObserver(() => fit()).observe(root);
   else window.addEventListener('resize', fit);
   document.addEventListener('visibilitychange', () => {
-    if (root) root.dataset.paused = document.hidden ? 'on' : 'off';
+    if (!root) return;
+    root.dataset.paused = document.hidden ? 'on' : 'off';
+    if (document.hidden && px.raf) {
+      cancelAnimationFrame(px.raf);
+      px.raf = 0;
+      px.last = 0;
+    }
   });
   const motionChanged = () => {
     px.tx = px.ty = px.x = px.y = px.vx = px.vy = 0;
@@ -637,15 +853,18 @@ export async function showPlace(placeId, { instant } = {}) {
     dropRec(old);
     return;
   }
-  const outEase = 'cubic-bezier(.55,.06,.68,.19)';
-  const inEase = 'cubic-bezier(.16,1,.3,1)';
+  // a painted cut: the camera leans into the old view while the new one is
+  // painted out of sight, then the new view dissolves in over it and settles
+  // back, and only at the very end the old one lets go
+  const lean = 'cubic-bezier(.45,0,.75,.4)';
+  const settleEase = 'cubic-bezier(.2,.75,.25,1)';
+  const leanIn = (node) => animate(node, [{ transform: 'scale(1)' }, { transform: 'scale(1.028)' }], 520, lean);
   await Promise.all([
-    animate(old.stage, [{ opacity: '1', transform: 'scale(1)' }, { opacity: '0', transform: 'scale(1.03)' }], 600, outEase),
-    animate(old.front, [{ opacity: '1', transform: 'scale(1)' }, { opacity: '0', transform: 'scale(1.03)' }], 600, outEase),
-    animate(crowdEl, [{ opacity: '1' }, { opacity: '0' }], 600, outEase),
+    leanIn(old.stage),
+    leanIn(old.front),
+    animate(crowdEl, [{ opacity: '1' }, { opacity: '0' }], 380, 'cubic-bezier(.4,0,1,1)'),
     rec.ready,
   ]);
-  dropRec(old);
   if (token !== travelToken) {
     dropRec(rec);
     return;
@@ -654,11 +873,21 @@ export async function showPlace(placeId, { instant } = {}) {
   heading = null;
   placeHit();
   setTag(!rec.image);
+  const keepOn = [{ opacity: '1', offset: 0 }, { opacity: '1', offset: 0.7 }, { opacity: '0', offset: 1 }];
   await Promise.all([
-    animate(rec.stage, [{ opacity: '0', transform: 'scale(1.03)' }, { opacity: '1', transform: 'scale(1)' }], 700, inEase),
-    animate(rec.front, [{ opacity: '0', transform: 'scale(1.03)' }, { opacity: '1', transform: 'scale(1)' }], 700, inEase),
-    animate(crowdEl, [{ opacity: '0' }, { opacity: '1' }], 700, inEase),
+    animate(old.stage, [{ transform: 'scale(1.028)' }, { transform: 'scale(1.07)' }], 820, 'cubic-bezier(.3,0,.6,1)'),
+    animate(old.front, [{ transform: 'scale(1.028)' }, { transform: 'scale(1.1)' }], 820, 'cubic-bezier(.3,0,.6,1)'),
+    animate(old.stage, keepOn, 820, 'linear'),
+    animate(old.front, keepOn, 820, 'linear'),
+    animate(rec.stage, [{ opacity: '0', transform: 'scale(1.045)' }, { opacity: '1', transform: 'scale(1)' }], 780, settleEase),
+    animate(rec.front, [{ opacity: '0', transform: 'scale(1.07)' }, { opacity: '1', transform: 'scale(1)' }], 820, settleEase),
+    animate(crowdEl, [{ opacity: '0' }, { opacity: '1' }], 600, settleEase, 380),
   ]);
+  dropRec(old);
+  if (current === rec) {
+    rec.stage.style.transform = '';
+    rec.front.style.transform = '';
+  }
 }
 
 export function setAmbience({ time, season, weather, quiet } = {}) {
