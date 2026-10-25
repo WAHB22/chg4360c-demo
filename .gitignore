@@ -16,3 +16,6 @@ bots/
 config.json
 autonomy.md
 world.json
+
+# the invented demo world ships with the site (only the root state.json is private)
+!sao/public/demo/state.json

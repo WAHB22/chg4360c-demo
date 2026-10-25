@@ -1,0 +1,899 @@
+{
+  "mode": "demo",
+  "generatedAt": "2026-10-24T22:40:00-04:00",
+  "weather": {
+    "kind": "clear",
+    "tempC": 4,
+    "label": "Clear"
+  },
+  "owner": {
+    "name": "The traveller",
+    "phase": "Autumn term"
+  },
+  "quiet": {
+    "nightStart": "22:00",
+    "nightEnd": "07:00",
+    "shifts": [
+      {
+        "day": "Sun",
+        "start": "09:00",
+        "end": "13:00"
+      }
+    ]
+  },
+  "weekMeter": {
+    "percent": 68,
+    "missing": [],
+    "fills": [
+      "Shifts 12 h",
+      "Classes 9 h",
+      "Study 11 h",
+      "Projects 4 h"
+    ]
+  },
+  "places": {
+    "town": {
+      "status": "active",
+      "note": "ICON is sorting the evening report at the inn window.",
+      "drafts": [
+        {
+          "id": "dt1",
+          "title": "Plan for the week ahead",
+          "time": "Sat Oct 24 21:10",
+          "kind": "plan",
+          "text": "Monday: finish the demo problem set.\nTuesday: one hour on the pitch slides.\nWednesday: rest evening, no new work.\nThursday: study block for the demo midterm."
+        }
+      ],
+      "progress": [
+        {
+          "label": "Orders waiting",
+          "value": "2 for the next loop"
+        },
+        {
+          "label": "Last loop",
+          "value": "4 steps, all DRAFT"
+        }
+      ],
+      "times": {
+        "morning": {
+          "note": "ICON is at the inn window with the first tea, setting out the day's orders."
+        },
+        "day": {
+          "note": "ICON is at the notice board, sorting today's orders into the loops."
+        },
+        "sunset": {
+          "note": "ICON is gathering the bots' results for the evening report."
+        },
+        "night": {
+          "note": "ICON is at the inn window with the evening report, written and waiting for you."
+        }
+      }
+    },
+    "campus": {
+      "status": "active",
+      "note": "Scholar is reading in the library before the next study block.",
+      "drafts": [
+        {
+          "id": "dc1",
+          "title": "CHG 4360 summary sheet, chapters 1 to 3",
+          "time": "Sat Oct 24 19:45",
+          "kind": "study",
+          "text": "Demo content only.\n\nThree ideas to remember:\n1. Write the balance before the numbers.\n2. Check the units at every step.\n3. Sketch the system first, then pick the equation."
+        },
+        {
+          "id": "dc2",
+          "title": "Practice questions for CHM 2120",
+          "time": "Fri Oct 23 16:20",
+          "kind": "study",
+          "text": "Five practice questions, worked once, then checked against the course notes. Demo content only."
+        }
+      ],
+      "progress": [
+        {
+          "label": "CHG 3127",
+          "value": "Group project outline started"
+        },
+        {
+          "label": "CHG 3337",
+          "value": "Quiz notes ready"
+        },
+        {
+          "label": "CHG 3735",
+          "value": "Report part 2 in DRAFT"
+        },
+        {
+          "label": "CHG 4360",
+          "value": "Summary sheet in DRAFT"
+        },
+        {
+          "label": "CHM 2120",
+          "value": "5 practice questions done"
+        },
+        {
+          "label": "GNG 4120",
+          "value": "Pitch deck notes collected"
+        },
+        {
+          "label": "Study this week",
+          "value": "11 of 14 h"
+        }
+      ],
+      "times": {
+        "morning": {
+          "note": "Scholar has the library lamps lit before the first class."
+        },
+        "day": {
+          "note": "Scholar is reading in the library between classes."
+        },
+        "sunset": {
+          "note": "Scholar is reading in the library before the next study block."
+        },
+        "night": {
+          "note": "The library is dark; Scholar's notes wait on the desk for morning."
+        }
+      }
+    },
+    "bobino": {
+      "status": "waiting",
+      "note": "Baker has the pitch outline ready and waits on one choice.",
+      "drafts": [
+        {
+          "id": "db1",
+          "title": "Trailer pitch outline, 6 slides",
+          "time": "Sat Oct 24 18:30",
+          "kind": "pitch",
+          "text": "1. The idea in one line.\n2. Who it serves.\n3. Where it parks.\n4. What it costs to start.\n5. The first season.\n6. The ask.\n\nDemo content only, no real figures."
+        }
+      ],
+      "progress": [
+        {
+          "label": "Slides",
+          "value": "4 of 6 in DRAFT"
+        },
+        {
+          "label": "Pitch meeting",
+          "value": "Thu Nov 12"
+        }
+      ],
+      "times": {
+        "morning": {
+          "note": "The corner café is opening its doors; Baker has the outline under one arm."
+        },
+        "day": {
+          "note": "Baker has the pitch outline ready and waits on one choice."
+        },
+        "sunset": {
+          "note": "Baker has the pitch outline ready and waits on one choice."
+        },
+        "night": {
+          "note": "The café is closed; the pitch outline waits on one choice."
+        }
+      }
+    },
+    "tower": {
+      "status": "active",
+      "note": "Scout is climbing with three new openings to read.",
+      "drafts": [
+        {
+          "id": "dw1",
+          "title": "Note to a hiring manager",
+          "time": "Sat Oct 24 17:05",
+          "kind": "outreach",
+          "text": "Hello,\n\nI am a chemical engineering student looking for a summer internship. I read about your team's process work and would value ten minutes of your time.\n\nThank you.\n\nDemo content only. Never sent without approval."
+        }
+      ],
+      "progress": [
+        {
+          "label": "Openings read",
+          "value": "9 this week"
+        },
+        {
+          "label": "Notes drafted",
+          "value": "3, none sent"
+        }
+      ],
+      "times": {
+        "morning": {
+          "note": "Scout is climbing with the night's new openings to read."
+        },
+        "day": {
+          "note": "Scout is climbing with three new openings to read."
+        },
+        "sunset": {
+          "note": "Scout is at the top, reading the last openings of the day."
+        },
+        "night": {
+          "note": "The tower is quiet; three notes wait, none sent."
+        }
+      }
+    },
+    "home": {
+      "status": "quiet",
+      "note": "The lamp is on at the idea desk.",
+      "drafts": [
+        {
+          "id": "dh1",
+          "title": "Three ideas with a first small step",
+          "time": "Thu Oct 22 21:30",
+          "kind": "idea",
+          "text": "A reading corner: clear the shelf.\nA Sunday walk: pick the route.\nA tidy desk: one drawer tonight."
+        }
+      ],
+      "progress": [
+        {
+          "label": "Ideas on the desk",
+          "value": "3"
+        }
+      ],
+      "times": {
+        "morning": {
+          "note": "The kettle is on and the idea desk is cleared for the day."
+        },
+        "day": {
+          "note": "The house is quiet; three ideas wait on the desk."
+        },
+        "sunset": {
+          "note": "The lamp is on at the idea desk."
+        },
+        "night": {
+          "note": "The lamp is on at the idea desk."
+        }
+      }
+    },
+    "kitchen": {
+      "status": "idle",
+      "note": "The meal slate has two marks this week.",
+      "drafts": [
+        {
+          "id": "dk1",
+          "title": "Three easy dinners",
+          "time": "Wed Oct 21 18:00",
+          "kind": "meal",
+          "text": "Lentil soup with bread.\nRice, eggs and greens.\nPasta with roasted vegetables."
+        }
+      ],
+      "progress": [
+        {
+          "label": "Cooked this week",
+          "value": "2 of 4"
+        }
+      ],
+      "times": {
+        "morning": {
+          "note": "Oats on the stove; the meal slate has two marks this week."
+        },
+        "day": {
+          "note": "The meal slate has two marks this week."
+        },
+        "sunset": {
+          "note": "Dinner time; the meal slate has two marks this week."
+        },
+        "night": {
+          "note": "The kitchen is tidy; two marks on the meal slate this week."
+        }
+      }
+    },
+    "gym": {
+      "status": "active",
+      "note": "Two shields are up on the gate.",
+      "drafts": [],
+      "progress": [
+        {
+          "label": "Sessions",
+          "value": "2 of 3"
+        },
+        {
+          "label": "Rest day",
+          "value": "Friday"
+        }
+      ],
+      "times": {
+        "morning": {
+          "note": "The gate opens early; two shields are up."
+        },
+        "day": {
+          "note": "Two shields are up on the gate."
+        },
+        "sunset": {
+          "note": "Two shields are up on the gate; one more this week."
+        },
+        "night": {
+          "note": "The gate is shut; two shields are up."
+        }
+      }
+    },
+    "market": {
+      "status": "idle",
+      "note": "The list is short this week.",
+      "drafts": [
+        {
+          "id": "dm1",
+          "title": "Grocery list",
+          "time": "Fri Oct 23 12:00",
+          "kind": "list",
+          "text": "Oats, rice, lentils, eggs, apples, spinach, bread."
+        }
+      ],
+      "progress": [
+        {
+          "label": "Next trip",
+          "value": "Saturday"
+        }
+      ],
+      "times": {
+        "morning": {
+          "note": "The stalls are setting up; the list is short this week."
+        },
+        "day": {
+          "note": "The list is short this week."
+        },
+        "sunset": {
+          "note": "The stalls are packing up; the list is short this week."
+        },
+        "night": {
+          "note": "The market is closed; the list is ready for the next trip."
+        }
+      }
+    },
+    "vault": {
+      "status": "quiet",
+      "note": "The door is locked. Money data stays on the laptop.",
+      "drafts": [],
+      "progress": [
+        {
+          "label": "Checked",
+          "value": "Lock checked twice"
+        }
+      ],
+      "times": {
+        "morning": {
+          "note": "The door is locked. Money data stays on the laptop."
+        },
+        "day": {
+          "note": "The door is locked. Money data stays on the laptop."
+        },
+        "sunset": {
+          "note": "The door is locked. Money data stays on the laptop."
+        },
+        "night": {
+          "note": "The door is locked. Money data stays on the laptop."
+        }
+      }
+    },
+    "fields": {
+      "status": "waiting",
+      "note": "Herald pinned two event ideas to the board.",
+      "drafts": [
+        {
+          "id": "df1",
+          "title": "A winter 7v7 tournament, first sketch",
+          "time": "Sat Oct 24 15:40",
+          "kind": "event",
+          "text": "Eight teams, one indoor field, a day from 8:00 to 16:00.\nOpen questions: venue, date, sign ups.\n\nDemo content only, nothing booked."
+        }
+      ],
+      "progress": [
+        {
+          "label": "Ideas on the board",
+          "value": "2"
+        },
+        {
+          "label": "Venues found",
+          "value": "3 to compare"
+        }
+      ],
+      "times": {
+        "morning": {
+          "note": "Dew on the fields; Herald pinned two event ideas to the board."
+        },
+        "day": {
+          "note": "Herald pinned two event ideas to the board."
+        },
+        "sunset": {
+          "note": "Herald pinned two event ideas to the board."
+        },
+        "night": {
+          "note": "The fields are dark; two event ideas stay pinned."
+        }
+      }
+    },
+    "lighthouse": {
+      "status": "quiet",
+      "note": "The studio rests until exams end.",
+      "drafts": [
+        {
+          "id": "dl1",
+          "title": "Style board for pencil dream scenes",
+          "time": "Mon Oct 19 20:15",
+          "kind": "content",
+          "text": "Soft pencil lines, one warm colour per scene, slow camera drift, no faces."
+        }
+      ],
+      "progress": [
+        {
+          "label": "Ideas in the cove",
+          "value": "5"
+        },
+        {
+          "label": "Posts",
+          "value": "Paused until exams end"
+        }
+      ],
+      "times": {
+        "morning": {
+          "note": "The studio rests until exams end."
+        },
+        "day": {
+          "note": "The studio rests until exams end."
+        },
+        "sunset": {
+          "note": "The studio rests until exams end."
+        },
+        "night": {
+          "note": "The lamp turns; the studio rests until exams end."
+        }
+      }
+    }
+  },
+  "bots": [
+    {
+      "id": "b1",
+      "core": "scholar",
+      "name": "Scholar",
+      "state": "working",
+      "place": "campus",
+      "task": "Turning chapter notes into a summary sheet",
+      "model": "Claude",
+      "startedAt": "21:05",
+      "lastResult": "5 practice questions checked",
+      "times": {
+        "morning": {
+          "task": "Reviewing yesterday's summary sheet before class",
+          "startedAgo": 25
+        },
+        "day": {
+          "task": "Turning chapter notes into a summary sheet",
+          "startedAgo": 70
+        },
+        "sunset": {
+          "task": "Turning chapter notes into a summary sheet",
+          "startedAgo": 45
+        },
+        "night": {
+          "state": "done",
+          "task": "Summary sheet saved as DRAFT",
+          "startedAgo": 150
+        }
+      }
+    },
+    {
+      "id": "b2",
+      "core": "scout",
+      "name": "Scout",
+      "state": "traveling",
+      "place": "tower",
+      "task": "Reading three new openings",
+      "model": "Claude",
+      "startedAt": "21:40",
+      "lastResult": "3 notes drafted, none sent",
+      "times": {
+        "morning": {
+          "task": "Reading the openings posted overnight",
+          "startedAgo": 20
+        },
+        "day": {
+          "task": "Reading three new openings",
+          "startedAgo": 35
+        },
+        "sunset": {
+          "task": "Reading the last openings of the day",
+          "startedAgo": 30
+        },
+        "night": {
+          "state": "done",
+          "task": "Three openings read",
+          "startedAgo": 120
+        }
+      }
+    },
+    {
+      "id": "b3",
+      "core": "baker",
+      "name": "Baker",
+      "state": "waiting",
+      "place": "bobino",
+      "task": "Pitch outline, needs one choice",
+      "model": "Claude",
+      "startedAt": "20:15",
+      "lastResult": "4 of 6 slides in DRAFT",
+      "times": {
+        "morning": {
+          "task": "Pitch outline, needs one choice",
+          "startedAgo": 40
+        },
+        "day": {
+          "task": "Pitch outline, needs one choice",
+          "startedAgo": 95
+        },
+        "sunset": {
+          "task": "Pitch outline, needs one choice",
+          "startedAgo": 80
+        },
+        "night": {
+          "task": "Pitch outline, needs one choice",
+          "startedAgo": 180
+        }
+      }
+    },
+    {
+      "id": "b4",
+      "core": "bard",
+      "name": "Bard",
+      "state": "sleeping",
+      "place": "lighthouse",
+      "task": "",
+      "model": "Claude",
+      "startedAt": "",
+      "lastResult": "Style board saved",
+      "times": {
+        "morning": {
+          "state": "done",
+          "rest": "with a coffee by the well"
+        },
+        "day": {
+          "state": "done",
+          "rest": "sketching on the bench"
+        },
+        "sunset": {
+          "state": "done",
+          "rest": "watching the light go"
+        }
+      }
+    },
+    {
+      "id": "b5",
+      "core": "steward",
+      "name": "Steward",
+      "state": "done",
+      "place": "vault",
+      "task": "Weekly lock check",
+      "model": "Claude",
+      "startedAt": "19:00",
+      "lastResult": "Nothing changed, door locked",
+      "times": {
+        "morning": {
+          "task": "Weekly lock check",
+          "startedAgo": 55,
+          "rest": "back from the Vault, door locked"
+        },
+        "day": {
+          "task": "Weekly lock check",
+          "startedAgo": 140,
+          "rest": "back from the Vault, door locked"
+        },
+        "sunset": {
+          "task": "Weekly lock check",
+          "startedAgo": 110,
+          "rest": "back from the Vault, door locked"
+        },
+        "night": {
+          "state": "sleeping",
+          "task": "Weekly lock check",
+          "startedAgo": 200
+        }
+      }
+    }
+  ],
+  "questions": [
+    {
+      "id": "q1",
+      "from": "scholar",
+      "place": "campus",
+      "text": "Which day should the next study block go on?",
+      "options": [
+        "Tuesday",
+        "Thursday"
+      ],
+      "guess": 1,
+      "askedAt": "Sat Oct 24"
+    },
+    {
+      "id": "q2",
+      "from": "baker",
+      "place": "bobino",
+      "text": "Should the pitch open with the teaser or with the one line idea?",
+      "options": [
+        "Teaser first",
+        "Idea first"
+      ],
+      "guess": 0,
+      "askedAt": "Sat Oct 24"
+    },
+    {
+      "id": "q3",
+      "from": "herald",
+      "place": "fields",
+      "text": "Pin the winter tournament as an idea, or keep it off the board for now?",
+      "options": [
+        "Pin it",
+        "Not yet"
+      ],
+      "guess": 0,
+      "askedAt": "Fri Oct 23"
+    }
+  ],
+  "report": {
+    "at": "Sat Oct 24 22:40",
+    "done": [
+      {
+        "text": "Summary sheet for CHG 4360, chapters 1 to 3",
+        "bot": "scholar",
+        "model": "Claude"
+      },
+      {
+        "text": "4 of 6 pitch slides outlined",
+        "bot": "baker",
+        "model": "Claude"
+      },
+      {
+        "text": "3 notes to hiring managers drafted, none sent",
+        "bot": "scout",
+        "model": "Claude"
+      },
+      {
+        "text": "Grocery list and three easy dinners",
+        "bot": "keeper",
+        "model": "Claude"
+      }
+    ],
+    "needsMe": [
+      {
+        "text": "Pick the day for the next study block",
+        "link": "q1"
+      },
+      {
+        "text": "Choose how the pitch opens",
+        "link": "q2"
+      },
+      {
+        "text": "Pin the tournament idea or not",
+        "link": "q3"
+      }
+    ],
+    "nextPaths": [
+      "Finish the last 2 pitch slides",
+      "A practice quiz for CHG 3337",
+      "Compare the 3 venues for the tournament"
+    ],
+    "notChecked": [
+      "The venue prices are not verified yet",
+      "The quiz topics are a guess until posted"
+    ]
+  },
+  "brief": {
+    "date": "Sat Oct 24",
+    "today": [
+      "One study block, 2 h",
+      "Gym session, the third shield",
+      "Rest evening after 21:00"
+    ],
+    "due": [
+      {
+        "item": "CHG 4360 problem set",
+        "date": "Thu Nov 5",
+        "daysLeft": 12
+      },
+      {
+        "item": "CHM 2120 practice test",
+        "date": "Tue Nov 10",
+        "daysLeft": 17
+      },
+      {
+        "item": "GNG 4120 team check in",
+        "date": "Fri Nov 13",
+        "daysLeft": 20
+      }
+    ],
+    "news": [
+      {
+        "text": "A sample headline about mobile food trailers",
+        "project": "trailer"
+      },
+      {
+        "text": "A sample note on summer internship hiring",
+        "project": "internship"
+      },
+      {
+        "text": "A sample story on neighbourhood sports clubs",
+        "project": "social events"
+      },
+      {
+        "text": "A sample tip on short animation styles",
+        "project": "social media"
+      },
+      {
+        "text": "A sample study method worth trying",
+        "project": "school"
+      }
+    ]
+  },
+  "floors": {
+    "term": [
+      {
+        "n": 1,
+        "title": "Term started",
+        "date": "Sep 3",
+        "status": "cleared",
+        "boss": false
+      },
+      {
+        "n": 2,
+        "title": "First quizzes",
+        "date": "Sep 28",
+        "status": "cleared",
+        "boss": false
+      },
+      {
+        "n": 3,
+        "title": "Midterm stretch",
+        "date": "Oct 16",
+        "status": "cleared",
+        "boss": true
+      },
+      {
+        "n": 4,
+        "title": "November stretch",
+        "date": "Oct 25",
+        "status": "current",
+        "boss": false
+      },
+      {
+        "n": 5,
+        "title": "Problem set",
+        "date": "Thu Nov 5",
+        "status": "upcoming",
+        "boss": true
+      },
+      {
+        "n": 6,
+        "title": "Practice test",
+        "date": "Tue Nov 10",
+        "status": "upcoming",
+        "boss": true
+      },
+      {
+        "n": 7,
+        "title": "Project week",
+        "date": "Tue Dec 1",
+        "status": "upcoming",
+        "boss": true
+      },
+      {
+        "n": 8,
+        "title": "Exam season",
+        "date": "Dec 15",
+        "status": "upcoming",
+        "boss": false
+      }
+    ],
+    "internship": [
+      {
+        "n": 1,
+        "title": "Target list",
+        "date": "Sep 20",
+        "status": "cleared",
+        "boss": false
+      },
+      {
+        "n": 2,
+        "title": "First applications",
+        "date": "Oct 10",
+        "status": "cleared",
+        "boss": false
+      },
+      {
+        "n": 3,
+        "title": "Notes to hiring managers",
+        "date": "Oct 25",
+        "status": "current",
+        "boss": false
+      },
+      {
+        "n": 4,
+        "title": "First conversations",
+        "date": "Nov 20",
+        "status": "upcoming",
+        "boss": false
+      },
+      {
+        "n": 5,
+        "title": "Summer offer",
+        "date": "Feb 15",
+        "status": "upcoming",
+        "boss": true
+      }
+    ],
+    "trailer": [
+      {
+        "n": 1,
+        "title": "Idea",
+        "date": "Aug 15",
+        "status": "cleared",
+        "boss": false
+      },
+      {
+        "n": 2,
+        "title": "Teaser video",
+        "date": "Oct 3",
+        "status": "cleared",
+        "boss": false
+      },
+      {
+        "n": 3,
+        "title": "Pitch slides",
+        "date": "Nov 6",
+        "status": "current",
+        "boss": false
+      },
+      {
+        "n": 4,
+        "title": "Pitch meeting",
+        "date": "Thu Nov 12",
+        "status": "upcoming",
+        "boss": true
+      },
+      {
+        "n": 5,
+        "title": "Launch",
+        "date": "Jun 1",
+        "status": "upcoming",
+        "boss": false
+      }
+    ]
+  },
+  "memoryTree": [
+    {
+      "title": "Midterm stretch cleared",
+      "date": "Fri Oct 16"
+    },
+    {
+      "title": "Teaser video finished",
+      "date": "Sat Oct 3"
+    },
+    {
+      "title": "First applications sent by hand",
+      "date": "Sat Oct 10"
+    },
+    {
+      "title": "Term started",
+      "date": "Thu Sep 3"
+    }
+  ],
+  "growth": {
+    "gym": {
+      "done": 2,
+      "target": 3
+    },
+    "classes": {
+      "done": 4,
+      "target": 6
+    },
+    "meals": {
+      "done": 2,
+      "target": 4
+    },
+    "sprouts": 3
+  },
+  "trailer": {
+    "stage": "pitch",
+    "at": "bobino"
+  },
+  "rules": [
+    "No sending without your approval",
+    "Money stays local",
+    "No inventing facts",
+    "No dashes",
+    "Quiet hours 22:00 to 7:00 and during shifts",
+    "Max 3 questions at once"
+  ]
+}
