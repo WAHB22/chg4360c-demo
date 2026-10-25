@@ -15,12 +15,15 @@ import { PLACE } from './places.js';
 import { BOT, ICON, STATES, MAX_ACTIVE } from './bots.js';
 
 // Paint
-const INK = '#4A3430';      // warm dark line
+const INK = '#5A4638B3';    // warm brown ink at 0.7, never black
+const INK_SOLID = '#5A4638';
+const SHADE = '#8E86A8';    // the one cool shadow tone (gouache, not a gradient)
+const CONTACT = '#5A4A60';  // soft contact shadow
 const EYE = '#22303A';      // deep blue green, never black
 const CREAM = '#FFF3DC';    // top light
 const COOL = '#5B76A6';     // cool underside for cool colors
 const VIOLET = '#8E6F9C';   // violet underside for warm colors (no mud)
-const DEEP = '#2E3B4E';     // pigment pooling at edges
+const DEEP = '#3E4A52';     // pigment pooling at edges (deep blue green)
 const BLUSH = '#EE9E8C';
 const GOLD = '#E8C88E';
 const BRASS = '#D9AE57';
@@ -36,13 +39,17 @@ const DABS = {
   baker: ['#F5C79C', '#D8A7D2', '#FFE6D6'],
   keeper: ['#C9DA8A', '#86BFC2', '#F0E3B8'],
   steward: ['#B8B2CC', '#C4C2A8', '#E9E4DA'],
-  bard: ['#E6AACB', '#A0B4E8', '#F6E6F2'],
+  bard: ['#D9B0B8', '#A8B8C8', '#EFE4D6'],
   herald: ['#F2C76A', '#E9A08C', '#FFE3BE'],
   icon: ['#F1DDB8', '#D9DDEC', '#FBEFD9'],
 };
 
 // Where the marker sits (viewBox units, center) for each sprite.
 const MARK_Y = { scholar: 24, scout: 30, baker: 10, keeper: 27, steward: 19, bard: 29, herald: 22, icon: 11 };
+
+// Dustier, less synthetic body colors where the UI token reads as AI pastel.
+const BODY_TONE = { bard: '#B9A3CF', scholar: '#93B0D6', steward: '#A8ABAE' };
+const tone = (id) => BODY_TONE[id] || BOT[id].color;
 
 let uid = 0;
 
@@ -103,101 +110,118 @@ function shadeOf(color) {
 }
 const org = (x, y) => `style="transform-box:view-box;transform-origin:${x}px ${y}px"`;
 
-function makeCtx(lite) {
+function makeCtx(lite, pose = {}) {
   const k = 'sao' + (++uid).toString(36);
   const defs = [];
-  const cache = new Map();
   let n = 0;
   return {
     lite,
-    sw: lite ? 2.7 : 1.5,
+    pose,
+    sw: lite ? 2.5 : 1.35,
     defs,
     id(p) {
       return `${k}${p}${n++}`;
     },
-    // Watercolor fill: cream light from the upper left, cool blue underside.
+    // Gouache: a flat body of color, very slightly warmed, no gloss.
     paint(color) {
-      if (cache.has(color)) return cache.get(color);
-      const id = `${k}g${n++}`;
-      defs.push(
-        `<radialGradient id="${id}" cx="0.4" cy="0.28" r="0.82" fx="0.36" fy="0.2">` +
-          `<stop offset="0" stop-color="${mix(color, CREAM, 0.55)}"/>` +
-          `<stop offset="0.48" stop-color="${color}"/>` +
-          `<stop offset="1" stop-color="${mix(color, shadeOf(color), 0.4)}"/></radialGradient>`,
-      );
-      const url = `url(#${id})`;
-      cache.set(color, url);
-      return url;
+      return mix(color, CREAM, 0.06);
     },
   };
+}
+
+// Hand inked outline: a thin main line plus a second, offset, lighter pass
+// broken into strokes, so the line thickens on the shadow side (lower right)
+// and thins on the lit side, like a brush that pressed where the form turns.
+function ink(ctx, d, w = 1) {
+  if (ctx.lite) return `<path d="${d}" fill="none" stroke="${INK}" stroke-width="${r2(ctx.sw * w)}" stroke-linejoin="round" stroke-linecap="round"/>`;
+  const a = r2(ctx.sw * w * 0.82);
+  return (
+    `<path d="${d}" fill="none" stroke="${INK}" stroke-width="${a}" stroke-linejoin="round" stroke-linecap="round"/>` +
+    `<path d="${d}" fill="none" stroke="${INK_SOLID}" stroke-opacity="0.32" stroke-width="${r2(a * 0.75)}" stroke-linejoin="round" stroke-linecap="round" stroke-dasharray="${r2(14 + w * 9)} ${r2(5 + w * 4)}" transform="translate(0.45 0.55)"/>`
+  );
 }
 
 function shape(ctx, d, color, { line = 1, op = 1, cls = '', flat = false } = {}) {
   const fill = flat ? color : ctx.paint(color);
   const o = op < 1 ? ` opacity="${op}"` : '';
   const c = cls ? ` class="${cls}"` : '';
-  const st = line ? ` stroke="${INK}" stroke-width="${r2(ctx.sw * line)}" stroke-linejoin="round"` : '';
-  return `<path${c} d="${d}" fill="${fill}"${o}${st}/>`;
+  return `<g${c}${o}><path d="${d}" fill="${fill}"/>${line ? ink(ctx, d, line) : ''}</g>`;
+}
+function ellipsePath(cx, cy, rx, ry) {
+  return `M${r2(cx - rx)} ${cy}A${rx} ${ry} 0 1 0 ${r2(cx + rx)} ${cy}A${rx} ${ry} 0 1 0 ${r2(cx - rx)} ${cy}Z`;
 }
 function ellipse(ctx, cx, cy, rx, ry, color, { line = 1, rot = 0, op = 1, flat = false } = {}) {
   const fill = flat ? color : ctx.paint(color);
   const t = rot ? ` transform="rotate(${rot} ${cx} ${cy})"` : '';
   const o = op < 1 ? ` opacity="${op}"` : '';
-  const st = line ? ` stroke="${INK}" stroke-width="${r2(ctx.sw * line)}"` : '';
-  return `<ellipse cx="${cx}" cy="${cy}" rx="${rx}" ry="${ry}" fill="${fill}"${t}${o}${st}/>`;
+  let s = `<ellipse cx="${cx}" cy="${cy}" rx="${rx}" ry="${ry}" fill="${fill}"/>`;
+  // a small cool underside on round parts (feet, paws, buns): one tone, hard edge
+  if (!ctx.lite && !flat && rx > 2.2) s += `<ellipse cx="${r2(cx + rx * 0.16)}" cy="${r2(cy + ry * 0.34)}" rx="${r2(rx * 0.8)}" ry="${r2(ry * 0.6)}" fill="${SHADE}" opacity="0.3"/>`;
+  if (line) s += ink(ctx, ellipsePath(cx, cy, rx, ry), line);
+  return `<g${t}${o}>${s}</g>`;
 }
 // A stroked line with an ink outline (for handles, straps, tubes).
 function rod(ctx, d, color, w) {
-  const out = w + ctx.sw * 1.6;
+  const out = w + ctx.sw * 1.5;
   return (
     `<path d="${d}" fill="none" stroke="${INK}" stroke-width="${r2(out)}" stroke-linecap="round" stroke-linejoin="round"/>` +
-    `<path d="${d}" fill="none" stroke="${color}" stroke-width="${w}" stroke-linecap="round" stroke-linejoin="round"/>`
+    `<path d="${d}" fill="none" stroke="${ctx.paint(color)}" stroke-width="${w}" stroke-linecap="round" stroke-linejoin="round"/>`
   );
 }
 // Union of circles with one outer outline (puffy cap, crest).
 function puffs(ctx, circles, color) {
-  const out = circles
-    .map(([x, y, r]) => `<circle cx="${x}" cy="${y}" r="${r2(r + ctx.sw / 2)}" fill="${INK}"/>`)
-    .join('');
+  const out = circles.map(([x, y, r]) => `<circle cx="${x}" cy="${y}" r="${r2(r + ctx.sw / 2)}"/>`).join('');
   const fill = circles.map(([x, y, r]) => `<circle cx="${x}" cy="${y}" r="${r}" fill="${ctx.paint(color)}"/>`).join('');
-  return out + fill;
+  let shade = '';
+  if (!ctx.lite) shade = circles.map(([x, y, r]) => `<circle cx="${r2(x + r * 0.22)}" cy="${r2(y + r * 0.36)}" r="${r2(r * 0.7)}" fill="${SHADE}" opacity="0.22"/>`).join('');
+  return `<g fill="${INK}">${out}</g>${fill}${shade}`;
 }
 
-// The main body: base wash, cool underside, a cream bloom, color dabs,
-// darker pigment pooled at the edge, then the line.
+// The main body, built like a gouache cel: a flat wash, ONE cool shadow
+// shape on the lower right with a pooled hard edge, a broad warm light wash
+// on the top left (not a gloss spot), broken color dabs, darker pigment
+// pooled where the wash dried at the rim, then the ink.
 function body(ctx, id, d, color, box, coolOp = 0.42) {
-  const sh = shadeOf(color);
   const clip = ctx.id('c');
-  const under = ctx.id('u');
   const top = box.cy - box.ry;
-  const bot = box.cy + box.ry;
   ctx.defs.push(`<clipPath id="${clip}"><path d="${d}"/></clipPath>`);
-  ctx.defs.push(
-    `<linearGradient id="${under}" gradientUnits="userSpaceOnUse" x1="0" y1="${top}" x2="0" y2="${bot}">` +
-      `<stop offset="0.45" stop-color="${sh}" stop-opacity="0"/>` +
-      `<stop offset="1" stop-color="${sh}" stop-opacity="${coolOp}"/></linearGradient>`,
-  );
   let s = `<path d="${d}" fill="${ctx.paint(color)}"/>`;
   s += `<g clip-path="url(#${clip})">`;
-  s += `<rect x="0" y="${top}" width="100" height="${bot - top}" fill="url(#${under})"/>`;
+  // shadow = everything outside a lit egg pushed up and left
+  const lit = blob(box.cx - box.rx * 0.2, box.cy - box.ry * 0.2, box.rx * 1.02, box.ry * 0.97, { wob: ctx.lite ? 0 : 0.035, seed: top * 3 + 5, n: 10 });
+  const x0 = box.cx - box.rx - 6;
+  const x1 = box.cx + box.rx + 6;
+  const R = `M${r2(x0)} ${r2(top - 6)}H${r2(x1)}V${r2(box.cy + box.ry + 6)}H${r2(x0)}Z`;
+  const shOp = r2(Math.min(0.5, coolOp + 0.04));
+  s += `<path d="${R}${lit}" fill-rule="evenodd" fill="${SHADE}" opacity="${shOp}"/>`;
   if (!ctx.lite) {
     const dab = DABS[id] || DABS.icon;
-    s += `<path d="${blob(box.cx - box.rx * 0.28, box.cy - box.ry * 0.46, box.rx * 0.5, box.ry * 0.3, { wob: 0.09, seed: top * 7 })}" fill="${CREAM}" opacity="0.38"/>`;
-    s += `<ellipse cx="${r2(box.cx + box.rx * 0.5)}" cy="${r2(box.cy - box.ry * 0.05)}" rx="4.2" ry="3" fill="${dab[0]}" opacity="0.32"/>`;
-    s += `<ellipse cx="${r2(box.cx - box.rx * 0.58)}" cy="${r2(box.cy + box.ry * 0.38)}" rx="3.6" ry="2.6" fill="${dab[1]}" opacity="0.3"/>`;
-    s += `<ellipse cx="${r2(box.cx + box.rx * 0.18)}" cy="${r2(box.cy + box.ry * 0.66)}" rx="4.6" ry="2.2" fill="${dab[2]}" opacity="0.28"/>`;
-    s += `<path d="${d}" fill="none" stroke="${mix(color, DEEP, 0.4)}" stroke-width="5" opacity="0.3"/>`;
+    // pooled pigment along the shadow edge (watercolor dries darker at its rim)
+    s += `<path d="${lit}" fill="none" stroke="${mix(SHADE, DEEP, 0.3)}" stroke-width="1.1" opacity="0.28" stroke-dasharray="9 3 16 4"/>`;
+    s += `<path d="${blob(box.cx - box.rx * 0.32, box.cy - box.ry * 0.5, box.rx * 0.62, box.ry * 0.34, { wob: 0.12, seed: top * 7 })}" fill="${CREAM}" opacity="0.26"/>`;
+    const ax = r2(box.cx + box.rx * 0.5);
+    const ay = r2(box.cy - box.ry * 0.05);
+    s += `<ellipse cx="${ax}" cy="${ay}" rx="4.2" ry="3" fill="${dab[0]}" opacity="0.3" transform="rotate(-18 ${ax} ${ay})"/>`;
+    s += `<ellipse cx="${r2(box.cx - box.rx * 0.58)}" cy="${r2(box.cy + box.ry * 0.38)}" rx="3.6" ry="2.4" fill="${dab[1]}" opacity="0.28"/>`;
+    s += `<ellipse cx="${r2(box.cx + box.rx * 0.18)}" cy="${r2(box.cy + box.ry * 0.66)}" rx="4.6" ry="2" fill="${dab[2]}" opacity="0.24"/>`;
+    s += `<path d="${d}" fill="none" stroke="${mix(color, DEEP, 0.45)}" stroke-width="3" opacity="0.26"/>`;
   }
   s += `</g>`;
-  s += `<path d="${d}" fill="none" stroke="${INK}" stroke-width="${ctx.sw}" stroke-linejoin="round"/>`;
+  s += ink(ctx, d, 1);
   return s;
 }
 
+// Baked step frames for the raster crowd: pose.step 1 lifts the left foot,
+// -1 the right one (drawn on twos, like a hand animated walk).
+function lift(ctx, side) {
+  const st = ctx.pose.step || 0;
+  return (side < 0 && st > 0) || (side > 0 && st < 0) ? ' transform="translate(0 -2.8)"' : '';
+}
 function feet(ctx, color, xs = [41, 59], y = 92.4, rx = 6.4) {
   const c = mix(color, DEEP, 0.28);
   return (
-    `<g class="p-fl" ${org(xs[0], y)}>${ellipse(ctx, xs[0], y, rx, 3.5, c)}</g>` +
-    `<g class="p-fr" ${org(xs[1], y)}>${ellipse(ctx, xs[1], y, rx, 3.5, c)}</g>`
+    `<g class="p-fl" ${org(xs[0], y)}${lift(ctx, -1)}>${ellipse(ctx, xs[0], y, rx, 3.5, c)}</g>` +
+    `<g class="p-fr" ${org(xs[1], y)}${lift(ctx, 1)}>${ellipse(ctx, xs[1], y, rx, 3.5, c)}</g>`
   );
 }
 
@@ -216,9 +240,11 @@ function eyes(ctx, xs, y, r, state) {
       .join('');
   } else {
     inner = xs.map((x) => `<circle cx="${x}" cy="${y}" r="${r2(R)}" fill="${EYE}"/>`).join('');
-    if (!ctx.lite) inner += xs.map((x) => `<circle cx="${r2(x - R * 0.32)}" cy="${r2(y - R * 0.36)}" r="${r2(R * 0.34)}" fill="#FFF8EA"/>`).join('');
+    // a soft painted catchlight, off center, not a glossy spot
+    if (!ctx.lite) inner += xs.map((x) => `<circle cx="${r2(x - R * 0.3)}" cy="${r2(y - R * 0.34)}" r="${r2(R * 0.26)}" fill="#F6EBD6" opacity="0.85"/>`).join('');
   }
-  return `<g class="p-eyes" ${org(50, y)}>${inner}</g>`;
+  const bl = ctx.pose.blink && state !== 'sleeping' && state !== 'done' ? ` transform="translate(0 ${r2(y * 0.88)}) scale(1 0.12)"` : '';
+  return `<g class="p-eyes" ${org(50, y)}${bl}>${inner}</g>`;
 }
 function blush(ctx, xs, y, rx = 3.6) {
   if (ctx.lite) return '';
@@ -233,7 +259,7 @@ function nub(ctx, x, y, color, rot = 0, rx = 4.6, ry = 6) {
 const STD = { cx: 50, cy: 66, rx: 25, ry: 26 };
 
 function drawScholar(ctx, st, back) {
-  const c = BOT.scholar.color;
+  const c = tone('scholar');
   const d = blob(50, 66, 25, 26, { seed: 11 });
   const tuftL = 'M32.6 49.6C29.4 46.6 27.2 42.6 26.2 37.8C29.4 39.2 31.4 40 32.8 39.8C33.6 41.2 36.8 42.4 40.8 43.6Z';
   let s = feet(ctx, c);
@@ -271,7 +297,7 @@ function drawScholar(ctx, st, back) {
 }
 
 function drawScout(ctx, st, back) {
-  const c = BOT.scout.color;
+  const c = tone('scout');
   const cape = '#B98A48';
   const capeDeep = mix(cape, DEEP, 0.3);
   const d = blob(50, 67, 25, 25, { seed: 23 });
@@ -322,7 +348,7 @@ function drawScout(ctx, st, back) {
 }
 
 function drawBaker(ctx, st, back) {
-  const c = BOT.baker.color;
+  const c = tone('baker');
   const capC = '#FBF6EC';
   const d = blob(50, 67, 25, 25, { seed: 31 });
   const box = { cx: 50, cy: 67, rx: 25, ry: 25 };
@@ -372,7 +398,7 @@ function drawBaker(ctx, st, back) {
 }
 
 function drawKeeper(ctx, st, back) {
-  const c = BOT.keeper.color;
+  const c = tone('keeper');
   const d = blob(50, 68, 29, 24, { seed: 43, egg: 0.05 });
   const box = { cx: 50, cy: 68, rx: 29, ry: 24 };
   const wick = '#C4935A';
@@ -410,7 +436,7 @@ function drawKeeper(ctx, st, back) {
 }
 
 function drawSteward(ctx, st, back) {
-  const c = BOT.steward.color;
+  const c = tone('steward');
   const d = blob(50, 63, 21, 29, { seed: 59, egg: 0.04 });
   const box = { cx: 50, cy: 63, rx: 21, ry: 29 };
   const navy = '#3F5470';
@@ -451,7 +477,7 @@ function drawSteward(ctx, st, back) {
 }
 
 function drawBard(ctx, st, back) {
-  const c = BOT.bard.color;
+  const c = tone('bard');
   const d = blob(50, 67, 25, 25, { seed: 41 });
   const box = { cx: 50, cy: 67, rx: 25, ry: 25 };
   const tg = ctx.id('t');
@@ -494,7 +520,7 @@ function drawBard(ctx, st, back) {
 }
 
 function drawHerald(ctx, st, back) {
-  const c = BOT.herald.color;
+  const c = tone('herald');
   const crest = '#D2702F';
   const d = blob(50, 67, 25, 25, { seed: 53 });
   const box = { cx: 50, cy: 67, rx: 25, ry: 25 };
@@ -553,8 +579,8 @@ function drawIcon(ctx, st, back) {
     `<path d="M29.8 59.4Q50 69.2 70.2 59.4" fill="none" stroke="${trim}" stroke-width="${gw + 0.3}" stroke-linecap="round"/>` +
     (ctx.lite ? '' : `<path d="M36 53.6Q35 57.6 35.6 62.4M64 53.6Q65 57.6 64.4 62.4" fill="none" stroke="${COOL}" stroke-width="1" opacity="0.25" stroke-linecap="round"/>`);
   const boots =
-    `<g class="p-fl" ${org(44.6, 92.6)}>${ellipse(ctx, 44.6, 92.6, 5.2, 3.1, '#5A3E2E')}</g>` +
-    `<g class="p-fr" ${org(55.4, 92.6)}>${ellipse(ctx, 55.4, 92.6, 5.2, 3.1, '#5A3E2E')}</g>`;
+    `<g class="p-fl" ${org(44.6, 92.6)}${lift(ctx, -1)}>${ellipse(ctx, 44.6, 92.6, 5.2, 3.1, '#6A4A38')}</g>` +
+    `<g class="p-fr" ${org(55.4, 92.6)}${lift(ctx, 1)}>${ellipse(ctx, 55.4, 92.6, 5.2, 3.1, '#6A4A38')}</g>`;
   let s = boots;
   s += body(ctx, 'icon', coat, coatC, box, 0.2);
   s += `<path d="M26 88.6Q50 94.2 74 88.6" fill="none" stroke="${trim}" stroke-width="${gw + 0.4}" stroke-linecap="round"/>`;
@@ -649,7 +675,7 @@ function markerInner(kind, color, lite) {
   return '';
 }
 function roleColor(id) {
-  return id === 'icon' ? GOLD : (BOT[id] && BOT[id].color) || GOLD;
+  return id === 'icon' ? GOLD : BOT[id] ? tone(id) : GOLD;
 }
 
 export function markerSVG(state, color = GOLD, { lite = false } = {}) {
@@ -668,18 +694,19 @@ export function spriteSVG(id, opts = {}) {
   const lite = opts.lite ?? size < 40;
   const showMarker = opts.marker !== false;
   const showShadow = opts.shadow !== false;
-  const ctx = makeCtx(lite);
+  const ctx = makeCtx(lite, opts.pose || {});
   const look = state === 'traveling' ? 'working' : state;
   const art = DRAW[key](ctx, look, facing === 'back');
 
   let shadow = '';
   if (showShadow) {
     const sh = ctx.id('s');
-    ctx.defs.push(
-      `<radialGradient id="${sh}"><stop offset="0" stop-color="#1C3040" stop-opacity="0.42"/><stop offset="0.6" stop-color="#1C3040" stop-opacity="0.2"/><stop offset="1" stop-color="#1C3040" stop-opacity="0"/></radialGradient>`,
-    );
-    const rx = key === 'icon' ? 20 : key === 'keeper' ? 27 : 24;
-    shadow = `<ellipse class="p-shadow" cx="50" cy="94" rx="${rx}" ry="4.8" fill="url(#${sh})"/>`;
+    ctx.defs.push(`<filter id="${sh}" x="-30%" y="-100%" width="160%" height="300%"><feGaussianBlur stdDeviation="1.3"/></filter>`);
+    const rx = key === 'icon' ? 18 : key === 'keeper' ? 25 : 21;
+    // soft contact shadow, a little off center toward the cool side
+    shadow =
+      `<g class="p-shadow" filter="url(#${sh})"><ellipse cx="51.5" cy="94.2" rx="${rx}" ry="3.6" fill="${CONTACT}" opacity="0.3"/>` +
+      `<ellipse cx="50.5" cy="93.8" rx="${r2(rx * 0.55)}" ry="2" fill="${CONTACT}" opacity="0.22"/></g>`;
   }
   let mk = '';
   const kind = showMarker ? markerKind(state) : null;
@@ -689,11 +716,27 @@ export function spriteSVG(id, opts = {}) {
     mk = `<g transform="translate(${r2(50 - 20 * sc)} ${r2(my - 20 * sc)}) scale(${sc})">${markerInner(kind, roleColor(key), lite)}</g>`;
   }
   const name = key === 'icon' ? ICON.name : BOT[key].name;
+  // Hand made: a faint wobble on every edge and paper grain in the wash.
+  let paper = '';
+  if (!lite) {
+    const f = ctx.id('f');
+    const sd = (key.length * 7 + (facing === 'back' ? 3 : 0)) % 97;
+    ctx.defs.push(
+      `<filter id="${f}" x="-8%" y="-8%" width="116%" height="116%" color-interpolation-filters="sRGB">` +
+        `<feTurbulence type="turbulence" baseFrequency="0.07" numOctaves="2" seed="${sd}" result="w"/>` +
+        `<feDisplacementMap in="SourceGraphic" in2="w" scale="1.5" xChannelSelector="R" yChannelSelector="G" result="d"/>` +
+        `<feTurbulence type="fractalNoise" baseFrequency="0.45" numOctaves="3" seed="${sd + 11}" result="n"/>` +
+        `<feColorMatrix in="n" type="matrix" values="0 0 0 0 0.42 0 0 0 0 0.33 0 0 0 0 0.3 0.55 0 0 0 -0.27" result="g"/>` +
+        `<feComposite in="g" in2="d" operator="in" result="gi"/>` +
+        `<feMerge><feMergeNode in="d"/><feMergeNode in="gi"/></feMerge></filter>`,
+    );
+    paper = ` filter="url(#${f})"`;
+  }
   return (
     `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="${size}" height="${size}" class="sao-sprite-svg" data-sprite="${key}" aria-hidden="true" focusable="false" overflow="visible">` +
     `<title>${name}</title><defs>${ctx.defs.join('')}</defs>` +
     shadow +
-    `<g class="p-all" ${org(50, 93)}>${art}</g>` +
+    `<g class="p-all" ${org(50, 93)}><g${paper}>${art}</g></g>` +
     mk +
     `</svg>`
   );
@@ -709,8 +752,8 @@ const CSS = `
 .sao-bot:focus{outline:none}
 .sao-bot:focus-visible{outline:2px solid #E8C88E;outline-offset:2px}
 .sao-bot .sao-body{position:absolute;left:50%;bottom:0;transform-origin:50% 94%;will-change:transform;pointer-events:none}
-.sao-bot .sao-body svg{display:block;width:100%;height:100%}
-.sao-bot .sao-shadow{position:absolute;left:50%;bottom:0;border-radius:50%;background:radial-gradient(closest-side,rgba(28,48,64,.44),rgba(28,48,64,.18) 60%,rgba(28,48,64,0));pointer-events:none}
+.sao-bot .sao-body svg,.sao-bot .sao-body img{display:block;width:100%;height:100%;user-select:none;-webkit-user-drag:none}
+.sao-bot .sao-shadow{position:absolute;left:50%;bottom:0;border-radius:50%;background:radial-gradient(closest-side,rgba(90,74,96,.34),rgba(90,74,96,.16) 62%,rgba(90,74,96,0));margin-left:4%;pointer-events:none}
 .sao-bot .sao-mark{position:absolute;left:50%;bottom:0;pointer-events:none}
 .sao-bot .sao-mark svg{display:block;width:100%;height:100%}
 .sao-sprite-svg g,.sao-marker-svg g,.sao-marker-svg text{transform-box:view-box}
@@ -856,18 +899,60 @@ function visualState(a) {
   return a.state;
 }
 
+// Each sprite is painted once per state, facing, size and pose frame, then
+// baked to pixels, so the crowd costs one <img> per bot instead of hundreds
+// of SVG nodes with a paper filter. The live SVG only comes back while an
+// idle habit plays (those animate parts of the drawing).
+const RASTER = new Map();
+function rasterURL(core, st, facing, lite, size, blink, stepF) {
+  const key = `${core}|${st}|${facing}|${lite ? 1 : 0}|${size}|${blink ? 1 : 0}${stepF}`;
+  const hit = RASTER.get(key);
+  if (hit) return hit.url;
+  if (RASTER.size > 400) RASTER.clear();
+  const svg = spriteSVG(core, { state: st, size, facing, marker: false, shadow: false, lite, pose: { blink, step: stepF } });
+  const r = { url: 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg) };
+  RASTER.set(key, r);
+  try {
+    const img = new Image();
+    img.onload = () => {
+      try {
+        const dpr = Math.min(2, (typeof devicePixelRatio === 'number' && devicePixelRatio) || 1);
+        const c = document.createElement('canvas');
+        c.width = c.height = Math.max(1, Math.round(size * dpr));
+        c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+        const vec = img.src;
+        r.url = c.toDataURL('image/png');
+        if (crowd) for (const x of crowd.actors.values()) if (x.imgEl && x.imgEl.src === vec) x.imgEl.src = r.url;
+      } catch {
+        /* keep the vector url */
+      }
+    };
+    img.src = r.url;
+  } catch {
+    /* no Image in this context */
+  }
+  return r.url;
+}
+
 function renderSprite(a) {
   const st = visualState(a);
-  const html = spriteSVG(a.core, { state: st, size: Math.round(crowd.base), facing: a.facing, marker: false, shadow: false, lite: a.lite });
-  a.bodyEl.innerHTML = html;
-  a.eyesEl = a.bodyEl.querySelector('.p-eyes');
-  a.footL = a.bodyEl.querySelector('.p-fl');
-  a.footR = a.bodyEl.querySelector('.p-fr');
+  if (a.live) {
+    a.bodyEl.innerHTML = spriteSVG(a.core, { state: st, size: Math.round(crowd.base), facing: a.facing, marker: false, shadow: false, lite: a.lite });
+    a.imgEl = null;
+    a.eyesEl = a.bodyEl.querySelector('.p-eyes');
+    a.footL = a.bodyEl.querySelector('.p-fl');
+    a.footR = a.bodyEl.querySelector('.p-fr');
+  } else {
+    a.bodyEl.innerHTML = '<img alt="" draggable="false" decoding="sync">';
+    a.imgEl = a.bodyEl.firstChild;
+    a.eyesEl = a.footL = a.footR = null;
+  }
+  a.frameKey = '';
   a.eyeKey = '';
   a.footKey = '';
   const kind = st === 'reading' || st === 'done' ? null : markerKind(a.mode === 'nap' ? 'sleeping' : a.state);
   a.markEl.innerHTML = kind ? markerSVG(a.mode === 'nap' ? 'sleeping' : a.state, roleColor(a.core), { lite: a.lite }) : '';
-  a.renderKey = `${st}|${a.facing}|${a.lite}|${a.state}|${a.mode === 'nap'}`;
+  a.renderKey = `${st}|${a.facing}|${a.lite}|${a.state}|${a.mode === 'nap'}|${a.live ? 1 : 0}`;
 }
 
 function makeActor(spec, i) {
@@ -897,6 +982,11 @@ function makeActor(spec, i) {
     sqV: 0,
     sqT: 1,
     rot: 0,
+    tilt: 0,
+    tiltV: 0,
+    live: false,
+    imgEl: null,
+    frameKey: '',
     hop: 0,
     swing: 0,
     look: 0,
@@ -1013,7 +1103,8 @@ function step(a, dt, T) {
       const slow = clamp(remain / (sp * 0.7), 0.3, 1);
       const d = a.vel * slow * dt;
       a.phase += dt * a.stepRate * q * (a.vel * slow / sp);
-      const s = Math.sin(a.phase * Math.PI);
+      // poses held like hand drawn keys: four drawings per step, not a tween
+      const s = Math.sin((Math.floor(a.phase * 4) / 4) * Math.PI);
       hop = Math.abs(s);
       rot = 2.8 * s;
       lift = s;
@@ -1021,6 +1112,7 @@ function step(a, dt, T) {
         a.t = a.target;
         a.mode = 'pause';
         a.sqV -= 2.8;
+        a.tiltV += (a.look >= 0 ? 1 : -1) * 70; // follow through: the body keeps going, then settles
         a.phase = 0;
         a.modeUntil = T + rand(5, 11) / q;
         a.idleAt = T + rand(0.7, 1.6) / q;
@@ -1076,9 +1168,14 @@ function step(a, dt, T) {
   if (a.idleUntil && T >= a.idleUntil) {
     a.el.classList.remove('is-idle');
     a.idleUntil = 0;
+    a.live = false;
   }
+  // tilt spring: a lean into the walk, overshoot on the stop
+  const tiltT = a.mode === 'walk' ? a.look * 3 : 0;
+  a.tiltV += (-(a.tilt - tiltT) * 90 - a.tiltV * 9) * dt;
+  a.tilt += a.tiltV * dt;
   a.hop = hop;
-  a.rot = rot;
+  a.rot = rot + a.tilt;
   a.lift = lift;
   a.look += (lookT - a.look) * Math.min(1, dt * 6);
   // blink
@@ -1091,6 +1188,8 @@ function step(a, dt, T) {
 
 function startIdle(a, T) {
   a.el.classList.remove('is-idle');
+  a.live = true; // the drawing itself moves: swap the baked frame for the live SVG
+  renderSprite(a);
   void a.el.offsetWidth; // restart the animation
   a.el.classList.add('is-idle');
   a.idleUntil = T + (IDLE_MS[a.core] || 1600) / 1000 / (crowd.quiet ? 0.5 : 1) + 0.05;
@@ -1108,8 +1207,18 @@ function place(a, T = nowS()) {
   const size = c.base * s;
   const lite = size < 40;
   if (lite !== a.lite) a.lite = lite;
-  const key = `${visualState(a)}|${a.facing}|${a.lite}|${a.state}|${a.mode === 'nap'}`;
+  const key = `${visualState(a)}|${a.facing}|${a.lite}|${a.state}|${a.mode === 'nap'}|${a.live ? 1 : 0}`;
   if (key !== a.renderKey) renderSprite(a);
+  if (a.imgEl) {
+    const blink = T < a.blinkUntil;
+    const l = a.mode === 'walk' ? a.lift || 0 : 0;
+    const stepF = l > 0.35 ? 1 : l < -0.35 ? -1 : 0;
+    const fk = `${blink ? 1 : 0}${stepF}`;
+    if (fk !== a.frameKey) {
+      a.frameKey = fk;
+      a.imgEl.src = rasterURL(a.core, visualState(a), a.facing, a.lite, Math.round(c.base), blink, stepF);
+    }
+  }
 
   const tall = a.kind === 'icon' ? 0.8 : a.core === 'baker' ? 0.78 : 0.66;
   const bw = Math.round(Math.max(44, size * 0.62));

@@ -108,7 +108,7 @@ const TIME = {
     sun: { x: 0.17, y: 0.45, r: 430, c: '#FFF2DE', o: 0.8, disc: 30 },
     light: '#FFE2BC', shade: '#7E7CB0', haze: '#ECD8CC', tone: '#EED8C6', toneK: 0.05,
     litK: 0.36, shadeK: 0.5, expo: 1.0, litSide: -1, frontK: 0.28, shadowLen: 1.5,
-    cloudLit: '#FFF3E8', cloudShade: '#B5B1D2', cloudHi: '#FFFCF6', lightY: -0.26,
+    cloudLit: '#FFEEDA', cloudShade: '#ACA6C6', cloudHi: '#FFF6EA', lightY: -0.26,
     line: '#4B4E7A', farHaze: '#D9CCDD', water: ['#E9D6D4', '#A3A9C8'], mist: 1, lit: 0, stars: 0,
   },
   day: {
@@ -116,7 +116,7 @@ const TIME = {
     sun: { x: 0.08, y: -0.08, r: 700, c: '#FFFBEA', o: 0.4, disc: 0 },
     light: '#FFF2D4', shade: '#5B7DAD', haze: '#CDDDEA', tone: '#FFFFFF', toneK: 0,
     litK: 0.3, shadeK: 0.42, expo: 1.0, litSide: -1, frontK: 0.34, shadowLen: 0.45,
-    cloudLit: '#FFFDF8', cloudShade: '#AABEDA', cloudHi: '#FFFFFF', lightY: -0.28,
+    cloudLit: '#FFF2DC', cloudShade: '#ABA8C4', cloudHi: '#FFF8EA', lightY: -0.28,
     line: '#3B486E', farHaze: '#B9CDE2', water: ['#BFD6E6', '#5F8DB6'], mist: 0, lit: 0, stars: 0,
   },
   sunset: {
@@ -352,6 +352,8 @@ function filters(c) {
     // pigment: wobbly edges plus darker granulation pooling in the wash (never holes)
     `<filter id="${p}pig" x="-6%" y="-10%" width="112%" height="120%"><feTurbulence type="fractalNoise" baseFrequency="0.022" numOctaves="4" seed="${s + 1}" result="n"/><feDisplacementMap in="SourceGraphic" in2="n" scale="13" xChannelSelector="R" yChannelSelector="G" result="d"/><feTurbulence type="fractalNoise" baseFrequency="0.045" numOctaves="3" seed="${s + 2}" result="m"/><feColorMatrix in="m" type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1.8 0 0 0 -0.78" result="ma"/><feColorMatrix in="d" type="matrix" values="0.8 0 0 0 0 0 0.8 0 0 0 0 0 0.84 0 0 0 0 0 1 0" result="dk"/><feComposite in="dk" in2="ma" operator="in" result="dkm"/><feComposite in="dkm" in2="d" operator="in" result="dkc"/><feMerge><feMergeNode in="d"/><feMergeNode in="dkc"/></feMerge></filter>`,
     `<filter id="${p}soft" x="-10%" y="-20%" width="120%" height="140%"><feTurbulence type="fractalNoise" baseFrequency="0.03" numOctaves="3" seed="${s + 11}" result="n"/><feDisplacementMap in="SourceGraphic" in2="n" scale="22" xChannelSelector="R" yChannelSelector="G" result="d"/><feGaussianBlur in="d" stdDeviation="5"/></filter>`,
+    // wet in wet: broad wash bands whose edges bleed into each other
+    `<filter id="${p}wet" x="-10%" y="-40%" width="120%" height="180%"><feTurbulence type="fractalNoise" baseFrequency="0.004 0.018" numOctaves="3" seed="${s + 18}" result="n"/><feDisplacementMap in="SourceGraphic" in2="n" scale="70" xChannelSelector="R" yChannelSelector="G" result="d"/><feGaussianBlur in="d" stdDeviation="16 9"/></filter>`,
     // clouds: torn soft edges
     `<filter id="${p}cl" x="-25%" y="-40%" width="150%" height="180%"><feTurbulence type="fractalNoise" baseFrequency="0.012 0.02" numOctaves="4" seed="${s + 3}" result="n"/><feDisplacementMap in="SourceGraphic" in2="n" scale="30" xChannelSelector="R" yChannelSelector="G" result="d"/><feGaussianBlur in="d" stdDeviation="2.4" result="b"/><feGaussianBlur in="d" stdDeviation="9" result="h"/><feMerge><feMergeNode in="h"/><feMergeNode in="b"/></feMerge></filter>`,
     `<filter id="${p}clsoft" x="-25%" y="-40%" width="150%" height="180%"><feTurbulence type="fractalNoise" baseFrequency="0.012 0.03" numOctaves="3" seed="${s + 4}" result="n"/><feDisplacementMap in="SourceGraphic" in2="n" scale="40" xChannelSelector="R" yChannelSelector="G" result="d"/><feGaussianBlur in="d" stdDeviation="7"/></filter>`,
@@ -389,6 +391,7 @@ function sky(c, o = {}) {
   const sc = hz / 420;
   const stops = T.sky.map(([of, col]) => [clamp(of * sc, 0, 1), col]);
   c.sky.push(rect(0, 0, W, H, c.lg(stops, 0, 0, 0, H, true)));
+  skyBands(c, stops, hz);
   // painted wash: lighter and cooler blooms so the sky is not one flat gradient
   const wk = { morning: 0.5, day: 0.45, sunset: 0.32, night: 0.18 }[c.time] || 0.4;
   c.sky.push(rect(0, 0, W, H * 0.75, '#fff', 1, ` filter="${c.f('washL')}" opacity="${wk}"`));
@@ -408,6 +411,64 @@ function sky(c, o = {}) {
   c.horizon = hz;
   c.sunX = sx;
   c.sunY = sy;
+}
+
+function skyAt(stops, t) {
+  if (t <= stops[0][0]) return stops[0][1];
+  for (let i = 1; i < stops.length; i++) {
+    if (t <= stops[i][0]) {
+      const [a, ca] = stops[i - 1];
+      const [b, cb] = stops[i];
+      return mix(ca, cb, (t - a) / Math.max(1e-6, b - a));
+    }
+  }
+  return stops[stops.length - 1][1];
+}
+
+// The sky as a painter lays it: a few broad horizontal washes, each a little
+// off the gradient (warmer near the horizon, cooler and deeper at the top),
+// bleeding into each other, then a few big blooms and dry brush drags.
+function skyBands(c, stops, hz) {
+  const r = c.sub('bands' + c.time);
+  const night = c.time === 'night';
+  const warm = { morning: '#F7CDB4', day: '#EFE4CC', sunset: '#F8BE78', night: '#3C4C7C' }[c.time] || '#EFE4CC';
+  const cool = { morning: '#7686BC', day: '#3A68AE', sunset: '#4A447E', night: '#071026' }[c.time] || '#3A68AE';
+  const pink = { morning: '#EBB8BE', day: '#D8C4D0', sunset: '#D88C9E', night: '#2C3A66' }[c.time] || '#D8C4D0';
+  let s = '';
+  const n = r.RI(4, 5);
+  for (let i = 0; i < n; i++) {
+    const t = (i + r.R(0.25, 0.75)) / n;
+    const y = t * hz * 1.05;
+    const hh = (hz / n) * r.R(0.9, 1.5);
+    let col = skyAt(stops, y / H);
+    col = t > 0.55 ? mix(col, warm, (t - 0.55) * 0.75) : mix(col, cool, (0.55 - t) * 0.42);
+    col = mix(col, r.ch(0.5) ? warm : cool, r.R(0, 0.08));
+    const tilt = r.R(-26, 26);
+    const top = [];
+    const bot = [];
+    for (let x = -120; x <= W + 120; x += r.R(140, 220)) top.push([x, y - hh / 2 + r.R(-16, 16) + tilt * (x / W - 0.5)]);
+    for (let x = W + 120; x >= -120; x -= r.R(140, 220)) bot.push([x, y + hh / 2 + r.R(-16, 16) + tilt * (x / W - 0.5)]);
+    s += pth(crPath([...top, ...bot], true), col, r.R(0.32, 0.52));
+  }
+  // blooms: where a wetter brush let pigment pool or lift
+  for (let i = 0; i < 5; i++) {
+    const t = r.R(0.05, 0.95);
+    const x = r.R(-100, W + 100);
+    const y = t * hz;
+    const col = i === 4 ? pink : t > 0.6 ? warm : r.ch(0.6) ? cool : mix(skyAt(stops, y / H), '#FFFFFF', 0.25);
+    s += ell(x, y, r.R(220, 520), r.R(40, 90), col, (i === 4 ? 0.18 : 0.22) * (night ? 0.7 : 1), r.R(-5, 5));
+  }
+  c.sky.push(g(s, `filter="${c.f('wet')}"`));
+  // dry brush drags of a lighter pigment, mostly in the middle sky
+  let dr = '';
+  const lt = night ? '#5C6E9C' : mix(skyAt(stops, (hz * 0.5) / H), '#FFF6E6', 0.45);
+  for (let i = 0; i < r.RI(5, 8); i++) {
+    const x = r.R(-60, W - 200);
+    const y = r.R(hz * 0.12, hz * 0.85);
+    const L = r.R(220, 560);
+    dr += spath(`M${f1(x)},${f1(y)}c${f1(L * 0.3)},${f1(r.R(-6, 6))} ${f1(L * 0.6)},${f1(r.R(-8, 8))} ${f1(L)},${f1(r.R(-10, 10))}`, lt, r.R(12, 24), r.R(0.12, 0.22));
+  }
+  c.sky.push(g(dr, `filter="${c.f('dry')}"`));
 }
 
 function stars(c, hz) {
@@ -460,7 +521,13 @@ function cumulus(c, cx, by, w, h, o = {}) {
   }
   const shape = puffs.map(([x, y, rr]) => circ(x, y, rr, '#fff')).join('') + ell(cx, by - h * 0.12, w * 0.47, h * 0.13, '#fff');
   const sil = c.clip(shape);
-  const flat = c.clip(rect(cx - w, by - h * 2.6, w * 2, h * 2.6));
+  // the base is level in spirit only: it dips, lifts and breaks into lobes
+  const bp = [[cx - w, by - h * 2.6], [cx + w, by - h * 2.6]];
+  for (let k = 0; k <= 9; k++) {
+    const t = 1 - k / 9;
+    bp.push([cx - w + 2 * w * t, by + (k === 0 || k === 9 ? 0 : r.R(-h * 0.16, h * 0.07))]);
+  }
+  const flat = c.clip(pth(crPath(bp, true), '#fff'));
   const below = T.lightY > 0;
   const lit = mix(T.cloudLit, T.haze, d * 0.7);
   const shade = mix(T.cloudShade, T.haze, d);
@@ -476,8 +543,25 @@ function cumulus(c, cx, by, w, h, o = {}) {
   let hl = '';
   for (const [x, y, rr] of puffs) hl += circ(x + lx * rr * 0.34, y + rr * (below ? 0.32 : -0.36), rr * 0.48, below ? hi : hi, below ? 0.4 : 0.5);
   s += g(core, `filter="${c.f('b4')}"`) + g(hl, `filter="${c.f('b2')}"`);
+  // dry brush drags across the belly, the paper showing through
+  let dry = '';
+  for (let k = 0; k < Math.round(w / 90); k++) {
+    const yy = by - h * r.R(0.08, 0.5);
+    const x0 = cx - w * r.R(0.1, 0.5);
+    dry += spath(`M${f1(x0)},${f1(yy)}l${f1(w * r.R(0.2, 0.5))},${f1(r.R(-4, 4))}`, r.ch(0.5) ? hi : shade, r.R(4, 10), r.R(0.25, 0.45));
+  }
+  s += g(dry, `filter="${c.f('dry')}"`);
   const a = o.op != null ? o.op : 1;
-  c.clouds.push(g(g(g(s, `clip-path="${sil}"`), `clip-path="${flat}"`), `filter="${c.f('cl')}"${a < 1 ? ` opacity="${f2(a)}"` : ''}`));
+  // lost edge: the shadow side dissolves into the sky, the lit side stays found
+  const mid = c.p + 'm' + c.gi++;
+  const lose = r.R(0.05, 0.25);
+  const mg = c.lg(lx < 0 ? [[0, '#fff', 1], [0.55, '#fff', 1], [1, '#fff', lose]] : [[0, '#fff', lose], [0.45, '#fff', 1], [1, '#fff', 1]], cx - w * 0.6, 0, cx + w * 0.6, 0, true);
+  c.defs.push(`<mask id="${mid}" maskUnits="userSpaceOnUse" x="${f1(cx - w * 1.3)}" y="${f1(by - h * 3.2)}" width="${f1(w * 2.6)}" height="${f1(h * 4)}"><rect x="${f1(cx - w * 1.3)}" y="${f1(by - h * 3.2)}" width="${f1(w * 2.6)}" height="${f1(h * 4)}" fill="${mg}"/></mask>`);
+  c.clouds.push(g(g(g(g(s, `clip-path="${sil}"`), `clip-path="${flat}"`), `filter="${c.f('cl')}"`), `mask="url(#${mid})"${a < 1 ? ` opacity="${f2(a)}"` : ''}`));
+  // a broken lobe and a wisp trailing off the lost side
+  if (w > 200 && o.wisp !== false) {
+    streak(c, cx - lx * w * r.R(0.45, 0.6), by - h * r.R(0.1, 0.4), w * r.R(0.35, 0.55), r.R(4, 8), { d: d + 0.1, op: 0.55 });
+  }
 }
 
 function streak(c, cx, y, w, h, o = {}) {
@@ -2825,25 +2909,26 @@ BUILD.market = (c, pl) => {
   ground(c, sq, { d: 0.03, dabs: 560, persp: [486, 900], key: 'sq', strokes: 500, leaves: 100 });
   // the stone square, under the hall that stands right of center
   const p0 = c.land.length;
-  const plaza = 'M372,572L1228,572C1290,600 1340,640 1360,690C1100,712 500,712 240,690C260,640 310,600 372,572Z';
-  patch(c, plaza, S.snow ? '#E6EAF0' : '#C9BB9E', { box: [240, 566, 1360, 714], cols: ['#B5A78C', '#DCD1BA', '#A89A7E', '#C8BB9F'], n: 620, big: 8, key: 'square' });
-  let cj = '';
-  for (let y = 580; y < 700; y += lerp(5, 12, (y - 580) / 120)) {
-    const k = (y - 572) / 118;
-    cj += line(lerp(372, 250, k), y, lerp(1228, 1350, k), y, c.P('#8E8068', -0.3), lerp(0.4, 1, k), 0.28);
-  }
-  c.land.push(g(cj, `filter="${c.f('arch')}"`));
-  // packed dirt between the cobbles: a warm wash broken with grey and blue dabs
+  // the square: a warm dirt wash, cobbles laid as dabs that thin out toward its edges
   {
     const rd = c.sub('dirt');
-    let dw = '';
-    for (let i = 0; i < 90; i++) {
-      const y = rd.R(578, 706);
-      const k = (y - 572) / 130;
-      const x = rd.R(lerp(372, 250, k), lerp(1228, 1350, k));
-      dw += ell(x, y, rd.R(10, 40) * (0.5 + k), rd.R(2, 6) * (0.5 + k), rd.pick(['#CDB894', '#CDB894', '#A99A86', '#9FA7B8']), rd.R(0.16, 0.36), rd.R(-6, 6));
+    const dirt = S.snow ? '#E6EAF0' : '#C7B08A';
+    let dw = pth(crPath([[330, 580], [700, 566], [1180, 572], [1330, 640], [1300, 700], [820, 716], [300, 704], [236, 650]], true), c.P(dirt, 0.2), 0.75);
+    dw += pth(crPath([[420, 600], [900, 586], [1200, 620], [1060, 690], [600, 690], [360, 660]], true), c.P('#A99A80', -0.1), 0.25);
+    c.land.push(g(dw, `filter="${c.f('wet')}"`));
+    let cb = '';
+    for (let i = 0; i < 900; i++) {
+      const y = rd.R(574, 712);
+      const k = (y - 572) / 140;
+      const cx0 = lerp(780, 790, k);
+      const half = lerp(470, 540, k);
+      const u = rd.R(-1, 1);
+      const fade = 1 - Math.pow(Math.abs(u), 2.2);
+      if (rd.r() > fade) continue;
+      const x = cx0 + u * half;
+      cb += ell(x, y, lerp(3, 10, k) * rd.R(0.7, 1.3), lerp(1.2, 3.6, k) * rd.R(0.7, 1.2), c.P(rd.pick(['#CDBB9A', '#CDBB9A', '#A99A80', '#B9AA8C', '#9FA2AE']), rd.R(-0.2, 0.5)), 0.4 * fade + 0.1, rd.R(-10, 10));
     }
-    c.land.push(g(dw, `filter="${c.f('pig')}"`));
+    c.land.push(g(cb, `filter="${c.f('pig')}"`));
   }
   const sqr = c.land.splice(p0).join('');
   c.land.push(g(sqr, 'transform="translate(80 0)"'));
@@ -2852,14 +2937,14 @@ BUILD.market = (c, pl) => {
   c.hallDX = 120;
   marketHall(c);
   const hall = c.land.splice(n0).join('');
-  c.land.push(g(hall, 'transform="translate(120 0)"'));
+  c.land.push(g(hall, 'transform="translate(120 0) translate(380 572) skewY(-1.4) scale(0.975 1) translate(-380 -572)"'));
   c.land.push(g(rect(500, 572, 900, 26, c.lg([[0, '#5A4A60', 0.3], [1, '#5A4A60', 0]])), `filter="${c.f('b4')}"`));
   // a loose cluster of shoppers, crates and baskets, never in a row
   const rf = c.sub('folk');
   const folk = [[612, 606, 30, '#6A7E9A'], [640, 612, 27, '#B5654A'], [884, 592, 24, '#7E8A5A'], [1172, 626, 31, '#8C6A86'], [1196, 620, 22, '#C9A15A'], [356, 646, 34, '#4E6A78']];
   for (const [x, y, h, col] of folk) figure(c, x, y, h, col, rf);
   for (const [x, y, w] of [[676, 616, 26], [700, 622, 20], [1236, 640, 30], [1140, 640, 18]]) crate(c, x, y, w, rf);
-  road(c, pl.path, { w0: 260, w1: 80, kind: 'cobble', col: S.snow ? '#E6EAF0' : '#D3C4A6', edges: false, dapple: true });
+  road(c, pl.path, { w0: 240, w1: 80, kind: 'dirt', col: S.snow ? '#E6EAF0' : '#CDBB9A', edges: false, dapple: true });
   handCart(c, 520, 660);
   for (const [x, y] of [[1050, 640], [1090, 652], [430, 622]]) {
     c.land.push(g(ell(x - T.litSide * 8, y + 3, 16, 3, T.shade, 0.3) + pth(blob(c.sub('sack' + x).r, x, y - 10, 13, 14, 0.2, 8), c.P('#D8C49A', 0.4)) + line(x - 6, y - 22, x + 6, y - 22, c.P('#8A6446', 0), 1.4), `filter="${c.f('arch')}"`));
@@ -2881,7 +2966,7 @@ function marketHall(c) {
   s += rect(384, 566, 832, 12, c.P('#CFC2A6', 0.4), 1, edge(c, 0.6));
   c.land.push(s);
   // stalls with striped awnings, counters and produce
-  const awn = ['#E0A43C', '#5E9A8E', '#C98A8E', '#7FA05A', '#E7C66A', '#7F9CC0'];
+  const awn = ['#C98A4E', '#5E9A8E', '#9A5A4A', '#7FA05A', '#E7C66A', '#D2A256', '#8E9A6A', '#B9876A'];
   const posts = [];
   for (let i = 0; i <= 8; i++) posts.push(392 + i * 102);
   const rr = c.sub('stalls');
@@ -2893,6 +2978,8 @@ function marketHall(c) {
       continue;
     }
     const col = awn[i % awn.length];
+    const torn = i === 1;
+    const rolled = i === 5;
     const wf = [1.12, 0.8, 1, 1, 1, 0.92, 1.18, 0.86][i];
     const sag = [7, 0, 11, 0, 0, 0, 9, 2][i];
     const mx = (x0 + x1) / 2;
@@ -2914,15 +3001,31 @@ function marketHall(c) {
     // awning
     const stripes = 6;
     const hem = (t) => 498 + (i % 2) * 4 + sag * Math.sin(Math.PI * t);
+    if (rolled) {
+      // rolled up tight under the eave, ties hanging
+      a += pth(`M${f1(ax0)},${f1(ay - 2)}L${f1(ax1)},${f1(ay - 3)}Q${f1(ax1 + 5)},${f1(ay + 4)} ${f1(ax1)},${f1(ay + 10)}L${f1(ax0)},${f1(ay + 11)}Q${f1(ax0 - 5)},${f1(ay + 4)} ${f1(ax0)},${f1(ay - 2)}Z`, c.P(col, 0.2), 1, edge(c, 0.5));
+      for (let k = 1; k < 6; k++) a += line(lerp(ax0, ax1, k / 6), ay - 2, lerp(ax0, ax1, k / 6) + 2, ay + 10, c.P('#EFE6D2', 0.3), 3.4, 0.6);
+      for (const t of [0.2, 0.8]) a += spath(`M${f1(lerp(ax0, ax1, t))},${f1(ay + 10)}q2,8 -1,16`, c.P('#6A4E38', 0), 0.9, 0.7);
+      a += rect(x0 + 2, 528, x1 - x0 - 4, 4, c.P(wood, 0.7));
+      c.land.push(g(a, `filter="${c.f('arch')}"`));
+      continue;
+    }
     for (let k = 0; k < stripes; k++) {
+      if (torn && k === 4) continue;
       const t0 = k / stripes;
       const t1 = (k + 1) / stripes;
       const u0 = lerp(ax0, ax1, t0);
       const u1 = lerp(ax0, ax1, t1);
       a += pg([[u0, ay], [u1, ay], [u1 + (u1 - 800) * 0.02, hem(t1)], [u0 + (u0 - 800) * 0.02, hem(t0)]], k % 2 ? c.P('#EFE6D2', 0.4) : c.P(col, 0.25), 0.92);
     }
+    if (torn) {
+      // a torn panel hanging loose
+      const u0 = lerp(ax0, ax1, 4 / 6);
+      a += pth(`M${f1(u0)},${f1(ay)}L${f1(u0 + 20)},${f1(ay)}L${f1(u0 + 14)},${f1(ay + 16)}L${f1(u0 + 18)},${f1(ay + 24)}L${f1(u0 + 9)},${f1(ay + 38)}L${f1(u0 + 4)},${f1(ay + 22)}Z`, c.P(col, 0.1), 0.85);
+    }
     const nsc = Math.round(5 + wf * 3);
     for (let k = 0; k < nsc; k++) {
+      if (torn && k >= Math.round(nsc * 0.62) && k <= Math.round(nsc * 0.84)) continue;
       const t = (k + 0.5) / nsc;
       a += circ(lerp(ax0, ax1, t), hem(t), (ax1 - ax0) / (nsc * 2.1), k % 2 ? c.P('#EFE6D2', 0.2) : c.P(col, 0.05), 0.92);
     }
@@ -2950,8 +3053,8 @@ function marketHall(c) {
   // the wide hipped roof
   const roof = '#B06F46';
   let rf = '';
-  rf += pg([[370, 460], [560, 370], [348, 444]], c.P(roof, faceK(c, -1) * 0.6), 1, edge(c, 0.8));
-  rf += pg([[1230, 460], [1040, 370], [1252, 444]], c.P(roof, faceK(c, 1) * 0.6), 1, edge(c, 0.8));
+  rf += pg([[370, 460], [560, 370], [322, 446]], c.P(roof, faceK(c, -1) * 0.6), 1, edge(c, 0.8));
+  rf += pg([[1230, 460], [1040, 370], [1240, 452]], c.P(roof, faceK(c, 1) * 0.6), 1, edge(c, 0.8));
   const A = [370, 460];
   const B = [1230, 460];
   const Cc = [1040, 370];
@@ -2969,19 +3072,28 @@ function marketHall(c) {
   c.land.push(g(rf, `filter="${c.f('arch')}"`));
   // warm violet shade under the eave, deepening toward the back of the hall
   c.land.push(g(rect(392, 466, 816, 30, '#5A4A60', 0.35) + rect(392, 492, 816, 76, c.lg([[0, '#5A4A60', 0.22], [1, '#5A4A60', 0]]), 1), `filter="${c.f('b4')}"`));
-  // the big brass scale in the open bay
-  const brass = '#D4A84E';
-  let sc = ell(800 - T.litSide * 16, 578, 30, 4, T.shade, 0.35);
-  sc += rect(796, 500, 8, 76, c.lg([[0, c.P(brass, 0.8)], [1, c.P(brass, -0.4)]], 0, 0, 1, 0));
-  sc += rect(782, 570, 36, 6, c.P(brass, 0.3), 1, edge(c, 0.6));
-  sc += line(756, 504, 844, 504, c.P(brass, 0.6), 3);
-  sc += circ(800, 500, 5, c.P(brass, 0.8));
-  for (const x of [760, 840]) {
-    sc += line(x, 504, x - 12, 530, c.P(brass, 0), 0.8) + line(x, 504, x + 12, 530, c.P(brass, 0), 0.8);
-    sc += pth(`M${x - 16},530Q${x},542 ${x + 16},530Z`, c.P(brass, 0.6), 1, edge(c, 0.5));
+  // a painted sign hung from the beam over the open bay, a little crooked
+  {
+    let sg = '';
+    const rope = c.P('#5A4638', -0.1);
+    sg += spath('M772,468q1,9 -1,17M834,468q-1,8 2,19', rope, 1.1, 0.8);
+    sg += pth('M752,484L852,488L851,522L753,519Z', c.P('#A87E56', 0.2), 1, edge(c, 0.7));
+    sg += pth('M757,488L847,491L846,517L758,515Z', c.P('#E6D6B4', 0.3), 0.95);
+    // a pear, a loaf and an ear of wheat, brushed in a few strokes
+    sg += pth(blob(c.sub('pear').r, 782, 505, 8, 9, 0.2, 8), c.P('#B9B04E', 0.2)) + circ(783, 496, 5, c.P('#B9B04E', 0.3));
+    sg += spath('M784,491l2,-5', c.P('#6A4E38', 0), 1.2);
+    sg += ell(806, 506, 12, 6, c.P('#C98E50', 0.2)) + spath('M799,503l3,4M806,502l3,4M813,503l3,4', c.P('#8A5A3A', 0), 1, 0.7);
+    sg += spath('M832,514q2,-12 1,-22', c.P('#B98E46', 0), 1.3);
+    for (let k = 0; k < 4; k++) sg += ell(830 + (k % 2) * 5, 512 - k * 5, 2.6, 1.4, c.P('#D2A256', 0.3), 1, k % 2 ? 30 : -30);
+    sg += line(756, 520, 850, 523, c.P('#5A4638', -0.3), 1.2, 0.5);
+    c.land.push(g(sg, `filter="${c.f('arch')}"`));
+    // crates and baskets under it instead of an empty stage
+    let un = ell(800, 574, 70, 5, '#5A4A60', 0.25);
+    un += rect(760, 548, 30, 22, c.P('#B08A5E', 0.2), 1, edge(c, 0.5)) + rect(792, 552, 24, 18, c.P('#9A7450', 0.1), 1, edge(c, 0.5));
+    for (let j = 0; j < 6; j++) un += circ(764 + j * 4.5, 546 - (j % 2) * 2, 3.2, c.P(j % 2 ? '#E08A3A' : '#E8A040', 0.35));
+    un += ell(842, 562, 14, 9, c.P('#C9A46A', 0.2)) + ell(842, 556, 13, 3, c.P('#8A6446', -0.2), 0.8);
+    c.land.push(g(un, `filter="${c.f('arch')}"`));
   }
-  sc += circ(756, 526, 4, c.P('#E08A3A', 0.4)) + circ(763, 527, 3.4, c.P('#E8C35A', 0.4));
-  c.land.push(g(sc, `filter="${c.f('arch')}"`));
   if (c.time === 'sunset' || c.time === 'night') {
     for (const x of [494, 698, 902, 1106]) {
       c.land.push(line(x, 468, x, 478, c.P('#3A3F48', 0), 1));
@@ -3161,44 +3273,119 @@ BUILD.fields = (c, pl) => {
   const field = profile(-20, W + 20, 10, (x) => 466 + fbm(n, x / 260 + 4) * 6);
   ground(c, field, { d: 0.02, dabs: 700, persp: [466, 900], key: 'field', strokes: 700, size: [3, 10] });
   mist(c, 470, 40);
-  // the pitch: mown stripes and lines in perspective
+  // the pitch: two loose wet washes of green with sun dabs, chalk lines broken by wear
   const FL = [520, 484];
   const FR = [1080, 484];
   const NR = [1190, 604];
   const NL = [410, 604];
   const P = (u, v) => [lerp(lerp(FL[0], FR[0], u), lerp(NL[0], NR[0], u), v), lerp(FL[1], NL[1], v)];
-  let pt2 = '';
-  for (let k = 0; k < 12; k++) pt2 += pg([P(k / 12, 0), P((k + 1) / 12, 0), P((k + 1) / 12, 1), P(k / 12, 1)], k % 2 ? c.P(S.grass[0], 0.7) : c.P(S.grass[3], -0.1), 0.22);
-  const lineC = c.P('#F3EFE6', 0.5);
-  pt2 += pg([FL, FR, NR, NL], 'none', 1, ` stroke="${lineC}" stroke-width="2" stroke-opacity="0.75"`);
-  pt2 += line(...P(0.5, 0), ...P(0.5, 1), lineC, 1.8, 0.75);
-  pt2 += `<ellipse cx="800" cy="${f1(lerp(484, 604, 0.48))}" rx="64" ry="18" fill="none" stroke="${lineC}" stroke-width="1.8" stroke-opacity="0.75"/>`;
+  {
+    const rw = c.sub('pitchwash');
+    let pw = '';
+    pw += pth(crPath([[440, 600], [520, 488], [760, 480], [1060, 490], [1180, 598], [900, 616], [640, 612]], true), c.P('#7E9A5A', 0), 0.35);
+    pw += pth(crPath([[600, 520], [700, 486], [980, 494], [1120, 560], [1010, 590], [760, 572]], true), c.P('#A3B56A', 0.2), 0.35);
+    c.land.push(g(pw, `filter="${c.f('wet')}"`));
+    let sd = '';
+    for (let i = 0; i < 70; i++) {
+      const u = rw.R(0, 1);
+      const v = rw.R(0, 1);
+      const [x, y] = P(u, v);
+      sd += ell(x + rw.R(-30, 30), y, lerp(6, 20, v) * rw.R(0.6, 1.4), lerp(1.4, 4, v), c.P(rw.ch(0.75) ? '#E3CF8A' : '#C9C27A', 0.3), rw.R(0.18, 0.4), rw.R(-8, 8));
+    }
+    c.land.push(g(sd, `filter="${c.f('pig')}"`));
+  }
+  const rc = c.sub('chalk');
+  const chalkCol = c.P('#EDE6D2', 0.3);
+  let ch = '';
+  // a stroke along a polyline: dabs of chalk with gaps every 40 to 90 px, lost in the far third
+  const chalk = (pts, wk = 1) => {
+    let acc = 0;
+    let next = rc.R(40, 90);
+    let on = true;
+    let d = '';
+    for (let i = 0; i < pts.length - 1; i++) {
+      const [x0, y0] = pts[i];
+      const [x1, y1] = pts[i + 1];
+      const L = Math.hypot(x1 - x0, y1 - y0);
+      const steps = Math.max(1, Math.ceil(L / 6));
+      for (let k = 0; k < steps; k++) {
+        const ax = lerp(x0, x1, k / steps);
+        const ay = lerp(y0, y1, k / steps);
+        const bx = lerp(x0, x1, (k + 1) / steps);
+        const by = lerp(y0, y1, (k + 1) / steps);
+        acc += L / steps;
+        if (acc > next) {
+          acc = 0;
+          on = !on;
+          next = on ? rc.R(40, 90) : rc.R(4, 14);
+        }
+        const v = clamp((ay - 484) / 120, 0, 1);
+        if (!on || (v < 0.33 && rc.ch(0.5 - v))) continue;
+        d += `M${f1(ax)},${f1(ay + rc.R(-0.4, 0.4))}L${f1(bx)},${f1(by + rc.R(-0.4, 0.4))}`;
+      }
+    }
+    ch += spath(d, chalkCol, 3 * wk, 0.55);
+  };
+  const along = (fn, n = 12) => {
+    const out = [];
+    for (let i = 0; i <= n; i++) out.push(fn(i / n));
+    return out;
+  };
+  chalk(along((t) => P(t, 0)));
+  chalk(along((t) => P(1, t)));
+  chalk(along((t) => P(1 - t, 1)));
+  chalk(along((t) => P(0, 1 - t)));
+  chalk(along((t) => P(0.5, t)));
+  chalk(along((t) => [800 + Math.cos(t * TAU) * 64, lerp(484, 604, 0.48) + Math.sin(t * TAU) * 18], 28), 0.9);
   for (const u of [0, 1]) {
     const du = u ? -0.12 : 0.12;
-    pt2 += spath(`M${pt(...P(u, 0.25))}L${pt(...P(u + du, 0.25))}L${pt(...P(u + du, 0.75))}L${pt(...P(u, 0.75))}`, lineC, 1.6, 0.7);
-    const [gx, gy] = P(u, 0.5);
-    pt2 += spath(`M${pt(gx, gy - 14)}L${pt(gx, gy - 34)}L${pt(gx + (u ? 6 : -6), gy - 30)}`, lineC, 2, 0.9);
-    pt2 += spath(`M${pt(gx + (u ? 8 : -8), gy + 18)}L${pt(gx + (u ? 8 : -8), gy - 6)}`, lineC, 2, 0.9);
-    pt2 += line(gx, gy - 34, gx + (u ? 8 : -8), gy - 6, lineC, 2, 0.9);
+    chalk([P(u, 0.25), P(u + du, 0.25), P(u + du, 0.75), P(u, 0.75)], 0.8);
   }
-  c.land.push(g(pt2, `filter="${c.f('arch')}"`));
-  // string lights between wooden poles
-  const poles = [[380, 492], [600, 484], [800, 480], [1000, 484], [1220, 492]];
+  c.land.push(g(ch, `filter="${c.f('dry')}"`));
+  let gl = '';
+  for (const u of [0, 1]) {
+    const [gx, gy] = P(u, 0.5);
+    const sx = u ? 8 : -8;
+    gl += spath(`M${pt(gx, gy - 2)}L${pt(gx + 0.6, gy - 32)}L${pt(gx + sx, gy - 29)}L${pt(gx + sx + 0.8, gy + 2)}`, c.P('#EDE6D2', 0.5), 2, 0.85);
+    gl += spath(`M${pt(gx + 1, gy - 30)}L${pt(gx + sx * 1.6, gy - 8)}`, c.P('#EDE6D2', 0), 0.8, 0.4);
+  }
+  c.land.push(g(gl, `filter="${c.f('arch')}"`));
+  // a run club warming up along the left touchline
+  {
+    const rr = c.sub('runclub');
+    const kit = ['#B5654A', '#4E6A78', '#C9A15A', '#7E8A5A', '#8C6A86', '#D8C49A', '#5E7A9A'];
+    for (let i = 0; i < 8; i++) {
+      const v = 0.18 + i * 0.09 + rr.R(-0.03, 0.03);
+      const [x, y] = P(0, v);
+      figure(c, x - 18 - rr.R(0, 26) * v, y + 2, lerp(11, 17, v) * rr.R(0.9, 1.1), rr.pick(kit), rr);
+    }
+  }
+  // string lights on three crooked poles at uneven spacing; each span sags its own way
+  const poles = [[468, 498, 98], [742, 482, 114], [1150, 494, 86]];
   let sl = '';
-  for (const [x, y] of poles) sl += rect(x - 2.5, y - 100, 5, 100, c.P('#7A5A40', T.litSide < 0 ? 0.3 : -0.1));
+  for (const [x, y, ph] of poles) {
+    sl += pth(`M${f1(x - 2.8)},${f1(y)}L${f1(x - 1.6 + 2)},${f1(y - ph)}L${f1(x + 1.6 + 2)},${f1(y - ph)}L${f1(x + 2.8)},${f1(y)}Z`, c.P('#7A5A40', T.litSide < 0 ? 0.3 : -0.1));
+    sl += line(x + 2 - 7, y - ph + 6, x + 2 + 7, y - ph + 4, c.P('#6A4E38', 0), 1.4, 0.8);
+  }
   const bulbs = [];
+  const sags = [46, 30];
   for (let i = 0; i < poles.length - 1; i++) {
-    const [x0, y0] = poles[i];
-    const [x1, y1] = poles[i + 1];
-    const mx = (x0 + x1) / 2;
-    const my = Math.max(y0, y1) - 100 + 34;
-    sl += spath(`M${x0},${y0 - 96}Q${mx},${my + 14} ${x1},${y1 - 96}`, c.P('#3A3F48', 0), 1, 0.8);
-    for (let k = 1; k < 10; k++) {
-      const t = k / 10;
-      const bx = (1 - t) * (1 - t) * x0 + 2 * (1 - t) * t * mx + t * t * x1;
-      const by = (1 - t) * (1 - t) * (y0 - 96) + 2 * (1 - t) * t * (my + 14) + t * t * (y1 - 96);
+    const [x0, y0, h0] = poles[i];
+    const [x1, y1, h1] = poles[i + 1];
+    const ax = x0 + 2;
+    const ay = y0 - h0 + 5;
+    const bx2 = x1 + 2;
+    const by2 = y1 - h1 + 5;
+    const mx = lerp(ax, bx2, i ? 0.6 : 0.42);
+    const my = Math.max(ay, by2) + sags[i];
+    sl += spath(`M${f1(ax)},${f1(ay)}Q${f1(mx)},${f1(my)} ${f1(bx2)},${f1(by2)}`, c.P('#3A3F48', 0), 1, 0.7);
+    const nb = Math.round((bx2 - ax) / 30);
+    for (let k = 1; k < nb; k++) {
+      const t = k / nb + rc.R(-0.01, 0.01);
+      const bx = (1 - t) * (1 - t) * ax + 2 * (1 - t) * t * mx + t * t * bx2;
+      const by = (1 - t) * (1 - t) * ay + 2 * (1 - t) * t * my + t * t * by2;
       bulbs.push([bx, by + 3]);
-      sl += circ(bx, by + 3, 2.4, c.P('#F3E6C4', 0.4));
+      sl += circ(bx, by + 3, 2.2, c.P('#F3E6C4', 0.4), 0.9);
     }
   }
   c.land.push(g(sl, `filter="${c.f('arch')}"`));
@@ -3214,7 +3401,7 @@ BUILD.fields = (c, pl) => {
   for (let k = 0; k < 6; k++) stg += line(262 + k * 26, 432, 262 + k * 26, 500, c.P('#C9BCA0', -0.2), 0.8, 0.5);
   c.land.push(g(stg, `filter="${c.f('arch')}"`));
   // café kiosk
-  const k = block(c, { x: 1196, y: 540, w: 110, h: 60, d: 60, side: -1, kind: 'gable', roofH: 40, wall: '#B08A5E', roof: '#8C6A56' });
+  const k = block(c, { x: 1236, y: 612, w: 132, h: 74, d: 64, side: -1, kind: 'gable', roofH: 46, wall: '#B08A5E', roof: '#8C6A56' });
   windowOn(c, k.F, 0.15, 0.3, 0.85, 0.75, { rows: 0, mullions: 0, glass: c.P('#3A3030', -0.3), litP: c.T.lit ? 1 : 0, keep: true });
   let aw = '';
   for (let i = 0; i < 6; i++) {
@@ -3223,10 +3410,9 @@ BUILD.fields = (c, pl) => {
     aw += pg([[ax0, ay0], [ax1, ay0], [ax1 + 2, ay0 + 12], [ax0 + 2, ay0 + 12]], i % 2 ? c.P('#EFE6D2', 0.4) : c.P('#5E9A8E', 0.3));
   }
   c.land.push(g(aw, `filter="${c.f('arch')}"`));
-  board(c, 1150, 548, 40, 26, { papers: 5 });
-  bench(c, 360, 650, 64);
-  bench(c, 1250, 656, 64);
-  bench(c, 560, 640, 54);
+  board(c, 1176, 618, 40, 26, { papers: 5 });
+  bench(c, 352, 664, 64);
+  bench(c, 1090, 640, 50);
   // the flower meadow along the edge (it blooms when an idea is approved)
   if (S.flowers) {
     const rf = c.sub('meadow');
@@ -3241,11 +3427,12 @@ BUILD.fields = (c, pl) => {
     c.land.push(g(fl, `filter="${c.f('leaf')}"`));
   }
   road(c, pl.path, { w0: 180, w1: 30, kind: 'dirt' });
-  tree(c, 120, 600, 110, {});
-  tree(c, 1500, 610, 116, {});
+  tree(c, 104, 612, 128, {});
+  tree(c, 1452, 566, 84, {});
   warmLight(c);
   vignette(c, 0.3);
-  frame(c, { tl: 0.9, tr: 0.9, bl: 0.9, br: 0.9 });
+  frame(c, { tl: 1, tr: 0.55, bl: 0.4, br: 0.95 });
+  nearFoliage(c, 1590, 930, 300, 230);
 };
 
 BUILD.lighthouse = (c, pl) => {
