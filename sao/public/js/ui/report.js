@@ -10,6 +10,7 @@ import { BOT } from '../bots.js';
 import { st, daysLeft, daysText } from './store.js';
 import { hooks } from './cards.js';
 import { COPY } from './copy.js';
+import * as clock from '../clock.js';
 
 const arr = (v) => (Array.isArray(v) ? v : []);
 const txt = (v) => clean(typeof v === 'string' ? v : v && v.text);
@@ -42,28 +43,41 @@ export function reportView(act) {
     return [h('p', { class: 'empty', text: COPY.empty.report })];
   }
   const done = arr(r.done).filter((d) => txt(d)).map((d) => h('li', { class: 'rline' }, h('span', { class: 'rtext', text: txt(d) }), by(d)));
-  const needs = arr(r.needsMe).filter((d) => txt(d)).slice(0, 3).map((d) =>
+  const needs = arr(r.needsMe).filter((d) => txt(d)).slice(0, 3).map((d, i) =>
     h(
       'li',
-      { class: 'rline' },
-      h('button', { class: 'rneed', type: 'button', onclick: () => act.need(d) }, h('span', { class: 'rneed-mark', 'aria-hidden': 'true', html: icon('marker_question', { size: 14 }) }), h('span', { class: 'rtext', text: txt(d) }), h('span', { class: 'rgo', 'aria-hidden': 'true', html: icon('back', { size: 14 }) })),
+      { class: `rneed-row${i === 0 ? ' is-first' : ''}` },
+      h('span', { class: 'rneed-n', 'aria-hidden': 'true', text: String(i + 1) }),
+      h(
+        'button',
+        { class: 'rneed', type: 'button', onclick: () => act.need(d), 'aria-label': `Decide: ${txt(d)}` },
+        h('span', { class: 'rtext', text: txt(d) }),
+        h('span', { class: 'rneed-mark', 'aria-hidden': 'true', html: icon('marker_question', { size: 15 }) }),
+      ),
       by(d),
     ),
   );
-  const paths = arr(r.nextPaths).filter((d) => txt(d)).slice(0, 3).map((d, i) =>
-    h(
-      'li',
-      { class: 'rline rpath' },
-      h('span', { class: 'rpath-n', 'aria-hidden': 'true', text: String.fromCharCode(65 + i) }),
-      h('div', { class: 'rpath-main' }, h('span', { class: 'rtext', text: txt(d) }), by(d)),
-      h('button', { class: 'btn btn-small', type: 'button', onclick: (e) => act.path(txt(d), e.currentTarget) }, 'Take this path'),
-    ),
+  const pathList = arr(r.nextPaths).filter((d) => txt(d)).slice(0, 3);
+  const paths = pathList.map((d, i) =>
+    i === 0
+      ? h(
+          'li',
+          { class: 'rpath is-first' },
+          h('p', { class: 'rpath-main' }, h('span', { class: 'rtext', text: txt(d) }), by(d)),
+          h('button', { class: 'btn btn-primary btn-small', type: 'button', onclick: (e) => act.path(txt(d), e.currentTarget) }, 'Take this path'),
+        )
+      : h(
+          'li',
+          { class: 'rpath is-alt' },
+          h('button', { class: 'linkish', type: 'button', onclick: (e) => act.path(txt(d), e.currentTarget) }, h('span', { class: 'linkish-or', text: 'or ' }), h('span', { class: 'rtext', text: txt(d) })),
+          by(d),
+        ),
   );
   const notc = arr(r.notChecked).filter((d) => txt(d)).map((d) => h('li', { class: 'rline' }, h('span', { class: 'rtext', text: txt(d) }), by(d)));
   return [
     rsec('Done', done.length ? [h('ul', { class: 'rlist' }, done)] : null),
-    rsec('Needs me', needs.length ? [h('ul', { class: 'rlist' }, needs)] : null, needs.length ? 'Decisions only you can make.' : null),
-    rsec('Next paths', paths.length ? [h('ol', { class: 'rlist' }, paths)] : null),
+    rsec('Needs me', needs.length ? [h('ol', { class: 'rneeds' }, needs)] : null, needs.length ? 'Decisions only you can make.' : null),
+    rsec('Next paths', paths.length ? [h('ol', { class: 'rpaths' }, paths)] : null),
     rsec('Not checked or not done', notc.length ? [h('ul', { class: 'rlist rlist-soft' }, notc)] : null),
     h('p', { class: 'signoff', text: 'Your answer becomes the next loop’s orders.' }),
   ];
@@ -71,40 +85,52 @@ export function reportView(act) {
 
 /* ------------------------------------------------------------ the brief */
 
+// The banner is a crop of the real painted town at morning, around the well,
+// rendered once per season and weather into an image and kept as a blob URL.
+const WELL_VIEW = '640 400 620 172';
+const wellCache = new Map();
+
+async function wellImage() {
+  let season = 'autumn';
+  try { season = clock.season(clock.now()); } catch (e) { /* keep autumn */ }
+  const key = season;
+  if (wellCache.has(key)) return wellCache.get(key);
+  const job = import('../scene.js').then((m) => {
+    let svg = m.paintPlace('town', { time: 'morning', season, weather: 'clear', width: 1600, height: 900 });
+    if (typeof svg !== 'string' || !svg.includes('<svg')) throw new Error('no painting');
+    svg = svg.replace(/<svg\b([^>]*)>/, (all, attrs) => {
+      let a = attrs.replace(/\sviewBox="[^"]*"/, '').replace(/\s(width|height|preserveAspectRatio)="[^"]*"/g, '');
+      if (!/xmlns=/.test(a)) a += ' xmlns="http://www.w3.org/2000/svg"';
+      return `<svg${a} viewBox="${WELL_VIEW}" width="1240" height="344" preserveAspectRatio="xMidYMid slice">`;
+    });
+    return URL.createObjectURL(new Blob([svg], { type: 'image/svg+xml' }));
+  });
+  wellCache.set(key, job);
+  job.catch(() => wellCache.delete(key));
+  return job;
+}
+
+// warm the banner while the world is idle, so the brief opens painted
+export function prewarmBrief() {
+  wellImage().catch(() => {});
+}
+
 function wellScene() {
   let herald = '';
   try {
-    if (hooks.sprite) herald = hooks.sprite('herald', { state: 'working', size: 84, marker: false, shadow: true });
+    if (hooks.sprite) herald = hooks.sprite('herald', { state: 'working', size: 56, marker: false, shadow: true });
   } catch (e) {
     herald = '';
   }
-  // a small painted vignette: dawn wash, far hills, the stone well, Herald on its rim
-  const sky = `<svg class="well-art" viewBox="0 0 600 180" preserveAspectRatio="xMidYMid slice" aria-hidden="true" focusable="false">
-    <defs>
-      <linearGradient id="wb-sky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#9FB7D6"/><stop offset=".55" stop-color="#E9C9B8"/><stop offset="1" stop-color="#F3DCC0"/></linearGradient>
-      <linearGradient id="wb-hill" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#A7B4C9"/><stop offset="1" stop-color="#C9C3CC"/></linearGradient>
-      <linearGradient id="wb-ground" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#B9B486"/><stop offset="1" stop-color="#7E8A66"/></linearGradient>
-      <radialGradient id="wb-sun" cx=".7" cy=".55" r=".4"><stop offset="0" stop-color="#FFF1D6" stop-opacity=".95"/><stop offset="1" stop-color="#FFF1D6" stop-opacity="0"/></radialGradient>
-      <filter id="wb-soft"><feTurbulence type="fractalNoise" baseFrequency=".9" numOctaves="2" seed="7" result="n"/><feDisplacementMap in="SourceGraphic" in2="n" scale="2.4"/></filter>
-    </defs>
-    <rect width="600" height="180" fill="url(#wb-sky)"/>
-    <rect width="600" height="180" fill="url(#wb-sun)"/>
-    <path d="M0 112C80 92 150 98 220 90s170 4 240-6 110 8 140 10V180H0z" fill="url(#wb-hill)" opacity=".8"/>
-    <path d="M0 132c90-14 200-10 300-8s210-6 300 4V180H0z" fill="url(#wb-ground)" filter="url(#wb-soft)"/>
-    <g filter="url(#wb-soft)">
-      <ellipse cx="300" cy="170" rx="70" ry="7" fill="#4B5A63" opacity=".35"/>
-      <path d="M244 122h112v40c0 6-25 10-56 10s-56-4-56-10z" fill="#D8CDB8"/>
-      <path d="M244 140h112M252 154h96" stroke="#A89C88" stroke-width="2" fill="none"/>
-      <path d="M262 122v-6M286 122v-6M314 122v-6M338 122v-6" stroke="#A89C88" stroke-width="2"/>
-      <ellipse cx="300" cy="122" rx="58" ry="8" fill="#EDE4D2"/>
-      <ellipse cx="300" cy="122" rx="46" ry="5" fill="#3D5560"/>
-      <path d="M252 122V70M348 122V70" stroke="#8A5A3B" stroke-width="5" stroke-linecap="round"/>
-      <path d="M240 72l60-22 60 22z" fill="#C2744B"/><path d="M240 72l60-22 60 22" stroke="#9C5A3C" stroke-width="2" fill="none"/>
-      <path d="M300 80v26" stroke="#6E5A4A" stroke-width="1.5"/><rect x="292" y="104" width="16" height="12" rx="2" fill="#8A5A3B"/>
-    </g>
-    <g opacity=".55" fill="#F6E6CF"><circle cx="90" cy="40" r="1.4"/><circle cx="140" cy="28" r="1"/><circle cx="520" cy="34" r="1.2"/></g>
-  </svg>`;
-  return h('div', { class: 'well', 'aria-hidden': 'true' }, h('div', { html: sky }), herald ? h('div', { class: 'well-herald', html: herald }) : null);
+  const img = h('img', { class: 'well-art', alt: '', decoding: 'async' });
+  const box = h('div', { class: 'well is-waiting', 'aria-hidden': 'true' }, img, h('i', { class: 'well-veil' }), herald ? h('div', { class: 'well-herald', html: herald }) : null);
+  wellImage()
+    .then((url) => {
+      img.addEventListener('load', () => box.classList.remove('is-waiting'), { once: true });
+      img.src = url;
+    })
+    .catch(() => box.classList.add('is-bare'));
+  return box;
 }
 
 export function briefTitle() {

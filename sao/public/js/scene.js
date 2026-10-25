@@ -1557,6 +1557,64 @@ function block(c, o) {
   return { F, S, top, dv };
 }
 
+// A house seen in three quarter view, built the way a house is built: the
+// front face square to us, the side wall a rectangle receding to a vanishing
+// point on the horizon (its top is the eave line), the gable triangle standing
+// on that wall and rising to the ridge end, then the roof plane over both.
+function house3q(c, o) {
+  const { x, y, w, h } = o;
+  const ds = o.ds || 120;
+  const hz = o.hz || 420;
+  const rh = o.roofH || 80;
+  const ov = o.overhang != null ? o.overhang : 7;
+  const wall = o.wall || '#E6D6B8';
+  const sideWall = o.sideWall || wall;
+  const roofCol = o.roof || '#C77B4A';
+  const dz = o.haze || 0;
+  const top = y - h;
+  const VP = [x + w + ds * 7, hz];
+  const sBack = 1 - ds / (VP[0] - (x + w));
+  const sMid = (1 + sBack) / 2;
+  const toward = (P, k) => [VP[0] + (P[0] - VP[0]) * k, VP[1] + (P[1] - VP[1]) * k];
+  const F = face([x, y], [w, 0], [0, -h]);
+  // side face: a along the depth, b up the wall
+  const S = (a, b) => toward([x + w, y - b * h], 1 - a * (1 - sBack));
+  const Fb = [x + w, y];
+  const Ft = [x + w, top];
+  const Bb = S(1, 0);
+  const Bt = S(1, 1);
+  const mid = toward(Ft, sMid);
+  const R = [mid[0], mid[1] - rh * sMid];
+  const midL = toward([x, top], sMid);
+  const Lr = [midL[0], midL[1] - rh * sMid];
+  let s = '';
+  s += pg(quad(F, 0, 0, 1, 1), c.P(wall, faceK(c, 0), dz), 1, edge(c, 1));
+  s += pg([Fb, Bb, Bt, Ft], c.P(sideWall, faceK(c, 1), dz), 1, edge(c, 1));
+  // the gable triangle sits on the side wall and rises to the ridge end
+  s += pg([Ft, Bt, R], c.P(sideWall, faceK(c, 1) - 0.08, dz), 1, edge(c, 1));
+  s += pg(quad(F, 0, 0, 1, 1), c.lg([[0, mix(c.T.light, '#FFFFFF', 0.3), 0.22], [0.55, c.T.light, 0], [1, c.T.shade, 0.22]], 0, 0, 0, 1));
+  s += pg(quad(F, 0, 0, 1, 0.12), c.P(wall, -0.5, dz), 0.25);
+  const rw = c.sub('wall' + Math.round(x) + ':' + Math.round(y));
+  s += massLight(c, F, S, 1, wall, dz, rw, w, h);
+  s += pg([[x - 2, y + 1], [x + w + 2, y + 1], Bb, [Bb[0], Bb[1] + 3], [x - 2, y + 4]], mix(c.T.shade, '#1A2238', 0.4), 0.3);
+  // roof: the front plane over the eave, and the verge (barge) board down the
+  // back slope of the gable, which shows the roof's thickness
+  const A = [x - ov, top + 3];
+  const B = [x + w + ov, top + 3];
+  const Cc = [R[0] + ov * 0.6, R[1] - 2];
+  const D = [Lr[0] - ov * 0.6, Lr[1] - 2];
+  const Bv = [Bt[0] + ov * 0.7, Bt[1] + 3];
+  s += pg([Cc, Bv, [Bv[0] - 2, Bv[1] + 6], [R[0] - 1, R[1] + 6]], c.P(roofCol, -0.45, dz), 0.95);
+  s += pg([A, B, Cc, D], c.P(roofCol, 0.35, dz), 1, edge(c, 1));
+  s += roofTiles(c, A, B, Cc, D, roofCol, dz, o.tiles);
+  // the front verge board: a thin lit strip along the gable edge of the roof
+  s += spath(`M${f1(B[0])},${f1(B[1])}L${f1(Cc[0])},${f1(Cc[1])}`, c.P(roofCol, 0.7, dz), 2.6, 0.7);
+  if (c.S.snow) s += pg([D, Cc, lerpP(Cc, B, 0.45), lerpP(D, A, 0.45)], c.P('#F4F6F9', 0.5, dz), 0.95);
+  if (o.lost !== false && dz < 0.3) s += roofLost(c, [A, B, Cc, D], [D, Cc]);
+  (o.to || c.land).push(s);
+  return { F, S, top, ridge: [D, Cc], apex: R, A, B, Ft, Fb, Bt, Bb, sidePoly: [Fb, Bb, Bt, R, Ft] };
+}
+
 // Shared hero building light: a clear sun side, a cool transparent shadow
 // side with a wet bloom along the terminator, plaster dabs without outlines.
 function massLight(c, F, S, side, wall, dz, rw, w, h) {
@@ -3066,14 +3124,13 @@ BUILD.home = (c, pl) => {
   gd += spath(`M362,652Q440,650 520,652L560,649`, c.P('#8A6446', 0.05), 1.1, 0.7, ' stroke-dasharray="70 16 120 30"');
   c.land.push(g(gd, `filter="${c.f('arch')}"`));
   // the cottage
-  const b = block(c, { x: 560, y: 568, w: 290, h: 118, d: 230, side: 1, kind: 'eave', roofH: 96, wall: '#EFE4CF', roof: '#8C8794', tiles: false });
+  const b = house3q(c, { x: 540, y: 568, w: 290, h: 118, ds: 150, hz: 412, roofH: 92, wall: '#EFE4CF', sideWall: '#E6DAC6', roof: '#8C8794', tiles: false });
   {
     // the roof in three tones: lit slate, a shadow wash pooling toward the eave, moss dabs;
     // the ridge sags a little and the eave shadow breaks
     const rr = c.sub('homeroof');
     const [D, Cc] = b.ridge;
-    const A = [560 - 6, b.top + 3];
-    const B = [860 + 6, b.top + 3];
+    const { A, B } = b;
     const rq = `<path d="M${f1(A[0])},${f1(A[1])}L${f1(B[0])},${f1(B[1])}L${f1(Cc[0])},${f1(Cc[1])}L${f1(D[0])},${f1(D[1])}Z"/>`;
     // warm grey slate: broken dry brush courses, a lit ridge, a moss bloom wet in wet
     // near the eave; nothing ruled, each course wanders and breaks
@@ -3108,11 +3165,13 @@ BUILD.home = (c, pl) => {
     for (let x = A[0] + 4; x < B[0] - 10; x += rr.R(18, 46)) eave += spath(`M${f1(x)},${f1(b.top + 6)}l${f1(rr.R(12, 40))},${f1(rr.R(-1, 1.4))}`, '#5E5A70', rr.R(3, 6), rr.R(0.3, 0.5));
     c.land.push(g(g(rf, `filter="${c.f('pig')}"`) + g(moss, `filter="${c.f('wet')}"`), `clip-path="${c.clip(rq)}"`) + g(spath(ridge, c.time === 'night' ? '#B9C0D8' : '#EDE0CC', 3.4, 0.6, ' stroke-dasharray="60 6 90 4 200"') + eave, `filter="${c.f('archP')}"`));
     // the gable side in shade: a cool violet glaze, multiplied
-    const gs = [[860, 568], [860 + b.dv[0], 568 + b.dv[1]], [860 + b.dv[0], b.top + b.dv[1]], b.apex, [860, b.top]];
-    c.land.push(g(pg(gs, '#6E6A88', 0.3), `filter="${c.f('wet')}" style="mix-blend-mode:multiply"`));
+    c.land.push(g(g(pg(b.sidePoly, '#6E6A88', 0.3), `filter="${c.f('wet')}"`), `clip-path="${c.clip(pg(b.sidePoly, '#000'))}" style="mix-blend-mode:multiply"`));
+    // the gable carries a small round vent and the side wall a rain stain under the verge
+    const gv = lerpP(lerpP(b.Ft, b.Bt, 0.5), b.apex, 0.42);
+    c.land.push(ell(gv[0], gv[1], 6, 7, c.P('#4A4458', 0), 0.8) + ell(gv[0] + 1, gv[1] + 1, 3.4, 4.4, c.P('#2E3440', 0.1), 0.8));
     // a cool lower wash on the wall and lost edges at its corners
     c.land.push(g(pg(quad(b.F, 0, 0, 1, 0.36), '#B8BCCB', 0.3), `filter="${c.f('wet')}"`));
-    loseEdge(c, `M${f1(860 + b.dv[0])},${f1(b.top + b.dv[1] + 8)}L${f1(860 + b.dv[0])},${f1(568 + b.dv[1] - 4)}`, 10, 0.35);
+    loseEdge(c, `M${f1(b.Bt[0])},${f1(b.Bt[1] + 8)}L${f1(b.Bb[0])},${f1(b.Bb[1] - 4)}`, 10, 0.35);
   }
   // stone base course
   let stn = '';
@@ -3142,7 +3201,7 @@ BUILD.home = (c, pl) => {
     for (let k = 0; k < 6; k++) fb += circ(lerp(px, qx, k / 5), py - 3, 3, c.P(S.flowers[k % S.flowers.length], 0.3), 0.95);
     c.land.push(fb);
   }
-  chimney(c, 790, 432, 16, 34, { col: '#B5A994', smokeSize: 0.9 });
+  chimney(c, 760, 418, 16, 34, { col: '#B5A994', smokeSize: 0.9 });
   // lantern on its hook by the door, the bench, the soccer ball
   const [lx, ly] = b.F(0.86, 0.6);
   c.land.push(line(lx - 2, ly - 6, lx + 6, ly - 6, c.P('#3A3F48', 0), 1.4) + rect(lx + 1, ly - 4, 8, 11, c.P('#3E4A5E', 0)) + rect(lx + 2.4, ly - 2.5, 5.2, 8, c.P('#E8DEC2', 0.2), 0.8));
@@ -3150,7 +3209,7 @@ BUILD.home = (c, pl) => {
   bench(c, 1080, 590, 50);
   const [bx, by] = b.F(0.6, 0);
   c.land.push(ell(bx - T.litSide * 6, by + 9, 8, 2, T.shade, 0.35) + circ(bx, by + 3, 6.5, c.P('#F3EFE6', 0.4)) + circ(bx - 1.5, by + 2, 2, c.P('#3A3F48', 0)) + circ(bx + 3, by + 5.5, 1.4, c.P('#3A3F48', 0)) + circ(bx + 2.6, by - 1, 1.3, c.P('#3A3F48', 0)));
-  castShadow(c, 560, 860, 570, 100, { op: 0.26 });
+  castShadow(c, 540, 840, 570, 100, { op: 0.26 });
   // the big seasonal tree beside the cottage
   // it stands close: its crown overlaps the far corner of the cottage a little
   tree(c, 1060, 612, 182, { touches: 70, dapple: true });
@@ -3207,7 +3266,8 @@ BUILD.kitchen = (c, pl) => {
   const yard = profile(-20, W + 20, 10, (x) => 500 + fbm(n, x / 200 + 5) * 12);
   ground(c, yard, { d: 0.03, dabs: 640, persp: [500, 900], key: 'yard', strokes: 620, leaves: 160 });
   // the fieldstone farmhouse kitchen
-  const b = block(c, { x: 545, y: 574, w: 510, h: 140, d: 150, side: 1, kind: 'eave', roofH: 78, wall: '#CDBC9F', roof: '#8C6A56' });
+  // three quarter view: the side wall recedes to the right, the big tree stands in front of its far corner
+  const b = house3q(c, { x: 470, y: 574, w: 470, h: 140, ds: 124, hz: 432, roofH: 76, wall: '#CDBC9F', sideWall: '#C4B496', roof: '#8C6A56' });
   let stn = '';
   const rs = c.sub('fieldstone');
   for (let i = 0; i < 160; i++) {
@@ -3265,35 +3325,35 @@ BUILD.kitchen = (c, pl) => {
     bs += line(px - 15, py - 6, px + 15, py - 6, c.P('#7A5A3E', -0.2), 0.8, 0.7);
     c.land.push(g(bs, `filter="${c.f('arch')}"`));
   }
-  chimney(c, 960, 455, 20, 44, { col: '#B9A58C', smokeSize: 1 });
-  castShadow(c, 545, 1055, 576, 110, { op: 0.26 });
+  chimney(c, 812, 414, 20, 44, { col: '#B9A58C', smokeSize: 1 });
+  castShadow(c, 470, 1050, 576, 110, { op: 0.26 });
   // woodpile under a lean to against the side wall
-  let wp = pg([[1062, 520], [1150, 500], [1156, 510], [1066, 532]], c.P('#8C6A56', 0.4), 1, edge(c, 0.7));
-  wp += line(1148, 508, 1148, 566, c.P('#5A4030', 0), 3);
+  let wp = pg([[952, 522], [1030, 502], [1036, 512], [956, 534]], c.P('#8C6A56', 0.4), 1, edge(c, 0.7));
+  wp += line(1028, 510, 1028, 562, c.P('#5A4030', 0), 3);
   for (let row = 0; row < 3; row++) for (let k = 0; k < 6; k++) {
-    const lx = 1076 + k * 12 + (row % 2) * 6;
+    const lx = 962 + k * 11 + (row % 2) * 6;
     const ly = 560 - row * 11 - k * 1.6;
     wp += circ(lx, ly, 5.6, c.P('#9A7050', 0.1)) + circ(lx, ly, 3.4, c.P('#D9B98A', 0.4)) + circ(lx, ly, 1, c.P('#9A7050', -0.2));
   }
-  c.land.push(g(ell(1110 - T.litSide * 16, 570, 52, 5, T.shade, 0.3) + wp, `filter="${c.f('arch')}"`));
+  c.land.push(g(ell(995 - T.litSide * 16, 568, 48, 5, T.shade, 0.3) + wp, `filter="${c.f('arch')}"`));
   // low dry stone walls along the yard
   let dw = '';
   const rw = c.sub('drywall');
-  for (const [x0, x1, y0, y1] of [[330, 520, 640, 618], [1110, 1330, 618, 650]]) {
-    for (let k = 0; k <= 26; k++) {
-      const t = k / 26;
+  for (const [x0, x1, y0, y1, nk] of [[300, 450, 646, 616, 22], [1150, 1260, 646, 668, 13]]) {
+    for (let k = 0; k <= nk; k++) {
+      const t = k / nk;
       const x = lerp(x0, x1, t);
       const y = lerp(y0, y1, t);
       for (let row = 0; row < 2; row++) dw += ell(x + (row % 2) * 4, y - 4 - row * 7, rw.R(5, 8), 3.6, c.P(rw.pick(['#BBA98C', '#D8C9AE', '#A8957A', '#C6B391']), row ? 0.6 : 0), 0.95);
     }
   }
   c.land.push(g(dw, `filter="${c.f('arch')}"`));
-  tree(c, 250, 650, 140, {});
-  well(c, 430, 628, 22);
-  tree(c, 1290, 660, 120, {});
-  bush(c, 500, 604, 36, {});
-  bush(c, 1060, 600, 30, {});
-  if (S.flowers) for (const [x, y] of [[700, 590], [1020, 588]]) c.land.push(g(pth(`M${x - 9},${y - 14}L${x + 9},${y - 14}L${x + 7},${y}L${x - 7},${y}Z`, c.P('#C8774A', 0.3)) + circ(x - 4, y - 18, 4, c.P(S.flowers[0], 0.3)) + circ(x + 4, y - 19, 3.6, c.P(S.flowers[1], 0.3)) + ell(x, y - 15, 9, 4, c.P(S.leaf[2] || '#5E9A4E', 0), 0.8), `filter="${c.f('arch')}"`));
+  tree(c, 196, 626, 96, {});
+  well(c, 386, 630, 22);
+  bush(c, 452, 600, 30, {});
+  bush(c, 1230, 640, 44, {});
+  tree(c, 1196, 670, 160, { touches: 40, dapple: true });
+  if (S.flowers) for (const [x, y] of [[612, 590], [905, 594]]) c.land.push(g(pth(`M${x - 9},${y - 14}L${x + 9},${y - 14}L${x + 7},${y}L${x - 7},${y}Z`, c.P('#C8774A', 0.3)) + circ(x - 4, y - 18, 4, c.P(S.flowers[0], 0.3)) + circ(x + 4, y - 19, 3.6, c.P(S.flowers[1], 0.3)) + ell(x, y - 15, 9, 4, c.P(S.leaf[2] || '#5E9A4E', 0), 0.8), `filter="${c.f('arch')}"`));
   road(c, pl.path, { w0: 230, w1: 50, kind: 'dirt' });
   warmLight(c);
   vignette(c, 0.3);
@@ -3363,7 +3423,14 @@ function fort(c) {
     }
     t += rect(x - 3, 400 + dy * 0.6, 6, 22, c.P('#2E3A3C', 0)) + (x > 800 ? '' : rect(x - 2.5, 462, 5, 16, c.P('#2E3A3C', 0)));
     // the east tower stands farther back: the air comes between
-    if (x > 800) t += g(pth(blob(c.sub('towerhaze').r, x, 400, wd * 0.7, 100, 0.3, 9), '#B9C4D6', 0.4), `filter="${c.f('b4')}"`);
+    // haze clipped to the tower itself, thicker toward the foot, so it never shows a box edge
+    if (x > 800) {
+      const hz = c.sub('towerhaze');
+      const tp = `<path d="M${f1(x - wd / 2)},498L${f1(x - wd / 2 + 3)},${f1(338 + dy)}L${f1(x - wd / 2 - 4)},${f1(338 + dy)}L${f1(x - wd / 2 - 4)},${f1(318 + dy)}L${f1(x + wd / 2 + 4)},${f1(318 + dy)}L${f1(x + wd / 2 + 4)},${f1(338 + dy)}L${f1(x + wd / 2 - 3)},${f1(338 + dy)}L${f1(x + wd / 2)},498Z"/>`;
+      let hb = '';
+      for (let k = 0; k < 5; k++) hb += pth(blob(hz.r, x + hz.R(-30, 30), hz.R(400, 490), hz.R(30, 70), hz.R(30, 60), 0.45, 9), hz.pick(['#B9C4D6', '#C7CCDD', '#D4CFDA']), hz.R(0.14, 0.26));
+      t += g(g(hb, `filter="${c.f('soft')}"`), `clip-path="${c.clip(tp)}"`);
+    }
     if (S.snow) t += rect(x - 50, 316 + dy, 100, 3, '#F4F6F9', 0.9);
     c.land.push(g(t, `filter="${c.f('arch')}"`));
   }
@@ -3380,7 +3447,8 @@ function fort(c) {
   }
   // light and shade glazed onto the stone: warm on the lit side, cool violet on the other
   {
-    const fs = '<path d="M424,498L424,306L516,306L516,380L1088,380L1088,354L1176,354L1176,498Z"/>';
+    // clip to the real silhouette: tower crowns stop under their merlons, nothing pokes above
+    const fs = '<path d="M439,498L442,376L436,376L436,360L520,360L520,388L1088,388L1088,358L1087,358L1087,340L1177,340L1177,358L1172,358L1175,498Z"/>';
     glaze(c, fs, [420, 300, 1180, 500], { key: 'fortstone', cols: ['#E8D7B8', '#E8D7B8', '#8E86A8', '#B9C08C', '#F2E4C4', '#8E86A8'], dark: '#5A5060', n: 52, k: 0.6, dry: false });
   }
   // the cloth banner over the gate with three round shields (the weekly gym shields)
@@ -3778,18 +3846,46 @@ BUILD.vault = (c, pl) => {
   const hill = profile(-20, W + 20, 8, (x) => 572 + Math.pow((x - 800) / 560, 2) * 170 + fbm(n, x / 120 + 5) * 18 - 9);
   ground(c, hill, { d: 0.03, dabs: 680, persp: [560, 900], key: 'hill', strokes: 680, leaves: 120 });
   // dark pines that hold the fortress between them
-  pine(c, 548, 600, 150, {});
-  pine(c, 596, 590, 110, {});
-  pine(c, 1080, 596, 140, {});
-  pine(c, 1124, 606, 96, {});
+  // the pines gather on the right only, in three sizes; the keep sits left of center
+  pine(c, 1004, 604, 158, {});
+  pine(c, 1066, 598, 108, {});
+  pine(c, 1150, 612, 72, {});
+  pine(c, 1112, 590, 54, { d: 0.12 });
   ruins(c);
-  stronghold(c);
+  {
+    const l0 = c.land.length;
+    const g0 = c.lights.length;
+    stronghold(c);
+    const moved = c.land.splice(l0).join('');
+    c.land.push(g(moved, 'transform="translate(-80,0)"'));
+    const lm = c.lights.splice(g0).join('');
+    c.lights.push(g(lm, 'transform="translate(-80,0)"'));
+  }
   // the quiet ring of old stones
   rocks(c, [[640, 640, 34, 70], [560, 664, 30, 56], [470, 700, 40, 74], [1000, 646, 30, 64], [1090, 674, 36, 72], [1190, 712, 44, 84], [360, 760, 56, 96], [1290, 780, 60, 100], [720, 680, 46, 22], [930, 690, 50, 24]], { col: '#A8A2A6' });
+  // lichen on the stones: rust, sage and pale grey dabs on the lit tops
+  {
+    const rl = c.sub('lichen');
+    let lc = '';
+    for (const [x, y, w2, h2] of [[640, 640, 34, 70], [560, 664, 30, 56], [470, 700, 40, 74], [1000, 646, 30, 64], [1090, 674, 36, 72], [1190, 712, 44, 84], [360, 760, 56, 96], [1290, 780, 60, 100]]) {
+      for (let k = 0; k < 5; k++) lc += ell(x + rl.R(-0.3, 0.3) * w2 + T.litSide * w2 * 0.12, y - h2 * rl.R(0.08, 0.36), rl.R(1.6, 4), rl.R(1, 2.4), rl.pick(['#C9A45A', '#9AAE7A', '#D2CCC2', '#B98A5A']), rl.R(0.35, 0.6));
+    }
+    c.land.push(g(lc, `filter="${c.f('pig')}"`));
+  }
   road(c, pl.path, { w0: 220, w1: 40, kind: 'dirt' });
+  // a dark ivy mass swallows the ruins at the bottom left: wet edged, two greens
+  {
+    const ri2 = c.sub('ivymass');
+    let im = pth(blob(ri2.r, 110, 880, 270, 170, 0.35, 12), '#2F4A44', 0.85);
+    im += pth(blob(ri2.r, 290, 800, 170, 110, 0.4, 11), '#4A5E3A', 0.7);
+    im += pth(blob(ri2.r, 60, 740, 120, 150, 0.4, 10), '#3A5240', 0.75);
+    let lv = '';
+    for (let i = 0; i < 70; i++) lv += leaf(ri2.R(0, 470), ri2.R(660, 900), ri2.R(9, 20), ri2.R(4, 8), ri2.R(-2.4, -0.6), ri2.pick(['#5E7A48', '#4A6A44', '#7A8A50', '#2F4A44']), ri2.R(0.5, 0.85));
+    c.land.push(g(im, `filter="${c.f('soft')}"`) + g(lv, `filter="${c.f('leaf')}"`));
+  }
   warmLight(c);
   vignette(c, 0.36);
-  frame(c, { tl: 1, tr: 1, bl: 1, br: 1 });
+  frame(c, { tl: 0.9, tr: 1, bl: 0.4, br: 1 });
 };
 
 function stronghold(c) {

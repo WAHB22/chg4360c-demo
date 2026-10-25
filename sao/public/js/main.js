@@ -19,7 +19,7 @@ import { mountCaption, renderCaption } from './ui/caption.js';
 import { mountToast, say, releaseHeld } from './ui/toast.js';
 import { mountSheets, openSheet, showSheet, closeSheet, currentSheet, refill } from './ui/sheet.js';
 import { placeView, botsView, draftsView, draftView, questionsView } from './ui/views.js';
-import { reportView, reportTitle, briefView, briefTitle } from './ui/report.js';
+import { reportView, reportTitle, briefView, briefTitle, prewarmBrief } from './ui/report.js';
 import { floorsView } from './ui/floors.js';
 import { rulesView, settingsView } from './ui/charter.js';
 import { mountDock, menuGrid } from './ui/dock.js';
@@ -73,7 +73,7 @@ async function boot() {
   mountMenu(hud, { onOpen: (id, btn) => openView(id, {}, btn) });
   mountCaption($('#caption-slot'), { onOpenPlace: (id) => openView(`place:${id}`) });
   mountToast(document.body);
-  mountSheets(document.body, { onClose: () => { S.open = null; setPressed(null); } });
+  mountSheets(document.body, { onClose: () => { S.open = null; delete document.documentElement.dataset.panel; setPressed(null); } });
   mountDock($('#dock-slot'), {
     onMap: (b) => toggleMap(true, b),
     onMenu: (b) => openView('menu', {}, b),
@@ -138,6 +138,7 @@ async function boot() {
   await intro;
   if (openParam) openFromParam(openParam);
   else maybeBrief();
+  setTimeout(() => (window.requestIdleCallback || ((f) => setTimeout(f, 1)))(() => safe(prewarmBrief, 'prewarmBrief'), { timeout: 4000 }), 3500);
 }
 
 /* ----------------------------------------------------------------- state */
@@ -517,6 +518,7 @@ async function openView(view, args = {}, opener) {
   if (!spec) return;
   viewArgs = { ...args };
   S.open = view;
+  document.documentElement.dataset.panel = view;
   setPressed(view);
   const handle = await openSheet({ ...spec, id: view, opener: opener || undefined });
   refill(handle, safe(spec.render, `render ${view}`) || []);

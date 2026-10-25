@@ -118,9 +118,10 @@ export function parseDay(str, ref) {
 }
 
 export function daysLeft(item, ref) {
-  if (item && Number.isFinite(Number(item.daysLeft))) return Number(item.daysLeft);
+  // one clock: days left always come from the date and the live clock, so the
+  // brief and the floors agree; a stored count is only a fallback
   const d = parseDay(item && item.date, ref);
-  if (!d) return null;
+  if (!d) return item && item.daysLeft != null && Number.isFinite(Number(item.daysLeft)) ? Number(item.daysLeft) : null;
   const base = ref instanceof Date ? ref : new Date();
   const a = new Date(base.getFullYear(), base.getMonth(), base.getDate());
   return Math.round((d - a) / 86400000);

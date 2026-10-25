@@ -1196,3 +1196,120 @@ h4 { margin: 0; font-weight: 400; line-height: var(--lh-title); }
   .tag-day { display: none; }
   .status { max-width: calc(100% - 172px); }
 }
+
+/* ================================================= loop 9: ink and paper
+   Section heads are plain cream Times, not eyebrow labels; the report reads
+   as a written page; the brief banner is the real painted town at morning. */
+.psec-title, .rsec-title {
+  display: block; font-variant: normal; letter-spacing: 0;
+  font-size: var(--fs-18); font-weight: 400; color: var(--cream);
+  margin-bottom: var(--s-8);
+}
+.psec-rule { display: none; }
+/* the panel carries one ornament: a short inked flourish under its first head */
+.psec:first-of-type > .psec-title::after, .rsec:first-of-type > .rsec-title::after {
+  content: ""; display: block; width: 46px; height: 7px; margin-top: 5px;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 46 7'%3E%3Cpath d='M1 4.2c6-2.6 11 1.9 17 .3 3-.8 4.6-2.9 6.4-2.6 1.6.3.8 2.4-.6 2.1M25 3.6c5 .8 12-1.4 20 .4' fill='none' stroke='%23E8C88E' stroke-width='.9' stroke-linecap='round' opacity='.8'/%3E%3C/svg%3E") no-repeat;
+}
+
+/* Draft: a small caps tag, no trailing comma */
+.draft-tag::after { content: none; }
+.draft-tag { font-style: normal; font-variant: small-caps; font-size: var(--fs-15); letter-spacing: 0.02em; }
+
+/* Needs me: a numbered parchment list, hairline dividers, the first weightier */
+.rneeds {
+  list-style: none; padding: 4px 14px; margin: 0;
+  background:
+    radial-gradient(120% 90% at 12% 0%, rgba(243, 226, 192, 0.10), transparent 60%),
+    linear-gradient(176deg, rgba(232, 214, 178, 0.075), rgba(232, 214, 178, 0.035));
+  border-left: 2px solid rgba(232, 200, 142, 0.5);
+  border-radius: 2px 7px 5px 3px;
+}
+.rneed-row {
+  display: grid; grid-template-columns: 22px 1fr; column-gap: 8px; align-items: baseline;
+  padding: 9px 0 8px;
+}
+.rneed-row + .rneed-row { border-top: 1px solid rgba(232, 200, 142, 0.18); }
+.rneed-n { font-size: var(--fs-15); color: var(--gold); font-style: italic; }
+.rneed-row .by { grid-column: 2; }
+.rneeds .rneed {
+  width: 100%; min-height: 44px; display: flex; align-items: center; gap: 10px;
+  padding: 0; margin: -6px 0; background: none; border: 0; border-radius: 3px;
+  text-align: left; color: var(--text);
+}
+.rneeds .rneed:hover { background: none; }
+.rneeds .rneed:hover .rtext { text-decoration: underline; text-decoration-color: rgba(232, 200, 142, 0.6); text-underline-offset: 4px; text-decoration-thickness: 1px; }
+.rneeds .rneed .rtext { flex: 0 1 auto; }
+.rneeds .rneed-mark { color: var(--gold); opacity: 0.85; }
+.rneed-row.is-first .rtext { font-size: var(--fs-18); }
+.rneed-row.is-first .rneed-n { font-size: var(--fs-18); }
+.rneed-row.is-first { padding-top: 12px; padding-bottom: 11px; }
+
+/* Next paths: one way forward, two quieter alternatives */
+.rpaths { list-style: none; padding: 0; margin: 0; display: grid; gap: 4px; }
+.rpaths .rpath { display: block; padding: 0; }
+.rpaths .rpath::before { display: none; }
+.rpath.is-first { display: flex !important; flex-wrap: wrap; align-items: center; gap: 10px 16px; margin-bottom: 6px; }
+.rpath.is-first .rpath-main { flex: 1 1 260px; margin: 0; }
+.rpath.is-first .rtext { font-size: var(--fs-18); }
+.rpath.is-alt { padding-left: 2px; }
+.linkish {
+  background: none; border: 0; padding: 0; min-height: 44px; text-align: left;
+  color: var(--text); font: inherit; cursor: pointer;
+}
+.linkish .rtext { text-decoration: underline; text-decoration-color: rgba(232, 200, 142, 0.5); text-underline-offset: 4px; text-decoration-thickness: 1px; }
+.linkish:hover .rtext { text-decoration-color: var(--gold); }
+.linkish-or { color: var(--text-soft); font-style: italic; }
+.rpath.is-alt .by { margin-left: 8px; }
+
+/* the brief banner: a crop of the painted town at morning, vignetted into the glass */
+.well {
+  height: 176px; border: 0; border-radius: 3px 9px 4px 7px;
+  background: #3A4A4E;
+  -webkit-mask-image: radial-gradient(130% 120% at 50% 42%, #000 58%, transparent 100%);
+          mask-image: radial-gradient(130% 120% at 50% 42%, #000 58%, transparent 100%);
+}
+.well-art { width: 100%; height: 176px; object-fit: cover; opacity: 1; transition: opacity 600ms var(--ease-out); }
+.well.is-waiting .well-art { opacity: 0; }
+.well.is-bare { background: linear-gradient(180deg, #C9CFD6, #D9C9AE); }
+.well-veil {
+  position: absolute; inset: 0; pointer-events: none;
+  background:
+    radial-gradient(70% 60% at 62% 30%, rgba(255, 236, 200, 0.18), transparent 70%),
+    linear-gradient(180deg, transparent 60%, rgba(20, 26, 38, 0.35));
+}
+.well-herald { left: 34%; bottom: 8px; width: 64px; height: 64px; margin-left: -32px; }
+.well-herald svg { width: 64px; height: 64px; }
+
+/* the tower: a matte terracotta roof with an uneven eave, floors of honest heights */
+.tower::before {
+  clip-path: none;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 400 60' preserveAspectRatio='none'%3E%3Cpath d='M3 55.5 199 2.5c2 0 3.5.4 4.6 1.4L397 54.2c1.6 1.1.4 2.6-1.4 2.7-48 .9-120 .2-190 1.1-70 .4-140-.6-200-.4-2.6 0-3.6-1.1-2.6-2.1z' fill='%23C9744A'/%3E%3Cpath d='M42 46.5c40-.6 80 .9 118-.4M70 38.4c30 .7 58-.8 86 .3M100 30c22 .5 40-.6 58 .2M130 21.6c14 .3 26-.4 40 .3M154 13.4c10 .2 20-.3 30 .1M236 13.6c10 .3 18-.2 28 .2M226 22c16-.3 32 .5 46-.1M240 30.3c22-.6 44 .5 62-.2M238 38.6c30-.4 60 .7 92-.2M250 46.8c40-.8 80 .6 112-.3' fill='none' stroke='%23A85E3E' stroke-width='1.6' stroke-linecap='round' opacity='.32'/%3E%3Cpath d='M203 3.9 397 54.2c1.6 1.1.4 2.6-1.4 2.7-60 .8-130 .4-190 1.1z' fill='%237E4B48' opacity='.32'/%3E%3Cpath d='M30 50c50-14 110-30 150-40' fill='none' stroke='%23F0C49A' stroke-width='5' opacity='.13' stroke-linecap='round'/%3E%3C/svg%3E") center bottom / 100% 100% no-repeat;
+}
+.tower::after {
+  height: 5px; top: -4px; border-radius: 3px 1px 4px 2px;
+  background: linear-gradient(90deg, rgba(122, 70, 52, 0.9), rgba(96, 62, 60, 0.85) 60%, rgba(122, 70, 52, 0.75));
+  box-shadow: 0 2px 4px rgba(10, 14, 24, 0.3);
+  transform: rotate(-0.35deg);
+}
+.floor.is-cleared { min-height: 40px; padding-top: 4px; padding-bottom: 4px; }
+.floor.is-cleared .floor-n { width: 22px; height: 28px; }
+.floor.is-upcoming { min-height: 50px; }
+.floor.is-current { min-height: 72px; }
+.floor.is-current .floor-title { font-size: var(--fs-18); }
+.floor:nth-child(3n+1) { margin-left: calc(var(--rise, 0) * 1.5% - 2px); }
+.floor:nth-child(4n+2) { margin-right: calc(var(--rise, 0) * 1.5% + 2px); }
+
+/* the caption steps aside while a place panel names the same place */
+html[data-panel^="place:"] .caption { opacity: 0; visibility: hidden; transition: opacity 180ms ease, visibility 0s 180ms; }
+.well-herald { left: 39%; bottom: 6px; width: 56px; height: 56px; margin-left: -28px; }
+.well-herald svg { width: 56px; height: 56px; }
+/* while the painting renders: a warm morning wash, Herald arrives with it */
+.well.is-waiting {
+  background:
+    radial-gradient(60% 70% at 64% 34%, rgba(246, 226, 190, 0.55), transparent 70%),
+    radial-gradient(80% 60% at 20% 90%, rgba(126, 140, 102, 0.5), transparent 70%),
+    linear-gradient(180deg, #B9C4CC 0%, #D9CDB4 62%, #9AA184 100%);
+}
+.well.is-waiting .well-herald { opacity: 0; }
+.well-herald { transition: opacity 500ms var(--ease-out) 200ms; }
