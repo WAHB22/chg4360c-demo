@@ -1163,11 +1163,144 @@ function frame(c, o = {}) {
     return q;
   };
   const sc = o.scale || 1;
-  if (o.tl !== false) s += canopy(-1, (o.tl || 1) * sc);
-  if (o.tr !== false) s += canopy(1, (o.tr || 1) * sc);
+  // the top corners: an overhanging bough that dips into the band the laptop
+  // layout actually shows (the old corner canopy sat above it, out of view)
+  const tl = o.tl !== false ? (o.tl || 1) * sc : 0;
+  const tr = o.tr !== false ? (o.tr || 1) * sc : 0;
+  const lead = tl === tr ? (hashStr(c.id) % 2 ? -1 : 1) : tl > tr ? -1 : 1;
+  if (tl) s += overhang(c, -1, tl, lead === -1);
+  if (tr) s += overhang(c, 1, tr, lead === 1);
   if (o.bl !== false) s += shrub(-1, (o.bl || 1) * sc);
   if (o.br !== false) s += shrub(1, (o.br || 1) * sc);
   c.front.push(g(s, `filter="${c.f('fg')}"`));
+}
+
+// The scene y where the laptop band starts for this place (vista geometry:
+// 60 percent band at 1280x720 and 1440x900, cover scale, subject framing).
+function bandTop(c) {
+  const sb = c.subject;
+  if (!sb) return 200;
+  let best = 900;
+  for (const [w, h] of [[1280, 432], [1440, 540], [1920, 648]]) {
+    const scale = Math.max((w + 44) / W, (h + 44) / H);
+    const ch = H * scale;
+    const sTop = (sb.y0 / H) * ch;
+    const sH = (sb.h / H) * ch;
+    const m = Math.min(h * 0.1, 48);
+    const slack = Math.max(0, h - sH - m * 2);
+    let top = m + slack * 0.3 - sTop;
+    top = Math.min(-22, Math.max(h + 22 - ch, top));
+    best = Math.min(best, -top / scale);
+  }
+  return clamp(best, 60, 320);
+}
+
+// Near foliage hanging from above: a bough enters from the side edge, a soft
+// wash anchors it to the corner, leaves droop below it in deep blue greens and
+// olives, a few warm lit leaves on its upper side. Each place gets its own
+// tree (broad, maple, needle or willow), the lead side reaches farther.
+function overhang(c, side, scale, lead) {
+  const { T, S } = c;
+  const r = c.sub('overhang' + side);
+  const night = c.time === 'night';
+  const dusk = c.time === 'sunset';
+  const tint = (x) => (night ? mix(x, '#13202E', 0.5) : dusk ? mix(x, '#3A2A3E', 0.18) : x);
+  const kinds = ['broad', 'maple', 'needle', 'willow'];
+  const kind = kinds[(hashStr(c.id + side) >>> 3) % 4];
+  const base = ['#2F4A44', '#3A5240', '#4A5E3A', '#34483F', '#2F4A44'];
+  const broken = ['#5E6E3A', '#4A4E66', '#56683E', '#3E5A5A'];
+  const fall = S.fallen ? ['#7A4A2A', '#8C5A2E', '#6A4A30'] : S.snow ? ['#5A6A70'] : S.blossom ? ['#7A5A66'] : ['#58703E'];
+  const cols = base.map(tint);
+  const brk = broken.concat(fall).map(tint);
+  const lit = night ? '#5E7090' : mix(T.light, S.fallen ? '#D9934A' : '#C9A85A', 0.5);
+  const bt = bandTop(c);
+  const ox = side < 0 ? -30 : W + 30;
+  // the left corner sits under the status card in the laptop layout, so a
+  // left lead bough reaches farther in to be seen past it
+  const reach = (lead ? r.R(460, 560) * (side < 0 ? 1.15 : 1) : r.R(200, 300)) * scale;
+  const sy = bt + r.R(0, 40) * scale;
+  const ex = ox - side * reach;
+  const ey = bt + r.R(60, 110) * scale;
+  const mx = ox - side * reach * r.R(0.4, 0.55);
+  const my = sy - r.R(10, 40) * scale;
+  const B = (t) => [(1 - t) * (1 - t) * ox + 2 * (1 - t) * t * mx + t * t * ex, (1 - t) * (1 - t) * sy + 2 * (1 - t) * t * my + t * t * ey];
+  // the corner mass: leafy clumps (not one disc) climbing from the bough to the
+  // top edge, darker toward the corner, their lower edges lost
+  let wash = '';
+  const nm = lead ? 9 : 5;
+  for (let i = 0; i < nm; i++) {
+    const t = r.R(0, lead ? 0.7 : 0.8);
+    const [px, py] = B(t);
+    const cy = r.R(-20, py * 0.9);
+    wash += pth(blob(r.r, px + r.R(-30, 30), Math.min(cy, py - 10), r.R(50, 110) * scale, r.R(30, 70) * scale, 0.55, 11, r.R(-0.5, 0.5)), r.pick([cols[0], cols[1], cols[3], tint('#3E4C5E')]), r.R(0.45, 0.7));
+  }
+  let crownLv = '';
+  for (let i = 0; i < (lead ? 160 : 80); i++) {
+    const t = r.R(0, 0.85);
+    const [px, py] = B(t);
+    const y = r.R(-10, py);
+    const L = r.R(16, 30) * scale;
+    crownLv += leaf(px + r.R(-50, 50) * scale, y, L, L * r.R(0.3, 0.45), r.R(0, TAU), r.ch(0.12) ? r.pick(brk) : r.pick(cols), r.R(0.55, 0.9));
+  }
+  // the bough itself: a tapered stroke, warm brown, never black, with a twig or two
+  let wd = '';
+  const N = 14;
+  const w0 = (lead ? 16 : 10) * scale;
+  let up = '';
+  let dn = '';
+  for (let i = 0; i <= N; i++) {
+    const t = i / N;
+    const [px, py] = B(t);
+    const ww = w0 * (1 - t * 0.85) * (0.9 + r.R(0, 0.2));
+    up += (i ? 'L' : 'M') + pt(px, py - ww / 2);
+    dn = 'L' + pt(px, py + ww / 2) + dn;
+  }
+  wd += pth(up + dn + 'Z', tint('#3E3226'), 0.92);
+  wd += spath(`M${pt(...B(0.05))}Q${pt(...B(0.5))} ${pt(...B(0.9))}`, tint('#6A5440'), 1.4 * scale, 0.5, ' stroke-dasharray="40 18 22 30"');
+  for (let k = 0; k < (lead ? 4 : 2); k++) {
+    const t = r.R(0.25, 0.85);
+    const [px, py] = B(t);
+    const tx = px - side * r.R(30, 90) * scale;
+    const ty = py + r.R(30, 90) * scale;
+    wd += spath(`M${pt(px, py)}Q${pt(px - side * 10, py + 30 * scale)} ${pt(tx, ty)}`, tint('#3E3226'), r.R(2, 3.5) * scale, 0.85);
+  }
+  // leaves hanging below the bough
+  let lv = '';
+  let hi = '';
+  const clusters = lead ? 20 : 10;
+  for (let k = 0; k < clusters; k++) {
+    const t = Math.pow(r.r(), 0.8) * 0.98;
+    const [px, py] = B(t);
+    const drop = r.R(10, 70) * scale * (kind === 'willow' ? 1.8 : 1);
+    const size = r.R(38, 64) * scale * (1.15 - t * 0.4);
+    const n = Math.round((kind === 'needle' ? 30 : kind === 'willow' ? 20 : 16) * (1.1 - t * 0.4));
+    for (let i = 0; i < n; i++) {
+      const a = Math.PI / 2 + side * 0.25 + r.R(-1.05, 1.05);
+      const lx = px + r.R(-size * 0.5, size * 0.5);
+      const ly = py + r.R(-size * 0.25, drop);
+      let L = r.R(14, 26) * scale;
+      let wf = r.R(0.3, 0.42);
+      if (kind === 'maple') { L *= 1.1; wf = r.R(0.45, 0.6); }
+      if (kind === 'needle') { L *= 0.8; wf = 0.1; }
+      if (kind === 'willow') { L *= 1.5; wf = 0.16; }
+      const roll = r.r();
+      const col = roll < 0.16 ? r.pick(brk) : r.pick(cols);
+      lv += leaf(lx, ly, L, L * wf, kind === 'willow' ? Math.PI / 2 + r.R(-0.3, 0.3) : a, col, r.R(0.6, 0.92));
+    }
+    // a few warm leaves on the upper side catching the light, and a cool one
+    for (let i = 0; i < 3; i++) {
+      const L = r.R(12, 20) * scale;
+      hi += leaf(px + r.R(-size * 0.4, size * 0.4), py + r.R(-size * 0.3, 0), L, L * 0.38, -Math.PI / 2 + r.R(-1, 1), r.ch(0.78) ? lit : tint('#6E8494'), r.R(0.35, 0.7));
+    }
+  }
+  // two or three loose leaves hanging free below the mass, lost against the sky
+  for (let i = 0; i < 5; i++) {
+    const [px, py] = B(r.R(0.3, 1));
+    const L = r.R(12, 18) * scale;
+    lv += leaf(px + r.R(-40, 40), py + r.R(60, 120) * scale, L, L * 0.36, Math.PI / 2 + r.R(-0.8, 0.8), r.pick(cols), r.R(0.4, 0.7));
+  }
+  const op0 = night ? 0.92 : 0.85;
+  return g(g(wash, `filter="${c.f('wet')}"`) + g(crownLv + wd + lv, `filter="${c.f('fg')}"`) + g(hi, `filter="${c.f('fg')}"`), `opacity="${op0}"`);
 }
 
 /* ------------------------------------------------------------------- roads */
@@ -2901,19 +3034,39 @@ BUILD.home = (c, pl) => {
   ground(c, slope, { d: 0.04, dabs: 650, persp: [470, 900], key: 'slope', strokes: 650, leaves: 160 });
   treeline(c, -20, 420, (x) => slope.at(x) + 4, { d: 0.12, min: 18, max: 30 });
   mist(c, 470, 40);
-  // vegetable garden
+  // vegetable garden: rows that follow the slope in curves, uneven gaps, a few missing plants
   let gd = '';
   const rgd = c.sub('garden');
+  let gy0 = 594;
   for (let row = 0; row < 4; row++) {
-    const y = 596 + row * 16;
-    gd += ell(470, y, 92 + row * 6, 5, c.P(S.snow ? '#E8ECF2' : '#7A5A40', -0.1), 0.9);
-    for (let k = 0; k < 9; k++) gd += ell(392 + k * 19 + rgd.R(-3, 3), y - 4, 6, 4, c.P(S.snow ? '#F2F5F8' : rgd.pick(['#6FA457', '#8FB860', '#5E9A4E']), 0.3), 0.95);
+    const y = gy0;
+    gy0 += rgd.R(13, 20);
+    const x0 = 380 + rgd.R(-10, 14) + row * 4;
+    const x1 = 560 + rgd.R(-16, 10) + row * 10;
+    const bow = rgd.R(4, 9);
+    const yA = (x) => y + Math.sin(((x - x0) / (x1 - x0)) * Math.PI) * -bow + (x - x0) * 0.02;
+    const soil = c.P(S.snow ? '#E8ECF2' : rgd.pick(['#7A5A40', '#6E5240', '#86644A']), -0.1);
+    gd += spath(`M${pt(x0, yA(x0))}Q${pt((x0 + x1) / 2, yA((x0 + x1) / 2) - bow)} ${pt(x1, yA(x1))}`, soil, rgd.R(7, 10), 0.85);
+    for (let x = x0 + rgd.R(2, 10); x < x1 - 4; x += rgd.R(12, 26)) {
+      if (rgd.ch(0.12)) continue;
+      const big = rgd.R(4, 7.5);
+      gd += pth(blob(rgd.r, x, yA(x) - 5, big, big * 0.7, 0.4, 7), c.P(S.snow ? '#F2F5F8' : rgd.pick(['#6FA457', '#8FB860', '#5E9A4E', '#9AAE5A', '#7E8E4E']), rgd.R(0, 0.45)), 0.92);
+      if (rgd.ch(0.3)) gd += leaf(x, yA(x) - 7, big * 1.4, big * 0.4, -Math.PI / 2 + rgd.R(-0.7, 0.7), c.P('#A8C470', 0.5), 0.6);
+    }
   }
-  for (let k = 0; k < 12; k++) gd += line(374 + k * 20, 664, 374 + k * 20, 650, c.P('#8A6446', 0), 1.5);
-  gd += line(372, 656, 600, 656, c.P('#8A6446', 0.2), 1.3);
+  // the garden fence: uneven posts, a lean here and there, one rail sagging
+  let fx0 = 362;
+  const fence = [];
+  while (fx0 < 612) { fence.push([fx0, rgd.R(-0.12, 0.12), rgd.R(11, 19)]); fx0 += rgd.R(14, 30); }
+  for (const [x, lean, hh] of fence) {
+    const yb = 666 + (x - 362) * -0.02 + rgd.R(-1.5, 1.5);
+    gd += spath(`M${pt(x, yb)}L${pt(x + lean * hh, yb - hh)}`, c.P('#8A6446', rgd.R(-0.3, 0.4)), rgd.R(1.6, 2.6), 0.95);
+  }
+  gd += spath(`M362,658Q420,661 470,657T612,654`, c.P('#8A6446', 0.2), 1.3, 0.9);
+  gd += spath(`M362,652Q440,650 520,652L560,649`, c.P('#8A6446', 0.05), 1.1, 0.7, ' stroke-dasharray="70 16 120 30"');
   c.land.push(g(gd, `filter="${c.f('arch')}"`));
   // the cottage
-  const b = block(c, { x: 560, y: 568, w: 300, h: 118, d: 150, side: 1, kind: 'eave', roofH: 92, wall: '#EFE4CF', roof: '#9C95B0', tiles: false });
+  const b = block(c, { x: 560, y: 568, w: 290, h: 118, d: 230, side: 1, kind: 'eave', roofH: 96, wall: '#EFE4CF', roof: '#8C8794', tiles: false });
   {
     // the roof in three tones: lit slate, a shadow wash pooling toward the eave, moss dabs;
     // the ridge sags a little and the eave shadow breaks
@@ -2922,27 +3075,41 @@ BUILD.home = (c, pl) => {
     const A = [560 - 6, b.top + 3];
     const B = [860 + 6, b.top + 3];
     const rq = `<path d="M${f1(A[0])},${f1(A[1])}L${f1(B[0])},${f1(B[1])}L${f1(Cc[0])},${f1(Cc[1])}L${f1(D[0])},${f1(D[1])}Z"/>`;
+    // warm grey slate: broken dry brush courses, a lit ridge, a moss bloom wet in wet
+    // near the eave; nothing ruled, each course wanders and breaks
     let rf = '';
-    for (let i = 0; i < 9; i++) {
-      const u = rr.R(0, 1);
-      const p = lerpP(lerpP(A, D, rr.R(0, 0.55)), lerpP(B, Cc, 0.3), u);
-      rf += pth(blob(rr.r, p[0], p[1], rr.R(30, 70), rr.R(8, 18), 0.4, 8), '#6F6A8A', rr.R(0.25, 0.45));
-    }
-    let moss = '';
-    for (let i = 0; i < 26; i++) {
-      const p = lerpP(lerpP(A, D, rr.R(0, 0.7)), lerpP(B, Cc, rr.R(0, 0.7)), rr.r());
-      moss += ell(p[0], p[1], rr.R(3, 9), rr.R(1.5, 3.5), rr.ch(0.7) ? '#7F8C62' : '#B5AFC6', 0.4, rr.R(-12, 8));
-    }
-    for (let i = 1; i < 6; i++) {
-      const t = i / 6;
+    for (let i = 1; i < 11; i++) {
+      const t = i / 11 + rr.R(-0.02, 0.02);
       const p = lerpP(A, D, t);
       const q = lerpP(B, Cc, t);
-      moss += spath(`M${f1(p[0])},${f1(p[1])}Q${f1((p[0] + q[0]) / 2)},${f1((p[1] + q[1]) / 2 + rr.R(1, 3))} ${f1(q[0])},${f1(q[1])}`, '#6F6A8A', rr.R(0.8, 1.6), rr.R(0.18, 0.32), ' stroke-dasharray="' + rr.RI(30, 70) + ' ' + rr.RI(6, 20) + '"');
+      let u = rr.R(0, 0.12);
+      while (u < 0.96) {
+        const u2 = Math.min(1, u + rr.R(0.08, 0.3));
+        const a1 = lerpP(p, q, u);
+        const a2 = lerpP(p, q, u2);
+        const dark = rr.ch(0.6);
+        rf += spath(`M${pt(a1[0], a1[1] + rr.R(-1, 1))}Q${pt((a1[0] + a2[0]) / 2, (a1[1] + a2[1]) / 2 + rr.R(-1.6, 1.6))} ${pt(a2[0], a2[1] + rr.R(-1, 1))}`, dark ? '#6F6A7E' : '#CFC3B4', rr.R(1.1, 2.4), dark ? 0.4 : 0.35);
+        u = u2 + rr.R(0.02, 0.1);
+      }
     }
-    const ridge = `M${f1(D[0])},${f1(D[1])}C${f1(lerp(D[0], Cc[0], 0.33))},${f1(D[1] + 2.6)} ${f1(lerp(D[0], Cc[0], 0.66))},${f1(D[1] + 2.2)} ${f1(Cc[0])},${f1(Cc[1])}`;
+    // the far half of the slope gets a little more of the sky
+    rf += pth(blob(rr.r, ...lerpP(D, Cc, 0.7), 90, 26, 0.4, 9), '#CFC3B4', 0.18);
+    let moss = '';
+    for (let i = 0; i < 5; i++) {
+      const p = lerpP(lerpP(A, D, rr.R(0, 0.22)), lerpP(B, Cc, rr.R(0, 0.22)), rr.R(0.05, 0.8));
+      moss += pth(blob(rr.r, p[0], p[1], rr.R(16, 40), rr.R(5, 10), 0.5, 9), '#7E9A62', 0.3);
+    }
+    for (let i = 0; i < 22; i++) {
+      const p = lerpP(lerpP(A, D, rr.R(0, 0.5)), lerpP(B, Cc, rr.R(0, 0.5)), rr.r());
+      moss += ell(p[0], p[1], rr.R(2, 6), rr.R(1, 2.6), rr.ch(0.6) ? '#7E9A62' : '#A8A07A', 0.35, rr.R(-12, 8));
+    }
+    const ridge = `M${f1(D[0])},${f1(D[1])}C${f1(lerp(D[0], Cc[0], 0.33))},${f1(D[1] + 2.6)} ${f1(lerp(D[0], Cc[0], 0.66))},${f1(D[1] + 1.6)} ${f1(Cc[0])},${f1(Cc[1] + 0.8)}`;
     let eave = '';
-    for (let x = A[0] + 4; x < B[0] - 10; x += rr.R(18, 46)) eave += spath(`M${f1(x)},${f1(b.top + 6)}l${f1(rr.R(12, 40))},${f1(rr.R(-1, 1))}`, '#5E5A78', rr.R(3, 6), rr.R(0.3, 0.5));
-    c.land.push(g(g(rf, `filter="${c.f('wc')}"`) + g(moss, `filter="${c.f('pig')}"`), `clip-path="${c.clip(rq)}"`) + g(spath(ridge, '#C9C3D8', 3, 0.8) + eave, `filter="${c.f('archP')}"`));
+    for (let x = A[0] + 4; x < B[0] - 10; x += rr.R(18, 46)) eave += spath(`M${f1(x)},${f1(b.top + 6)}l${f1(rr.R(12, 40))},${f1(rr.R(-1, 1.4))}`, '#5E5A70', rr.R(3, 6), rr.R(0.3, 0.5));
+    c.land.push(g(g(rf, `filter="${c.f('pig')}"`) + g(moss, `filter="${c.f('wet')}"`), `clip-path="${c.clip(rq)}"`) + g(spath(ridge, c.time === 'night' ? '#B9C0D8' : '#EDE0CC', 3.4, 0.6, ' stroke-dasharray="60 6 90 4 200"') + eave, `filter="${c.f('archP')}"`));
+    // the gable side in shade: a cool violet glaze, multiplied
+    const gs = [[860, 568], [860 + b.dv[0], 568 + b.dv[1]], [860 + b.dv[0], b.top + b.dv[1]], b.apex, [860, b.top]];
+    c.land.push(g(pg(gs, '#6E6A88', 0.3), `filter="${c.f('wet')}" style="mix-blend-mode:multiply"`));
     // a cool lower wash on the wall and lost edges at its corners
     c.land.push(g(pg(quad(b.F, 0, 0, 1, 0.36), '#B8BCCB', 0.3), `filter="${c.f('wet')}"`));
     loseEdge(c, `M${f1(860 + b.dv[0])},${f1(b.top + b.dv[1] + 8)}L${f1(860 + b.dv[0])},${f1(568 + b.dv[1] - 4)}`, 10, 0.35);
@@ -2980,12 +3147,13 @@ BUILD.home = (c, pl) => {
   const [lx, ly] = b.F(0.86, 0.6);
   c.land.push(line(lx - 2, ly - 6, lx + 6, ly - 6, c.P('#3A3F48', 0), 1.4) + rect(lx + 1, ly - 4, 8, 11, c.P('#3E4A5E', 0)) + rect(lx + 2.4, ly - 2.5, 5.2, 8, c.P('#E8DEC2', 0.2), 0.8));
   addLight(c, lx + 5, ly + 1.5, 2.8, { halo: 46, col: '#FFD27E' });
-  bench(c, 905, 584, 50);
+  bench(c, 1080, 590, 50);
   const [bx, by] = b.F(0.6, 0);
   c.land.push(ell(bx - T.litSide * 6, by + 9, 8, 2, T.shade, 0.35) + circ(bx, by + 3, 6.5, c.P('#F3EFE6', 0.4)) + circ(bx - 1.5, by + 2, 2, c.P('#3A3F48', 0)) + circ(bx + 3, by + 5.5, 1.4, c.P('#3A3F48', 0)) + circ(bx + 2.6, by - 1, 1.3, c.P('#3A3F48', 0)));
   castShadow(c, 560, 860, 570, 100, { op: 0.26 });
   // the big seasonal tree beside the cottage
-  tree(c, 1150, 600, 176, { touches: 70, dapple: true });
+  // it stands close: its crown overlaps the far corner of the cottage a little
+  tree(c, 1060, 612, 182, { touches: 70, dapple: true });
   const rd = road(c, pl.path, { w0: 240, w1: 40, kind: 'dirt' });
   // a small wooden gate at the bottom
   const gy = 800;
@@ -2998,11 +3166,15 @@ BUILD.home = (c, pl) => {
     gt += rect(px - 6, gy - 86, 12, 92, c.P(wood, side === T.litSide ? 0.5 : -0.3), 1, edge(c, 0.8));
     gt += pg([[px - 7, gy - 86], [px + 7, gy - 86], [px, gy - 94]], c.P(wood, 0.3));
     const ex = px + side * 260;
-    gt += line(px, gy - 64, ex, gy - 70, c.P(wood, 0.2), 4);
-    gt += line(px, gy - 30, ex, gy - 36, c.P(wood, 0), 4);
+    gt += spath(`M${pt(px, gy - 64)}Q${pt((px + ex) / 2, gy - 62)} ${pt(ex, gy - 71)}`, c.P(wood, 0.2), 4);
+    gt += spath(`M${pt(px, gy - 30)}Q${pt((px + ex) / 2, gy - 26 + side * 3)} ${pt(ex, gy - 37)}`, c.P(wood, 0), 4);
+    const rgt = c.sub('gatefence' + side);
     for (let k = 1; k <= 9; k++) {
-      const tx = lerp(px, ex, k / 9);
-      gt += line(tx, gy - 76 - (k / 9) * 6, tx, gy + 2 - (k / 9) * 6, c.P(wood, k % 2 ? 0.3 : -0.1), 5);
+      if (k === 6 && side > 0) continue;
+      const tx = lerp(px, ex, (k + rgt.R(-0.3, 0.3)) / 9);
+      const lean = rgt.R(-4, 4);
+      const top0 = gy - 76 - (k / 9) * 6 + rgt.R(-6, 8);
+      gt += spath(`M${pt(tx, gy + 2 - (k / 9) * 6)}L${pt(tx + lean, top0)}`, c.P(wood, rgt.R(-0.25, 0.4)), rgt.R(4, 6.5), 1);
     }
   }
   // the gate leaf stands open
@@ -3167,8 +3339,8 @@ function fort(c) {
   let mer = '';
   for (let i = 0; i < 30; i++) {
     if (i === 9 || i === 21) continue;
-    const hh = r.ch(0.2) ? r.R(7, 10) : 12;
-    const mx = 472 + i * 22 + r.R(-1, 1);
+    const hh = (r.ch(0.2) ? r.R(7, 10) : 12) + r.R(-3, 3);
+    const mx = 472 + i * 22 + r.R(-2, 2);
     mer += pg([[mx + r.R(-0.5, 1), 392 - hh + r.R(-0.8, 0.8)], [mx + 13 + r.R(-1, 0.5), 392 - hh + r.R(-1.2, 0.8)], [mx + 13.4, 393], [mx - 0.4, 393]], c.P(st, i % 3 ? 0.55 : 0.35));
   }
   s += g(cool, `filter="${c.f('wet')}"`) + g(blk, `filter="${c.f('pig')}"`) + mer;
@@ -3181,15 +3353,17 @@ function fort(c) {
   // corner towers
   // the west tower stands full height; the east one is older, a quarter shorter,
   // one merlon fallen out and its foot drowned in ivy
-  for (const [x, dy, wd] of [[470, 0, 92], [1132, 20, 88]]) {
+  for (const [x, dy, wd] of [[478, 40, 78], [1132, 20, 84]]) {
     let t = cylinder(c, x, 498, wd, wd - 6, 334 + dy, st);
     t += cylinder(c, x, 338 + dy, wd + 8, wd + 8, 318 + dy, st);
     for (let i = 0; i < 5; i++) {
-      if (dy && (i === 1 || i === 3)) continue;
-      if (dy && i === 4) { t += pth(blob(c.sub('crumb').r, x - (wd + 8) / 2 + 8 + i * ((wd + 8) / 4.6), 314 + dy, 7, 4, 0.4, 7), c.P(st, -0.1)); continue; }
+      if (x > 800 && (i === 1 || i === 3)) continue;
+      if (x > 800 && i === 4) { t += pth(blob(c.sub('crumb').r, x - (wd + 8) / 2 + 8 + i * ((wd + 8) / 4.6), 314 + dy, 7, 4, 0.4, 7), c.P(st, -0.1)); continue; }
       t += rect(x - (wd + 8) / 2 + 2 + i * ((wd + 8) / 4.6), 306 + dy + (dy && i === 4 ? 3 : 0), 12, 13 - (dy && i === 4 ? 3 : 0), c.P(st, (i < 2) === (T.litSide < 0) ? 0.6 : -0.2), 1, edge(c, 0.6));
     }
-    t += rect(x - 3, 400 + dy * 0.6, 6, 22, c.P('#2E3A3C', 0)) + (dy ? '' : rect(x - 3, 452, 6, 18, c.P('#2E3A3C', 0)));
+    t += rect(x - 3, 400 + dy * 0.6, 6, 22, c.P('#2E3A3C', 0)) + (x > 800 ? '' : rect(x - 2.5, 462, 5, 16, c.P('#2E3A3C', 0)));
+    // the east tower stands farther back: the air comes between
+    if (x > 800) t += g(pth(blob(c.sub('towerhaze').r, x, 400, wd * 0.7, 100, 0.3, 9), '#B9C4D6', 0.4), `filter="${c.f('b4')}"`);
     if (S.snow) t += rect(x - 50, 316 + dy, 100, 3, '#F4F6F9', 0.9);
     c.land.push(g(t, `filter="${c.f('arch')}"`));
   }
@@ -3211,19 +3385,52 @@ function fort(c) {
   }
   // the cloth banner over the gate with three round shields (the weekly gym shields)
   const cloth = '#41607E';
-  let bn = pth('M732,392L868,392L866,432Q800,444 734,432Z', c.lg([[0, c.P(cloth, 0.5)], [1, c.P(cloth, -0.4)]], T.litSide < 0 ? 0 : 1, 0, T.litSide < 0 ? 1 : 0, 0), 1, edge(c, 0.8));
-  bn += spath('M736,428Q800,440 864,428', c.P('#E8C88E', 0.3), 1.6, 0.9);
-  for (const x of [764, 800, 836]) {
-    bn += circ(x, 413, 13, c.P('#D2AE62', 0.4), 1, edge(c, 0.6).replace('stroke-linejoin="round"', ''));
-    bn += circ(x, 413, 9.5, c.P('#A9AEB5', T.litSide < 0 ? 0.4 : 0));
-    bn += circ(x - T.litSide * -3, 410, 3, c.P('#F3EFE6', 0.6), 0.5);
-  }
+  const rb = c.sub('banner');
+  // a painted cloth, hanging a little unevenly, its hem sagging, no gloss
+  let bn = pth('M733,391L868,393L865,433Q836,441 806,438Q770,445 736,432Z', c.P(cloth, T.litSide < 0 ? 0.15 : -0.1), 0.95, edge(c, 0.6));
+  let dab = '';
+  for (let i = 0; i < 40; i++) dab += ell(rb.R(738, 862), rb.R(395, 434), rb.R(3, 10), rb.R(1.5, 4), rb.pick(['#365270', '#4E6E8C', '#3A4A6A', '#5A6E86']), rb.R(0.25, 0.5), rb.R(-20, 20));
+  for (const fx of [770, 806, 842]) dab += spath(`M${fx},${395}Q${fx + rb.R(-3, 3)},415 ${fx + rb.R(-2, 2)},437`, '#2E4460', rb.R(1.5, 2.5), 0.35);
+  bn += g(dab, `filter="${c.f('pig')}"`);
+  bn += spath('M737,429Q772,441 806,435Q838,439 863,430', c.P('#E8C88E', 0.2), 1.4, 0.7, ' stroke-dasharray="26 5 40 7 60"');
+  // three matte shields: gouache discs with a warm rim, one chipped, one tilted
+  const rs2 = c.sub('shields');
+  [[764, 413, 0, false], [801, 415, 8, true], [838, 412, -3, false]].forEach(([x, y, tilt, chip], i) => {
+    let d = '';
+    d += pth(blob(rs2.r, x, y, 12.5, 12, 0.12, 11), c.P('#3E5A7A', i === 1 ? -0.1 : 0.05), 0.9);
+    d += pth(blob(rs2.r, x - T.litSide * -2.5, y - 2.5, 7, 6, 0.3, 8), '#5E7A96', 0.35);
+    d += spath(`M${x - 11.5},${y + 1}A12,12 0 1 1 ${x + 11},${y + 4}`, '#E8C88E', rs2.R(1.6, 2.2), 0.6);
+    d += ell(x, y, 2.6, 2.4, '#E8C88E', 0.5);
+    if (chip) d += pth(blob(rs2.r, x + 9, y + 8, 4.5, 3.5, 0.5, 7), c.P(cloth, 0.1), 0.95) + spath(`M${x + 5},${y + 9}l3,-3l2,2`, '#2A3C52', 0.9, 0.6);
+    bn += g(d, `transform="rotate(${tilt} ${x} ${y})"`);
+  });
   c.land.push(g(bn, `filter="${c.f('arch')}"`));
   // the sandy training yard
   // trodden sand: an uneven yard, scuffed wider where the work happens
   const yard = 'M462,500C560,492 640,498 720,490C850,484 980,494 1090,490C1150,496 1196,522 1188,556C1176,582 1120,590 1052,598C960,612 880,602 790,614C700,620 620,604 540,600C478,596 430,578 428,548C426,524 440,506 462,500Z';
   patch(c, yard, S.snow ? '#EEF1F5' : '#B39C78', { box: [420, 482, 1200, 622], cols: ['#9C8462', '#C9B48E', '#8E7A5E', '#A99070', '#8E8A6A', '#7F8A5A'], n: 420, big: 7, key: 'yard' });
-  c.land.push(g(spath(yard.replace(/Z$/, ''), '#7F8A5A', 14, 0.35), `filter="${c.f('soft')}"`));
+  {
+    const ry = c.sub('yardwash');
+    let yw = '';
+    for (let i = 0; i < 9; i++) yw += pth(blob(ry.r, ry.R(480, 1150), ry.R(510, 600), ry.R(40, 130), ry.R(10, 26), 0.5, 9), ry.ch(0.5) ? '#C9B48E' : '#A8946E', ry.R(0.25, 0.45));
+    let fp = '';
+    for (let i = 0; i < 46; i++) {
+      const t = i / 46;
+      const x = lerp(600, 1010, t) + Math.sin(t * 9) * 30 + ry.R(-14, 14);
+      const y = 576 + Math.cos(t * 7) * 14 + ry.R(-5, 5);
+      fp += ell(x + (i % 2) * 5, y, 2.4, 1.2, '#7E6A50', ry.R(0.25, 0.45), ry.R(-20, 20));
+    }
+    // the sand runs out into the grass: tufts lost over its rim
+    let tuft = '';
+    for (let i = 0; i < 70; i++) {
+      const t = ry.r();
+      const x = lerp(440, 1180, t);
+      const y = (t < 0.5 ? lerp(596, 612, t * 2) : lerp(612, 590, (t - 0.5) * 2)) + ry.R(-10, 10);
+      const hh = ry.R(4, 10);
+      tuft += spath(`M${pt(x, y)}l${f1(ry.R(-2, 2))},${f1(-hh)}`, ry.pick(['#7F8A5A', '#8E9A5E', '#6E7E4E', '#A8A060']), 1.4, 0.6);
+    }
+    c.land.push(g(yw, `filter="${c.f('wet')}"`) + g(fp, `filter="${c.f('pig')}"`) + g(spath(yard.replace(/Z$/, ''), '#7F8A5A', 14, 0.28), `filter="${c.f('soft')}"`) + tuft);
+  }
   // posts and ropes
   const wood = '#7A5A40';
   let pr = '';

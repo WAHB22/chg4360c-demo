@@ -55,12 +55,24 @@ const REGION_NUDGE = {
 const REGION_CROSSES_COAST = { 'The Coast': true };
 const MEMORY_TREE = [-44, -2];
 const WAGON_SPOT = { bobino: [64, -2], town: [-70, 40], market: [-70, -6], fields: [0, 64] };
-const BENCH = [-92, 20]; // where sleeping bots nap, relative to town
+const BENCH = [-104, -16]; // where sleeping bots nap, relative to town
 
 // ------------------------------------------------------------------ helpers
 
 const f = (n) => (Math.round(n * 10) / 10).toString();
 const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+// per glyph tilt so a label reads as lettered by hand, never as set type
+function wobble(text, amp = 2.4) {
+  const r = rng(hash(String(text)) + 7);
+  const out = [];
+  let a = 0;
+  for (let i = 0; i < String(text).length; i++) {
+    a = a * 0.45 + (r() - 0.5) * amp * 1.6;
+    out.push(f(a));
+  }
+  return out.join(' ');
+}
 
 function rng(seed) {
   let a = seed >>> 0;
@@ -1127,7 +1139,6 @@ function buildSea(vb, coast, s, seas) {
       const x = gx * cell + r() * cell * 0.8;
       const y = gy * cell + r() * cell * 0.8;
       if (inPoly(x, y, coast.poly) || distPoly(x, y, coast.poly, true) < 50 || !far(x, y)) continue;
-      if (x > -560 && x < -60 && y > 540 && y < 720) continue; // the title scroll
       const w = (6 + r() * 4) * k;
       d += `M${f(x)},${f(y)}q${f(w / 2)},${f(-w * 0.5)} ${f(w)},0q${f(w / 2)},${f(-w * 0.5)} ${f(w)},0`;
       if (r() < 0.4) d += `M${f(x + w * 0.6)},${f(y + 6 * k)}q${f(w / 2)},${f(-w * 0.45)} ${f(w)},0`;
@@ -1146,13 +1157,11 @@ function buildSea(vb, coast, s, seas) {
   if (wide) {
     for (const [x, y, r, seed] of ISLETS) if (x + r * 1.2 > vb.x && x - r * 1.2 < vb.x + vb.w) isles += isletSVG(x, y, r, seed, seas);
     const tk = Math.max(1, 13.5 / (19 * s));
-    if (vb.x < -520) isles += cartoucheSVG(-310, 630, tk);
     if (vb.x + vb.w > 1420) isles += scaleBarSVG(1180, 1060, tk);
   }
   return (
     `<rect x="${vb.x}" y="${vb.y}" width="${vb.w}" height="${vb.h}" fill="${PAPER}" filter="url(#sm-paper)"/>` +
-    `<circle cx="132" cy="1196" r="38" fill="none" stroke="#8A6236" stroke-opacity="0.13" stroke-width="5" filter="url(#sm-blur6)"/>` +
-    `<circle cx="138" cy="1192" r="36" fill="none" stroke="#8A6236" stroke-opacity="0.14" stroke-width="1.6"/>` +
+    coffeeSVG(972, 640, k) +
     mask + tintMask +
     `<rect x="${vb.x}" y="${vb.y}" width="${vb.w}" height="${vb.h}" fill="${WATER}" fill-opacity="0.16" mask="url(#sm-seaout)"/>` +
     `<g mask="url(#sm-seaout)"><path d="${coast.d}" fill="none" stroke="${WATER}" stroke-opacity="0.42" stroke-width="84" filter="url(#sm-blur6)"/></g>` +
@@ -1160,6 +1169,37 @@ function buildSea(vb, coast, s, seas) {
     `<path d="${d}" fill="none" stroke="${INK_SOFT}" stroke-opacity="0.72" stroke-width="${f(1.35 * k)}" stroke-linecap="round"/>` +
     isles + boats
   );
+}
+
+// a mug was set down here once, east of Bobino Village, and the ring stayed
+function coffeeSVG(x, y, k) {
+  const C = '#8A6236';
+  const r = rng(hash('coffee'));
+  let rim = '';
+  for (let i = 0; i <= 28; i++) {
+    const a = (i / 28) * Math.PI * 2;
+    const rr = 38 + (r() - 0.5) * 3.2 + (i > 6 && i < 11 ? 2.2 : 0);
+    rim += `${i ? 'L' : 'M'}${f(x + Math.cos(a) * rr)},${f(y + Math.sin(a) * rr * 0.96)}`;
+  }
+  return (
+    `<g aria-hidden="true">` +
+    `<circle cx="${x}" cy="${y}" r="36" fill="${C}" fill-opacity="0.07"/>` +
+    `<path d="${rim}Z" fill="none" stroke="${C}" stroke-opacity="0.3" stroke-width="7" filter="url(#sm-blur6)"/>` +
+    `<path d="${rim}Z" fill="none" stroke="${C}" stroke-opacity="0.42" stroke-width="1.7"/>` +
+    `<path d="M${x - 30},${y + 34}A40 39 0 0 1 ${x - 44},${y - 12}" fill="none" stroke="${C}" stroke-opacity="0.32" stroke-width="1.3"/>` +
+    `<circle cx="${x + 46}" cy="${y + 26}" r="2.6" fill="${C}" fill-opacity="0.22"/><circle cx="${x + 53}" cy="${y + 33}" r="1.5" fill="${C}" fill-opacity="0.2"/>` +
+    `<g transform="translate(${x + 4} ${y - 58}) rotate(-6) scale(${f(k)})">` +
+    `<text x="0" y="0" text-anchor="middle" font-family="${FONT}" font-style="italic" font-size="17" fill="${INK_SOFT}" fill-opacity="0.85" rotate="${wobble('best bagels')}">best bagels</text>` +
+    `<path d="M-46,4q-14,2 -26,10m0,0l7,-1m-7,1l2,-7" fill="none" stroke="${INK_SOFT}" stroke-opacity="0.8" stroke-width="1.1" stroke-linecap="round"/>` +
+    `</g></g>`
+  );
+}
+
+// the title scroll, pinned to the frame in the clear sea west of the island
+function cartoucheFrame(cx, cy, scale) {
+  return `<g class="sm-cart" transform="translate(${f(cx)} ${f(cy)}) rotate(-1.6)">` +
+    `<ellipse rx="${f(190 * scale)}" ry="${f(64 * scale)}" fill="${PAPER}" fill-opacity="0.75" filter="url(#sm-blur6)"/>` +
+    cartoucheSVG(0, 0, scale) + `</g>`;
 }
 
 function compassSVG(size) {
@@ -1255,6 +1295,11 @@ export function mountMap(host, { onTravel, onBotTap } = {}) {
     `<g class="sm-wagon" aria-hidden="true" style="display:none">${EXTRAS.wagon()}</g>` +
     `<g class="sm-towns"></g>` +
     `<g class="sm-bots"></g>`;
+  const tint = document.createElement('div');
+  tint.className = 'sm-tint';
+  tint.setAttribute('aria-hidden', 'true');
+  tint.style.cssText = 'position:absolute;inset:0;z-index:3;pointer-events:none;mix-blend-mode:multiply;opacity:0;transition:opacity 2400ms ease-in-out';
+  root.appendChild(tint);
   root.appendChild(svg);
 
   // region names and minor labels
@@ -1262,13 +1307,13 @@ export function mountMap(host, { onTravel, onBotTap } = {}) {
   for (const r of geo.regions) {
     const t = el('text', { class: 'sm-region', x: f(r.x), y: f(r.y), 'text-anchor': 'middle' }, regions);
     r.lines.forEach((line, i) => {
-      const ts = el('tspan', { x: f(r.x), dy: i ? '1.1em' : '0' }, t);
+      const ts = el('tspan', { x: f(r.x), dy: i ? '1.1em' : '0', rotate: wobble(line, 1.8) }, t);
       ts.textContent = line;
     });
   }
   const minors = svg.querySelector('.sm-minors');
-  el('text', { class: 'sm-minor', x: MAP.workshop.x + 6, y: MAP.workshop.y + 26, 'text-anchor': 'middle' }, minors).textContent = SUBS.workshop.name;
-  el('text', { class: 'sm-minor', x: MAP.ruins.x, y: MAP.ruins.y + 26, 'text-anchor': 'middle' }, minors).textContent = SUBS.ruins.name;
+  el('text', { class: 'sm-minor', x: MAP.workshop.x + 6, y: MAP.workshop.y + 26, 'text-anchor': 'middle', rotate: wobble(SUBS.workshop.name) }, minors).textContent = SUBS.workshop.name;
+  el('text', { class: 'sm-minor', x: MAP.ruins.x, y: MAP.ruins.y + 26, 'text-anchor': 'middle', rotate: wobble(SUBS.ruins.name) }, minors).textContent = SUBS.ruins.name;
 
   // towns
   const townsG = svg.querySelector('.sm-towns');
@@ -1282,11 +1327,11 @@ export function mountMap(host, { onTravel, onBotTap } = {}) {
       `<circle class="sm-hit" cx="0" cy="-26" r="46" fill="${PAPER}" fill-opacity="0"/>` +
       `<circle class="sm-halo" cx="0" cy="-30" r="62" fill="url(#sm-halo)"/>` +
       `<g class="sm-ring"><circle class="sm-ring-a" cx="0" cy="-28" r="50" fill="none" stroke="${INK}"/><circle class="sm-ring-b" cx="0" cy="-28" r="50" fill="none" stroke="${GOLD_DEEP}"/><circle class="sm-ring-c" cx="0" cy="-28" r="50" fill="none" stroke="${GOLD}"/>` +
-      [0, 90, 180, 270].map((d) => `<path class="sm-tick" transform="rotate(${d} 0 -28)" d="M0,-84L-3.5,-75L3.5,-75Z" fill="${GOLD_DEEP}" stroke="${INK}" stroke-width="0.9"/>`).join('') +
+      [0, 90, 270].map((d) => `<path class="sm-tick" transform="rotate(${d} 0 -28)" d="M0,-84L-3.5,-75L3.5,-75Z" fill="${GOLD_DEEP}" stroke="${INK}" stroke-width="0.9"/>`).join('') +
       `</g>` +
       `<g class="sm-lift"><g class="sm-press" filter="url(#sm-inkS)">${art}</g></g>` +
       `<g class="sm-lantern" transform="translate(${p.id === 'fields' ? 66 : p.id === 'market' ? 58 : 48} 2) scale(1.3)">${EXTRAS.lantern()}</g>` +
-      `<g class="sm-labelg"><g class="sm-sym" filter="url(#sm-inkS)">${sym}</g><text class="sm-label" x="0" y="30" text-anchor="middle">${esc(p.name)}</text></g>` +
+      `<g class="sm-labelg"><g class="sm-sym" filter="url(#sm-inkS)">${sym}</g><text class="sm-label" x="0" y="30" text-anchor="middle" rotate="${wobble(p.name)}">${esc(p.name)}</text></g>` +
       `<rect class="sm-focus sm-focus-a" fill="none" stroke="${INK}"/><rect class="sm-focus sm-focus-b" fill="none" stroke="${GOLD}"/>`;
     const title = el('title', {}, g);
     title.textContent = `${p.name}, ${p.specialty}`;
@@ -1300,13 +1345,15 @@ export function mountMap(host, { onTravel, onBotTap } = {}) {
     <filter id="sm-burn" x="-5%" y="-5%" width="110%" height="110%"><feTurbulence type="fractalNoise" baseFrequency="0.03" numOctaves="3" seed="4" result="n"/><feDisplacementMap in="SourceGraphic" in2="n" scale="30" xChannelSelector="R" yChannelSelector="G" result="d"/><feGaussianBlur in="d" stdDeviation="9"/></filter>
     <filter id="sm-burn2" x="-5%" y="-5%" width="110%" height="110%"><feTurbulence type="fractalNoise" baseFrequency="0.05" numOctaves="3" seed="19" result="n"/><feDisplacementMap in="SourceGraphic" in2="n" scale="16" xChannelSelector="R" yChannelSelector="G" result="d"/><feGaussianBlur in="d" stdDeviation="2.2"/></filter>
   </defs>
+  <g class="sm-cartg"></g>
   <path class="sm-burn-a" fill="#7A5232" fill-opacity="0.22" fill-rule="evenodd" filter="url(#sm-burn)"/>
   <path class="sm-burn-b" fill="#4B301D" fill-opacity="0.46" fill-rule="evenodd" filter="url(#sm-burn2)"/>
+  <circle class="sm-compbg" fill="${PAPER}" fill-opacity="0.82" filter="url(#sm-blur6)"/>
   <g class="sm-compass" filter="url(#sm-inkS)"></g>`;
   root.appendChild(frame);
 
   M = {
-    host, root, svg, frame, geo, towns, seas, onTravel, onBotTap,
+    host, root, svg, frame, tint, geo, towns, seas, onTravel, onBotTap, per: null,
     s: 1, W: 0, H: 0, vb: null, tx: 0, ty: 0,
     current: null, state: null, drag: null, suppressClick: false, ro: null,
   };
@@ -1411,7 +1458,26 @@ export function mountMap(host, { onTravel, onBotTap } = {}) {
   } else {
     window.addEventListener('resize', layout);
   }
+  applyTint();
   layout();
+}
+
+// the paper takes the hour: a cool wash at night, a warm one at sunset
+const TINTS = { night: ['#2A3550', 0.25], sunset: ['#E8B07A', 0.12], morning: ['#F2D9B0', 0.06] };
+function applyTint() {
+  if (!M || !M.tint) return;
+  let per = 'day';
+  try {
+    per = clockPeriod();
+  } catch (e) { /* keep day */ }
+  if (per === M.per) return;
+  const first = M.per == null;
+  M.per = per;
+  const t = TINTS[per];
+  M.tint.style.transition = first || reducedMotion() ? 'none' : 'opacity 2400ms ease-in-out';
+  if (t) M.tint.style.background = t[0];
+  M.tint.style.opacity = t ? String(t[1]) : '0';
+  M.svg.classList.toggle('sm-pulse', per === 'sunset' || per === 'night');
 }
 
 function unmount() {
@@ -1526,7 +1592,7 @@ function layout() {
       t.setAttribute('stroke-width', f(u(1)));
     });
     const text = g.querySelector('.sm-label');
-    const ty = 14 + fl * 0.86;
+    const ty = 24 + fl * 0.86;
     text.setAttribute('y', f(ty));
     let tw = PLACE[id].name.length * fl * 0.43;
     try {
@@ -1551,8 +1617,25 @@ function layout() {
   }
   const comp = M.frame.querySelector('.sm-compass');
   const cs = Math.min(84, Math.max(64, Math.min(W, H) * 0.16));
-  comp.setAttribute('transform', `translate(${f(W - cs / 2 - 26)} ${f(H - cs / 2 - 24)})`);
+  // on a phone the sheet's bottom bar covers the lower corner, so the rose goes up top
+  const cx = W - cs / 2 - 26;
+  const cy = W < 600 && H > 500 ? cs / 2 + 30 : H - cs / 2 - 24;
+  comp.setAttribute('transform', `translate(${f(cx)} ${f(cy)})`);
   comp.innerHTML = compassSVG(cs);
+  const cbg = M.frame.querySelector('.sm-compbg');
+  cbg.setAttribute('cx', f(cx));
+  cbg.setAttribute('cy', f(cy));
+  cbg.setAttribute('r', f(cs * 0.72));
+  // the title scroll lives in the frame, so the band can never crop it
+  let cart = '';
+  if (vb.w * s <= W + 1) {
+    let minX = Infinity;
+    for (const q of M.geo.coast.poly) minX = Math.min(minX, q[0]);
+    const sea = (minX - vb.x) * s;
+    const k = Math.min(0.92, (sea - 40) / 340);
+    if (k >= 0.72 && H >= 200) cart = cartoucheFrame(sea / 2 - 4, 30 + 56 * k, k);
+  }
+  M.frame.querySelector('.sm-cartg').innerHTML = cart;
   const ring = (inset, rx) => `M0,0H${W}V${H}H0Z M${inset + rx},${inset}H${W - inset - rx}Q${W - inset},${inset} ${W - inset},${inset + rx}V${H - inset - rx}Q${W - inset},${H - inset} ${W - inset - rx},${H - inset}H${inset + rx}Q${inset},${H - inset} ${inset},${H - inset - rx}V${inset + rx}Q${inset},${inset} ${inset + rx},${inset}Z`;
   M.frame.querySelector('.sm-burn-a').setAttribute('d', `M-60,-60H${W + 60}V${H + 60}H-60Z ` + ring(22, 30).split('Z ')[1]);
   M.frame.querySelector('.sm-burn-b').setAttribute('d', `M-60,-60H${W + 60}V${H + 60}H-60Z ` + ring(5, 12).split('Z ')[1]);
@@ -1643,7 +1726,7 @@ function bake() {
           cv.className = 'sm-raster';
           cv.setAttribute('aria-hidden', 'true');
           cv.style.cssText = 'position:absolute;left:0;top:0;display:block;transform-origin:0 0;pointer-events:none';
-          M.root.insertBefore(cv, M.svg);
+          M.root.insertBefore(cv, M.tint || M.svg);
           M.pic = cv;
         }
         cv.width = Math.round(pw * dpr);
@@ -1834,6 +1917,7 @@ export function updateMap(state, { current } = {}) {
     wg.style.display = 'none';
   }
 
+  applyTint();
   renderBots();
   if (M.current && M.current !== prev) {
     const a = anchor(M.current);
