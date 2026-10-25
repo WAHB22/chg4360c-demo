@@ -99,8 +99,8 @@ canvas.sv-cloudstrip{display:block}
 @keyframes svMorph{0%,12%{opacity:0}100%{opacity:.55}}
 @keyframes svShaft{from{opacity:.32;transform:skewX(-2deg)}to{opacity:.72;transform:skewX(1.5deg)}}
 @keyframes svMist{from{transform:translate3d(-3%,0,0);opacity:.7}to{transform:translate3d(3%,-.6%,0);opacity:1}}
-@keyframes svBreathe{from{transform:scale(1)}to{transform:scale(1.012) translate3d(-3px,1px,0)}}
-@keyframes svBreatheF{from{transform:scale(1)}to{transform:scale(1.024) translate3d(5px,-2px,0)}}
+@keyframes svBreathe{from{transform:translate3d(0,0,0)}to{transform:translate3d(-3px,1px,0)}}
+@keyframes svBreatheF{from{transform:translate3d(0,0,0)}to{transform:translate3d(5px,-2px,0)}}
 @keyframes svFlip{0%{transform:rotateX(0) rotateZ(0)}28%{transform:rotateX(70deg) rotateZ(16deg)}52%{transform:rotateX(175deg) rotateZ(-8deg)}79%{transform:rotateX(260deg) rotateZ(11deg)}100%{transform:rotateX(360deg) rotateZ(0)}}
 @keyframes svRain{from{transform:translate3d(0,-40px,0) rotate(12deg)}to{transform:translate3d(calc(var(--svh,900px) * -.21),calc(var(--svh,900px) + 40px),0) rotate(12deg)}}
 @keyframes svFall{from{transform:translate3d(0,-30px,0)}to{transform:translate3d(var(--dx,0px),calc(var(--svh,900px) + 30px),0)}}
@@ -315,7 +315,7 @@ function sceneOpts(extra = {}) {
 // painted layer once (canvas), so nothing on screen blends live while the
 // clouds drift: the browser only moves finished bitmaps.
 const GRADE = {
-  morning: { op: 'soft-light', color: 'rgba(255,214,196,0.28)', haze: 'rgba(246,226,222,0.30)', hop: 'source-over' },
+  morning: { op: 'soft-light', color: 'rgba(255,200,150,0.22)', haze: 'rgba(250,224,196,0.20)', hop: 'source-over' },
   day: { op: null, color: null, haze: 'rgba(214,228,238,0.20)', hop: 'source-over' },
   sunset: { op: 'soft-light', color: 'rgba(255,168,92,0.34)', haze: 'rgba(246,200,150,0.24)', hop: 'source-over' },
   night: { op: 'multiply', color: 'rgba(64,84,138,0.26)', haze: 'rgba(60,84,124,0.20)', hop: 'screen' },
@@ -367,7 +367,7 @@ function rasterize(svg) {
 
 // draws one painted layer into a canvas, then lays the grade, haze and grain
 // only where that layer has paint (masked by its own alpha)
-function bake(cv, img, { grade = true, haze = false, grain = 0, twice = false, flip = false } = {}) {
+function bake(cv, img, { grade = true, haze = false, hole = null, grain = 0, twice = false, flip = false } = {}) {
   const { w, h } = bakeSize();
   const W2 = twice ? w * 2 : w;
   cv.width = W2;
@@ -402,6 +402,25 @@ function bake(cv, img, { grade = true, haze = false, grain = 0, twice = false, f
         c.globalAlpha = 0.22;
         c.fillStyle = G.haze;
         c.fillRect(0, 0, W2, h);
+      }
+      if (hole) {
+        // the subject keeps its own color: the haze is cut away there with a
+        // soft feathered edge, so only what lies behind it goes pale
+        const cx = (hole.x / 100) * W2;
+        const cy = (hole.y / 100) * h;
+        const rx = Math.max(1, (hole.w / 100) * W2 * 0.62);
+        const ry = Math.max(1, (hole.h / 100) * h * 0.62);
+        c.save();
+        c.globalAlpha = 1;
+        c.globalCompositeOperation = 'destination-out';
+        c.translate(cx, cy);
+        c.scale(1, ry / rx);
+        const rg = c.createRadialGradient(0, 0, rx * 0.55, 0, 0, rx);
+        rg.addColorStop(0, 'rgba(0,0,0,1)');
+        rg.addColorStop(1, 'rgba(0,0,0,0)');
+        c.fillStyle = rg;
+        c.fillRect(-rx, -rx, rx * 2, rx * 2);
+        c.restore();
       }
     }]);
   }
@@ -445,7 +464,7 @@ function bakeShafts(cv) {
   const warm = amb.time === 'morning' ? '255,226,176' : '255,240,206';
   if ('filter' in x) x.filter = `blur(${Math.round(w / 70)}px)`;
   const sx = w * (amb.time === 'morning' ? 0.12 : 0.28);
-  const rays = [[0.18, 0.05, 0.13], [0.34, 0.035, 0.1], [0.47, 0.07, 0.08], [0.63, 0.03, 0.06]];
+  const rays = [[0.18, 0.05, 0.065], [0.47, 0.07, 0.045], [0.63, 0.03, 0.03]];
   for (const [at, wid, a] of rays) {
     const gx = sx + w * at;
     const gr = x.createLinearGradient(sx, 0, gx, h * 0.85);
@@ -470,17 +489,17 @@ function bakeMist(cv, seed, dense) {
   cv.height = h;
   const x = cv.getContext('2d');
   if (!x) return;
-  const col = amb.time === 'night' ? '150,170,200' : amb.time === 'sunset' ? '250,220,200' : '236,240,244';
+  const col = amb.time === 'night' ? '150,170,200' : amb.time === 'sunset' ? '250,220,200' : amb.time === 'morning' ? '250,230,208' : '232,238,244';
   if ('filter' in x) x.filter = `blur(${Math.round(w / 55)}px)`;
   let r = seed;
   const rand = () => ((r = (r * 16807) % 2147483647) / 2147483647);
   const n = dense ? 14 : 9;
   for (let i = 0; i < n; i++) {
     const cx = w * (rand() * 1.1 - 0.05);
-    const cy = h * (0.56 + rand() * 0.2);
+    const cy = h * (dense ? 0.56 + rand() * 0.2 : 0.5 + rand() * 0.1);
     const rx = w * (0.12 + rand() * 0.18);
     const ry = h * (0.025 + rand() * 0.04);
-    x.fillStyle = `rgba(${col},${((dense ? 0.26 : 0.1) + rand() * 0.1).toFixed(2)})`;
+    x.fillStyle = `rgba(${col},${((dense ? 0.24 : 0.05) + rand() * (dense ? 0.1 : 0.05)).toFixed(2)})`;
     x.beginPath();
     x.ellipse(cx, cy, rx, ry, (rand() - 0.5) * 0.06, 0, Math.PI * 2);
     x.fill();
@@ -495,8 +514,8 @@ function lightGroups(svg) {
   const at = tagged.indexOf('>') + 1;
   const only = (css) => tagged.slice(0, at) + `<style>${css}</style>` + tagged.slice(at);
   const out = [only('.lw{display:none}')];
-  if (k) for (let q = 0; q < 4; q++) out.push(only(`.lw{display:none}.lw.q${q}{display:inline}`));
-  return out;
+  if (!k) return [];
+  return [0, 1, 2, 3].map((q) => only(`.lw{display:none}.lw.q${q}{display:inline}`));
 }
 
 function buildStage(id) {
@@ -546,13 +565,13 @@ function buildStage(id) {
       bake(ca, im, { twice: true });
       bake(cb, im, { twice: true, flip: true });
     }),
-    rasterize(parts.land).then((im) => im && bake(land, im, { haze: true, grain: 0.12 })),
+    rasterize(parts.land).then((im) => im && bake(land, im, { haze: true, hole: PLACE[id] && PLACE[id].subject, grain: 0.12 })),
     rasterize(parts.front).then((im) => im && bake(fr, im, { grain: 0.08 })),
     ...groups.map((svg, i) => rasterize(svg).then((im) => {
       if (!im) return;
       const c = cv('', lightsEl);
       bake(c, im, { grade: false });
-      if (i > 0) rec.lightCanvases.push(c);
+      rec.lightCanvases[i] = c;
     })),
   ];
   if (sh) bakeShafts(sh);

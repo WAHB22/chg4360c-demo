@@ -831,7 +831,7 @@ function styleSVG() {
 .sm-town .sm-lift{transition:transform 150ms cubic-bezier(.2,.8,.3,1.25)}
 .sm-town:hover .sm-lift,.sm-town:focus-visible .sm-lift{transform:translateY(var(--sm-lift))}
 .sm-halo{opacity:0;transition:opacity 150ms ease-out;pointer-events:none}
-.sm-town:hover .sm-halo,.sm-town:focus-visible .sm-halo{opacity:1}
+.sm-town:hover .sm-halo,.sm-town:focus-visible .sm-halo{opacity:.42}
 .sm-press{transform-box:fill-box;transform-origin:50% 100%}
 .sm-focus{opacity:0;pointer-events:none}
 .sm-town:focus-visible .sm-focus,.sm-bot:focus-visible .sm-focus{opacity:1}
@@ -1123,7 +1123,7 @@ function buildSea(vb, coast, s, seas) {
   for (let gx = x0; gx < x1; gx++) {
     for (let gy = y0; gy < y1; gy++) {
       const r = rng(hash(`${gx}:${gy}:${cell}`));
-      if (r() < 0.3) continue;
+      if (r() < 0.65) continue; // about half as many wave marks as before
       const x = gx * cell + r() * cell * 0.8;
       const y = gy * cell + r() * cell * 0.8;
       if (inPoly(x, y, coast.poly) || distPoly(x, y, coast.poly, true) < 50 || !far(x, y)) continue;
@@ -1252,7 +1252,7 @@ export function mountMap(host, { onTravel, onBotTap } = {}) {
     `<g class="sm-land" aria-hidden="true">${buildStatic(geo, seas)}</g>` +
     `<g class="sm-regions" aria-hidden="true"></g>` +
     `<g class="sm-minors" aria-hidden="true"></g>` +
-    `<g class="sm-wagon" aria-hidden="true" style="display:none" filter="url(#sm-inkS)">${EXTRAS.wagon()}</g>` +
+    `<g class="sm-wagon" aria-hidden="true" style="display:none">${EXTRAS.wagon()}</g>` +
     `<g class="sm-towns"></g>` +
     `<g class="sm-bots"></g>`;
   root.appendChild(svg);
@@ -1285,7 +1285,7 @@ export function mountMap(host, { onTravel, onBotTap } = {}) {
       [0, 90, 180, 270].map((d) => `<path class="sm-tick" transform="rotate(${d} 0 -28)" d="M0,-84L-3.5,-75L3.5,-75Z" fill="${GOLD_DEEP}" stroke="${INK}" stroke-width="0.9"/>`).join('') +
       `</g>` +
       `<g class="sm-lift"><g class="sm-press" filter="url(#sm-inkS)">${art}</g></g>` +
-      `<g class="sm-lantern" transform="translate(${p.id === 'fields' ? 66 : p.id === 'market' ? 58 : 48} 2) scale(1.3)" filter="url(#sm-inkS)">${EXTRAS.lantern()}</g>` +
+      `<g class="sm-lantern" transform="translate(${p.id === 'fields' ? 66 : p.id === 'market' ? 58 : 48} 2) scale(1.3)">${EXTRAS.lantern()}</g>` +
       `<g class="sm-labelg"><g class="sm-sym" filter="url(#sm-inkS)">${sym}</g><text class="sm-label" x="0" y="30" text-anchor="middle">${esc(p.name)}</text></g>` +
       `<rect class="sm-focus sm-focus-a" fill="none" stroke="${INK}"/><rect class="sm-focus sm-focus-b" fill="none" stroke="${GOLD}"/>`;
     const title = el('title', {}, g);
@@ -1300,8 +1300,8 @@ export function mountMap(host, { onTravel, onBotTap } = {}) {
     <filter id="sm-burn" x="-5%" y="-5%" width="110%" height="110%"><feTurbulence type="fractalNoise" baseFrequency="0.03" numOctaves="3" seed="4" result="n"/><feDisplacementMap in="SourceGraphic" in2="n" scale="30" xChannelSelector="R" yChannelSelector="G" result="d"/><feGaussianBlur in="d" stdDeviation="9"/></filter>
     <filter id="sm-burn2" x="-5%" y="-5%" width="110%" height="110%"><feTurbulence type="fractalNoise" baseFrequency="0.05" numOctaves="3" seed="19" result="n"/><feDisplacementMap in="SourceGraphic" in2="n" scale="16" xChannelSelector="R" yChannelSelector="G" result="d"/><feGaussianBlur in="d" stdDeviation="2.2"/></filter>
   </defs>
-  <path class="sm-burn-a" fill="#7A5232" fill-opacity="0.38" fill-rule="evenodd" filter="url(#sm-burn)"/>
-  <path class="sm-burn-b" fill="#4B301D" fill-opacity="0.82" fill-rule="evenodd" filter="url(#sm-burn2)"/>
+  <path class="sm-burn-a" fill="#7A5232" fill-opacity="0.22" fill-rule="evenodd" filter="url(#sm-burn)"/>
+  <path class="sm-burn-b" fill="#4B301D" fill-opacity="0.46" fill-rule="evenodd" filter="url(#sm-burn2)"/>
   <g class="sm-compass" filter="url(#sm-inkS)"></g>`;
   root.appendChild(frame);
 
@@ -1449,6 +1449,10 @@ function setPan(tx, ty, animate) {
   const st = M.svg.style;
   st.transition = animate && !reducedMotion() ? 'transform 720ms cubic-bezier(.22,.8,.24,1)' : 'none';
   st.transform = `translate3d(${f(M.tx)}px, ${f(M.ty)}px, 0)`;
+  if (M.pic) {
+    M.pic.style.transition = st.transition;
+    M.pic.style.transform = st.transform;
+  }
 }
 
 function centerOn(x, y, animate) {
@@ -1501,6 +1505,8 @@ function layout() {
     '--sm-lift': `${f(-u(3))}px`, '--sm-bobY': `${f(-u(2))}px`, '--sm-dw2': `${f(u(2.2))}px`,
   };
   for (const k in vars) svg.style.setProperty(k, vars[k]);
+  M.vars = vars;
+  showLive();
 
   const hitR = Math.max(46, u(23));
   const symScale = Math.max(1, fl / 19);
@@ -1585,8 +1591,26 @@ function swapIn(img, url, hideNodes) {
   if (old) setTimeout(() => { try { URL.revokeObjectURL(old); } catch (e) { /* gone */ } }, 4000);
 }
 
+// Everything static (paper, sea, land, forests, roads, region names, town art
+// and labels) is painted once into one canvas at device pixel ratio; the live
+// SVG on top keeps only small interactive parts (hit areas, rings, lanterns,
+// bot dots, the wagon). Redrawn only on resize, season or gym shield change.
+function staticNodes() {
+  if (!M) return [];
+  const { svg } = M;
+  const out = [svg.querySelector('.sm-sea'), svg.querySelector('.sm-land'), svg.querySelector('.sm-regions'), svg.querySelector('.sm-minors')];
+  for (const id in M.towns) out.push(M.towns[id].querySelector('.sm-lift'), M.towns[id].querySelector('.sm-labelg'));
+  return out.filter(Boolean);
+}
+
+function showLive() {
+  for (const n of staticNodes()) n.style.display = '';
+}
+
+let bakeToken = 0;
 function bake() {
   if (!M || !M.vb || typeof XMLSerializer !== 'function') return;
+  const token = ++bakeToken;
   try {
     const ser = new XMLSerializer();
     const out = (n) => {
@@ -1596,24 +1620,44 @@ function bake() {
       return ser.serializeToString(c);
     };
     const { svg, vb, s, frame, W, H } = M;
-    const sea = svg.querySelector('.sm-sea');
-    const land = svg.querySelector('.sm-land');
-    const base = `<svg xmlns="${NS}" viewBox="${f(vb.x)} ${f(vb.y)} ${f(vb.w)} ${f(vb.h)}" width="${f(vb.w * s)}" height="${f(vb.h * s)}">${out(svg.querySelector('style'))}${out(svg.querySelector('defs'))}${out(sea)}${out(land)}</svg>`;
+    let towns = '';
+    for (const id in M.towns) {
+      const g = M.towns[id];
+      towns += `<g transform="${g.getAttribute('transform')}">${out(g.querySelector('.sm-lift'))}${out(g.querySelector('.sm-labelg'))}</g>`;
+    }
+    const vars = Object.entries(M.vars || {}).map(([k, v]) => `${k}:${v}`).join(';');
+    const pw = vb.w * s;
+    const ph = vb.h * s;
+    const base = `<svg xmlns="${NS}" viewBox="${f(vb.x)} ${f(vb.y)} ${f(vb.w)} ${f(vb.h)}" width="${f(pw)}" height="${f(ph)}" style="${vars}">${out(svg.querySelector('style'))}${out(svg.querySelector('defs'))}${out(svg.querySelector('.sm-sea'))}${out(svg.querySelector('.sm-land'))}${out(svg.querySelector('.sm-regions'))}${out(svg.querySelector('.sm-minors'))}${towns}</svg>`;
     const u1 = svgBlob(base);
     if (u1) {
-      let img = svg.querySelector('.sm-baked');
-      if (!img) {
-        img = el('image', { class: 'sm-baked', 'aria-hidden': 'true', preserveAspectRatio: 'none' });
-        img.style.visibility = 'hidden';
-        svg.insertBefore(img, sea);
-      }
-      img.setAttribute('x', f(vb.x));
-      img.setAttribute('y', f(vb.y));
-      img.setAttribute('width', f(vb.w));
-      img.setAttribute('height', f(vb.h));
-      if (sea) sea.style.display = '';
-      if (land) land.style.display = '';
-      swapIn(img, u1, [sea, land]);
+      const im = new Image();
+      im.decoding = 'async';
+      im.onload = () => {
+        setTimeout(() => { try { URL.revokeObjectURL(u1); } catch (e) { /* gone */ } }, 0);
+        if (!M || token !== bakeToken) return;
+        const dpr = Math.min(2, (typeof devicePixelRatio === 'number' && devicePixelRatio) || 1);
+        let cv = M.pic;
+        if (!cv) {
+          cv = document.createElement('canvas');
+          cv.className = 'sm-raster';
+          cv.setAttribute('aria-hidden', 'true');
+          cv.style.cssText = 'position:absolute;left:0;top:0;display:block;transform-origin:0 0;pointer-events:none';
+          M.root.insertBefore(cv, M.svg);
+          M.pic = cv;
+        }
+        cv.width = Math.round(pw * dpr);
+        cv.height = Math.round(ph * dpr);
+        cv.style.width = `${f(pw)}px`;
+        cv.style.height = `${f(ph)}px`;
+        cv.style.transform = M.svg.style.transform;
+        const x = cv.getContext('2d');
+        if (!x) return;
+        x.drawImage(im, 0, 0, cv.width, cv.height);
+        for (const n of staticNodes()) n.style.display = 'none';
+      };
+      im.onerror = () => { try { URL.revokeObjectURL(u1); } catch (e) { /* gone */ } };
+      im.src = u1;
     }
     const edge = `<svg xmlns="${NS}" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" overflow="visible">${out(svg.querySelector('defs'))}${Array.from(frame.childNodes).map((n) => (n.nodeType === 1 ? ser.serializeToString(n) : '')).join('')}</svg>`;
     const u2 = svgBlob(edge);
@@ -1741,7 +1785,7 @@ function renderBots() {
     const x1 = a[0] + BENCH[0] + dotR + u(4);
     const x0 = a[0] + BENCH[0] - (napping - 1) * (dotR * 2 + u(6)) - dotR - u(4);
     const y = a[1] + BENCH[1] + dotR * 0.7;
-    html = `<g aria-hidden="true" filter="url(#sm-inkS)"><path d="M${f(x0)},${f(y)}L${f(x1)},${f(y)}M${f(x0 + 3)},${f(y)}L${f(x0 + 3)},${f(y + 7)}M${f(x1 - 3)},${f(y)}L${f(x1 - 3)},${f(y + 7)}" stroke="${INK}" stroke-width="2.2" stroke-linecap="round" fill="none"/><path d="M${f(x0)},${f(y - 1)}L${f(x1)},${f(y - 1)}" stroke="#A8774C" stroke-width="1.4"/></g>` + html;
+    html = `<g aria-hidden="true"><path d="M${f(x0)},${f(y)}L${f(x1)},${f(y)}M${f(x0 + 3)},${f(y)}L${f(x0 + 3)},${f(y + 7)}M${f(x1 - 3)},${f(y)}L${f(x1 - 3)},${f(y + 7)}" stroke="${INK}" stroke-width="2.2" stroke-linecap="round" fill="none"/><path d="M${f(x0)},${f(y - 1)}L${f(x1)},${f(y - 1)}" stroke="#A8774C" stroke-width="1.4"/></g>` + html;
   }
   layer.innerHTML = html;
 }
@@ -1771,9 +1815,13 @@ export function updateMap(state, { current } = {}) {
   // the three gym shields fill as the week's sessions are done
   const gym = st.growth && st.growth.gym;
   const done = gym && Number.isFinite(Number(gym.done)) ? Number(gym.done) : 0;
+  let shieldsChanged = false;
   M.svg.querySelectorAll('.sm-shield').forEach((c, i) => {
-    c.setAttribute('fill', i < done ? ['#E2B04B', '#C9A7E8', '#8FC79A'][i] : PAPER_HI);
+    const fill = i < done ? ['#E2B04B', '#C9A7E8', '#8FC79A'][i] : PAPER_HI;
+    if (c.getAttribute('fill') !== fill) shieldsChanged = true;
+    c.setAttribute('fill', fill);
   });
+  if (shieldsChanged) bake();
 
   // the trailer wagon, parked down the street from wherever it is
   const wg = M.svg.querySelector('.sm-wagon');

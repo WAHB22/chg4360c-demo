@@ -106,7 +106,7 @@ const TIME = {
   morning: {
     sky: [[0, '#86A6CE'], [0.2, '#A3B9D8'], [0.36, '#CFC8DA'], [0.47, '#EFD2CC'], [0.56, '#F7DCC6'], [0.7, '#F8E2CC']],
     sun: { x: 0.17, y: 0.45, r: 430, c: '#FFF2DE', o: 0.8, disc: 30 },
-    light: '#FFE4C2', shade: '#8580B4', haze: '#E9D9DE', tone: '#E4D3E2', toneK: 0.1,
+    light: '#FFE2BC', shade: '#7E7CB0', haze: '#ECD8CC', tone: '#EED8C6', toneK: 0.05,
     litK: 0.36, shadeK: 0.5, expo: 1.0, litSide: -1, frontK: 0.28, shadowLen: 1.5,
     cloudLit: '#FFF3E8', cloudShade: '#B5B1D2', cloudHi: '#FFFCF6', lightY: -0.26,
     line: '#4B4E7A', farHaze: '#D9CCDD', water: ['#E9D6D4', '#A3A9C8'], mist: 1, lit: 0, stars: 0,
@@ -884,7 +884,37 @@ function tree(c, x, y, s, o = {}) {
     return;
   }
   const k = crown(c, r, x + lean, cy, s * (o.wide || 1), s * 0.8, o);
-  out.push(shadow + g(k.shade, `filter="${c.f('leaf')}"`) + g(tr + br, `filter="${c.f('arch')}"`) + g(k.mid + k.lit + k.edgeL + k.touch + k.holes, `filter="${c.f('leaf')}"`));
+  const w = canopyWash(c, r, x + lean, cy, s * (o.wide || 1), s * 0.8, d);
+  out.push(shadow + g(w.back, `filter="${c.f('pig')}"`) + g(tr + br, `filter="${c.f('arch')}"`) + g(w.front, `filter="${c.f('pig')}"`) + g(w.lost, `filter="${c.f('b4')}"`) +
+    g(k.lit + k.edgeL + k.touch + k.holes, `filter="${c.f('leaf')}" opacity="0.78"`));
+}
+
+// A canopy painted as 3 to 4 overlapping transparent washes: a cool shadow
+// wash, the body color, a warm lit wash and a touch of green, each blob a
+// different size so the silhouette is never one round ball. One outer
+// wash is blurred so part of the edge is lost in the air.
+function canopyWash(c, r, x, cy, rx, ry, d = 0) {
+  const { T, S } = c;
+  const lx = T.litSide;
+  const pal = S.leaf;
+  const autumn = !!S.fallen;
+  const body = autumn ? '#C9772F' : pal[0];
+  const lite = autumn ? '#E3A24A' : (S.leafLight || pal[pal.length - 1]);
+  const deep = autumn ? '#9C5A2E' : pal[Math.min(1, pal.length - 1)];
+  const green = '#7A8F5A';
+  const B = (cx, cyy, a, b, j, n) => blob(r.r, cx, cyy, a, b, j, n, r.R(-0.4, 0.4));
+  let back = '';
+  back += pth(B(x - lx * rx * 0.08, cy + ry * 0.08, rx * 0.86, ry * 0.74, 0.32, 11), c.P(mix(deep, '#5E3E2A', 0.35), -0.35, d), 0.9);
+  back += pth(B(x - lx * rx * 0.42, cy + ry * 0.22, rx * 0.5, ry * 0.44, 0.38, 9), mix(c.P(deep, -0.5, d), '#4A5A54', 0.3), 0.7);
+  let front = '';
+  front += pth(B(x + lx * rx * 0.1, cy - ry * 0.12, rx * 0.72, ry * 0.58, 0.36, 10), c.P(body, 0.1, d), 0.62);
+  front += pth(B(x - lx * rx * 0.3, cy - ry * 0.02, rx * 0.46, ry * 0.42, 0.4, 9), c.P(mix(body, deep, 0.4), -0.15, d), 0.5);
+  front += pth(B(x + lx * rx * 0.32, cy - ry * 0.36, rx * 0.44, ry * 0.32, 0.42, 9), c.P(lite, 0.7, d), 0.6);
+  front += pth(B(x + lx * rx * 0.05 + r.R(-rx * 0.2, rx * 0.2), cy + ry * 0.28, rx * 0.3, ry * 0.2, 0.45, 8), c.P(green, -0.1, d), autumn ? 0.3 : 0.18);
+  // cool sky reflected into the shadow side
+  front += pth(B(x - lx * rx * 0.5, cy + ry * 0.1, rx * 0.34, ry * 0.36, 0.4, 8), mix(T.shade, '#9CA8D0', 0.4), 0.16);
+  const lost = pth(B(x + lx * rx * 0.2, cy - ry * 0.3, rx * 0.95, ry * 0.7, 0.3, 10), c.P(lite, 0.6, Math.max(d, 0.35)), 0.18);
+  return { back, front, lost };
 }
 
 function bush(c, x, y, s, o = {}) {
@@ -1681,6 +1711,28 @@ function dapple(c, box, o = {}) {
   c.land.push(g(s, `filter="${c.f('b4')}" style="mix-blend-mode:multiply"`) + g(l, `filter="${c.f('b2')}"`));
 }
 
+// Dark soft foliage close to the lens: a few deep blue green and olive
+// washes, the edge feathered, a handful of warm leaves catching the light.
+function nearFoliage(c, x, y, rx, ry) {
+  const { T } = c;
+  const r = c.sub('near' + x);
+  const night = c.time === 'night';
+  const cols = ['#2F4A44', '#3A5240', '#4A5E3A', '#34483F'].map((q) => (night ? mix(q, '#0B1622', 0.5) : q));
+  let s = '';
+  for (let i = 0; i < 7; i++) {
+    const cx = x + r.R(-rx * 0.45, rx * 0.25);
+    const cy = y + r.R(-ry * 0.25, ry * 0.25);
+    s += pth(blob(r.r, cx, cy, r.R(rx * 0.4, rx * 0.7), r.R(ry * 0.4, ry * 0.7), 0.45, 10, r.R(-0.6, 0.6)), r.pick(cols), r.R(0.55, 0.8));
+  }
+  let lv = '';
+  for (let i = 0; i < 26; i++) {
+    const a = r.R(-2.6, -0.6);
+    const L = r.R(14, 28);
+    lv += leaf(x + r.R(-rx * 0.9, rx * 0.2), y - r.R(ry * 0.3, ry * 0.9), L, L * 0.36, a, r.ch(0.25) ? mix(T.light, '#C98A3A', 0.5) : r.pick(cols), r.R(0.6, 0.9));
+  }
+  c.front.push(g(g(s, `filter="${c.f('soft')}"`) + g(lv, `filter="${c.f('fg')}"`), 'opacity="0.9"'));
+}
+
 /* ---------------------------------------------------------------- places */
 
 const BUILD = {};
@@ -1720,9 +1772,23 @@ BUILD.campus = (c, pl) => {
     windowsGrid(c, b.F, 2, 1, { by0: 0.25, by1: 0.8, fill: 0.45, glass: c.P('#5C6A80', -0.1, 0.18) });
     c.land.push(circ(x + w / 2, b.top - w * 0.16, w * 0.07, c.P('#E8C88E', 0.5, 0.15)) + circ(x + w / 2, b.top - w * 0.16, w * 0.04, c.P('#B89A62', 0, 0.15)));
   }
+  // the body goes down opaque first so nothing behind ever shows through
+  c.land.push(g(pth('M468,548L468,366L612,366L800,296L718,296L718,288L722,288A78,74 0 0 1 878,288L882,288L882,296L800,296L988,366L1132,366L1132,548Z', c.P('#E6D3AE', 0)), `filter="${c.f('archP')}"`));
   tabaret(c);
   tabaretGlaze(c);
-  const rd = road(c, pl.path, { w0: 560, w1: 330, kind: 'stone', col: S.snow ? '#E6EAF0' : '#D9CDB6', pow: 1.05 });
+  const rd = road(c, pl.path, { w0: 392, w1: 232, kind: 'stone', col: S.snow ? '#E6EAF0' : '#D9C9A8', pow: 1.1 });
+  // warm stone broken with cooler and greyer dabs, larger toward the viewer
+  {
+    const rw = c.sub('walkdabs');
+    let wd = '';
+    for (let i = 0; i < 260; i++) {
+      const y = rw.R(566, 900);
+      const k = (y - 560) / 340;
+      const x = rd.at(y) + rw.R(-0.46, 0.46) * rd.wAt(y);
+      wd += ell(x, y, rw.R(4, 14) * (0.4 + k), rw.R(1.5, 4) * (0.4 + k), c.P(rw.pick(['#C7B79A', '#C7B79A', '#B7AFC4', '#E6D8B8']), 0), rw.R(0.18, 0.42), rw.R(-8, 8));
+    }
+    c.land.push(g(wd, `filter="${c.f('pig')}"`));
+  }
   stairs(c);
   // shade of the big elm out of frame falls across the walk, broken by light
   dapple(c, [T.litSide < 0 ? 760 : 380, 600, T.litSide < 0 ? 1320 : 940, 900], { n: 34, key: 'walk' });
@@ -1754,6 +1820,7 @@ BUILD.campus = (c, pl) => {
   warmLight(c);
   vignette(c, 0.32);
   frame(c, { tr: 0.7, tl: 1, bl: 0.9, br: 0.8 });
+  nearFoliage(c, 1590, 910, 300, 240);
 };
 
 function tabaret(c) {
@@ -1872,9 +1939,35 @@ function tabaret(c) {
 function tabaretGlaze(c) {
   const { T } = c;
   const shape = '<path d="M468,548L468,366L612,366L800,296L718,296L718,288L722,288A78,74 0 0 1 878,288L882,288L882,296L800,296L988,366L1132,366L1132,548Z"/>';
-  glaze(c, shape, [460, 160, 1140, 556], { key: 'tab', cols: ['#F2D27E', '#E9AE98', '#A2B2DA', '#BFCB8E', '#F6E6C2', '#C79A74'], dark: '#6A5444' });
+  const cp = c.clip(shape);
+  const k = { morning: 1, day: 1, sunset: 0.55, night: 0.35 }[c.time] || 1;
+  const litL = T.litSide < 0;
+  let s = '';
+  // lit side warm glaze, shadow side cool violet glaze, the foot picks up ground
+  s += rect(460, 160, 680, 400, c.lg([[0, '#F2DDB0', 0.25 * k], [0.45, '#F2DDB0', 0.08 * k], [0.6, '#8E86A8', 0], [1, '#8E86A8', 0.22 * k]], litL ? 0 : 1, 0, litL ? 1 : 0, 0), 1, ' style="mix-blend-mode:multiply"');
+  s += rect(460, 160, 680, 400, c.lg([[0, '#6E6A5A', 0], [0.72, '#6E6A5A', 0], [1, '#6E6A5A', 0.18 * k]]), 1, ' style="mix-blend-mode:multiply"');
+  s += rect(460, 160, 680, 400, '#FFF', 1, ` filter="${c.f('bloomL')}" opacity="${f2(0.16 * k)}"`);
+  s += rect(460, 160, 680, 400, '#FFF', 1, ` filter="${c.f('bloomS')}" opacity="${f2(0.22 * k)}" style="mix-blend-mode:multiply"`);
+  // broken color dabs and a little dry brush on the wings only, not the colonnade
+  const r = c.sub('tabdabs');
+  let d = '';
+  for (let i = 0; i < 160; i++) {
+    const x = r.ch(0.5) ? r.R(470, 640) : r.R(960, 1130);
+    const y = r.R(372, 545);
+    d += ell(x, y, r.R(4, 12), r.R(2, 5), r.pick(['#F2D27E', '#E9AE98', '#A2B2DA', '#BFCB8E', '#C79A74']), r.R(0.1, 0.24) * k, r.R(-20, 20));
+  }
+  s += g(d, `filter="${c.f('pig')}"`);
+  let db = '';
+  for (let i = 0; i < 26; i++) {
+    const left = r.ch(0.5);
+    const xa = left ? r.R(470, 560) : r.R(960, 1060);
+    const y = r.R(380, 540);
+    const len = r.R(26, 70);
+    db += spath(`M${f1(xa)},${f1(y)}q${f1(len / 2)},${f1(r.R(-1.5, 1.5))} ${f1(len)},${f1(r.R(-1, 1))}`, (left === litL) ? '#FFF2D8' : '#7A7090', r.R(1.2, 3), r.R(0.2, 0.4) * k);
+  }
+  s += g(db, `filter="${c.f('dry')}"`);
+  c.land.push(g(s, `clip-path="${cp}"`));
   // weather stains run down from the cornice; a little green from the copper
-  const r = c.sub('stains');
   let st = '';
   for (let i = 0; i < 26; i++) {
     const x = r.R(470, 1130);
@@ -1883,11 +1976,10 @@ function tabaretGlaze(c) {
     st += spath(`M${f1(x)},${f1(y)}q${f1(r.R(-2, 2))},${f1(r.R(20, 40))} ${f1(r.R(-3, 3))},${f1(r.R(40, 110))}`, r.pick(['#8A7A62', '#7E9A8A', '#9A8A70']), r.R(2, 6), r.R(0.06, 0.14));
   }
   c.land.push(g(st, `filter="${c.f('soft')}"`));
-  // lost and found: the shadow side of the dome and the far wing melt into the air
+  // lost and found: only a 40 px feathered strip on the far wing edge melts into the air
   const far = T.litSide < 0 ? 1 : -1;
-  loseEdge(c, far > 0 ? 'M878,288A78,74 0 0 0 840,224' : 'M722,288A78,74 0 0 1 760,224', 12, 0.45);
-  loseEdge(c, far > 0 ? 'M1132,366L1132,470' : 'M468,366L468,470', 14, 0.4);
-  loseEdge(c, far > 0 ? 'M1000,364L1132,366' : 'M468,366L600,364', 8, 0.35);
+  const ex = far > 0 ? 1132 : 468;
+  c.land.push(g(rect(ex - (far > 0 ? 40 : 0), 362, 40, 190, c.lg([[0, T.haze, far > 0 ? 0 : 0.45], [1, T.haze, far > 0 ? 0.45 : 0]], 0, 0, 1, 0)), `filter="${c.f('b4')}"`));
 }
 
 function stairs(c) {
@@ -2677,9 +2769,12 @@ BUILD.market = (c, pl) => {
   village(c, -10, 380, (x) => back.at(x) + 22, { d: 0.24, min: 12, max: 18 });
   village(c, 1220, 1610, (x) => back.at(x) + 22, { d: 0.24, min: 12, max: 18 });
   treeline(c, 380, 1220, (x) => back.at(x) + 10, { d: 0.3, min: 16, max: 26 });
+  // the tree line sinks into the blue air
+  c.land.push(g(rect(-20, 400, W + 40, 70, c.lg([[0, '#9FB3C4', 0], [0.5, '#9FB3C4', 0.6], [1, '#9FB3C4', 0.15]])), `filter="${c.f('b10')}"`));
   const sq = profile(-20, W + 20, 10, (x) => 486 + fbm(n, x / 220 + 3) * 8);
   ground(c, sq, { d: 0.03, dabs: 560, persp: [486, 900], key: 'sq', strokes: 500, leaves: 100 });
-  // the stone square
+  // the stone square, under the hall that stands right of center
+  const p0 = c.land.length;
   const plaza = 'M372,572L1228,572C1290,600 1340,640 1360,690C1100,712 500,712 240,690C260,640 310,600 372,572Z';
   patch(c, plaza, S.snow ? '#E6EAF0' : '#C9BB9E', { box: [240, 566, 1360, 714], cols: ['#B5A78C', '#DCD1BA', '#A89A7E', '#C8BB9F'], n: 620, big: 8, key: 'square' });
   let cj = '';
@@ -2688,7 +2783,32 @@ BUILD.market = (c, pl) => {
     cj += line(lerp(372, 250, k), y, lerp(1228, 1350, k), y, c.P('#8E8068', -0.3), lerp(0.4, 1, k), 0.28);
   }
   c.land.push(g(cj, `filter="${c.f('arch')}"`));
+  // packed dirt between the cobbles: a warm wash broken with grey and blue dabs
+  {
+    const rd = c.sub('dirt');
+    let dw = '';
+    for (let i = 0; i < 90; i++) {
+      const y = rd.R(578, 706);
+      const k = (y - 572) / 130;
+      const x = rd.R(lerp(372, 250, k), lerp(1228, 1350, k));
+      dw += ell(x, y, rd.R(10, 40) * (0.5 + k), rd.R(2, 6) * (0.5 + k), rd.pick(['#CDB894', '#CDB894', '#A99A86', '#9FA7B8']), rd.R(0.16, 0.36), rd.R(-6, 6));
+    }
+    c.land.push(g(dw, `filter="${c.f('pig')}"`));
+  }
+  const sqr = c.land.splice(p0).join('');
+  c.land.push(g(sqr, 'transform="translate(80 0)"'));
+  // the hall stands off center and to the right, so the square opens on the left
+  const n0 = c.land.length;
+  c.hallDX = 120;
   marketHall(c);
+  const hall = c.land.splice(n0).join('');
+  c.land.push(g(hall, 'transform="translate(120 0)"'));
+  c.land.push(g(rect(500, 572, 900, 26, c.lg([[0, '#5A4A60', 0.3], [1, '#5A4A60', 0]])), `filter="${c.f('b4')}"`));
+  // a loose cluster of shoppers, crates and baskets, never in a row
+  const rf = c.sub('folk');
+  const folk = [[612, 606, 30, '#6A7E9A'], [640, 612, 27, '#B5654A'], [884, 592, 24, '#7E8A5A'], [1172, 626, 31, '#8C6A86'], [1196, 620, 22, '#C9A15A'], [356, 646, 34, '#4E6A78']];
+  for (const [x, y, h, col] of folk) figure(c, x, y, h, col, rf);
+  for (const [x, y, w] of [[676, 616, 26], [700, 622, 20], [1236, 640, 30], [1140, 640, 18]]) crate(c, x, y, w, rf);
   road(c, pl.path, { w0: 260, w1: 80, kind: 'cobble', col: S.snow ? '#E6EAF0' : '#D3C4A6', edges: false, dapple: true });
   handCart(c, 520, 660);
   for (const [x, y] of [[1050, 640], [1090, 652], [430, 622]]) {
@@ -2699,6 +2819,7 @@ BUILD.market = (c, pl) => {
   warmLight(c);
   vignette(c, 0.3);
   frame(c, { tl: 1, tr: 1, bl: 0.8, br: 0.8 });
+  nearFoliage(c, 10, 910, 260, 200);
 };
 
 function marketHall(c) {
@@ -2722,6 +2843,12 @@ function marketHall(c) {
       continue;
     }
     const col = awn[i % awn.length];
+    const wf = [1.12, 0.8, 1, 1, 1, 0.92, 1.18, 0.86][i];
+    const sag = [7, 0, 11, 0, 0, 0, 9, 2][i];
+    const mx = (x0 + x1) / 2;
+    const ax0 = mx - ((x1 - x0) / 2) * wf;
+    const ax1 = mx + ((x1 - x0) / 2) * wf;
+    const ay = 470 + (i % 3) * 3;
     let a = '';
     // counter
     a += rect(x0 + 2, 528, x1 - x0 - 4, 26, c.P(wood, 0.25), 1, edge(c, 0.6));
@@ -2736,14 +2863,30 @@ function marketHall(c) {
     }
     // awning
     const stripes = 6;
+    const hem = (t) => 498 + (i % 2) * 4 + sag * Math.sin(Math.PI * t);
     for (let k = 0; k < stripes; k++) {
-      const u0 = x0 + ((x1 - x0) * k) / stripes;
-      const u1 = x0 + ((x1 - x0) * (k + 1)) / stripes;
-      a += pg([[u0, 470], [u1, 470], [u1 + (u1 - 800) * 0.02, 498], [u0 + (u0 - 800) * 0.02, 498]], k % 2 ? c.P('#EFE6D2', 0.5) : c.P(col, 0.35));
+      const t0 = k / stripes;
+      const t1 = (k + 1) / stripes;
+      const u0 = lerp(ax0, ax1, t0);
+      const u1 = lerp(ax0, ax1, t1);
+      a += pg([[u0, ay], [u1, ay], [u1 + (u1 - 800) * 0.02, hem(t1)], [u0 + (u0 - 800) * 0.02, hem(t0)]], k % 2 ? c.P('#EFE6D2', 0.4) : c.P(col, 0.25), 0.92);
     }
-    for (let k = 0; k < 7; k++) a += circ(x0 + ((x1 - x0) * (k + 0.5)) / 7, 498, (x1 - x0) / 15, k % 2 ? c.P('#EFE6D2', 0.3) : c.P(col, 0.15));
-    a += pg([[x0, 498], [x1, 498], [x1, 506], [x0, 506]], c.P(col, -0.7), 0.25);
+    const nsc = Math.round(5 + wf * 3);
+    for (let k = 0; k < nsc; k++) {
+      const t = (k + 0.5) / nsc;
+      a += circ(lerp(ax0, ax1, t), hem(t), (ax1 - ax0) / (nsc * 2.1), k % 2 ? c.P('#EFE6D2', 0.2) : c.P(col, 0.05), 0.92);
+    }
+    // the cloth shadow on the counter below
+    a += pth(`M${f1(ax0)},${f1(hem(0) + 6)}Q${f1(mx)},${f1(hem(0.5) + 16)} ${f1(ax1)},${f1(hem(1) + 6)}L${f1(ax1)},${f1(hem(1) + 20)}Q${f1(mx)},${f1(hem(0.5) + 30)} ${f1(ax0)},${f1(hem(0) + 20)}Z`, '#5A4A60', 0.22);
     c.land.push(g(a, `filter="${c.f('arch')}"`));
+    if (sag) {
+      let db = '';
+      for (let k = 0; k < 6; k++) {
+        const t0 = rr.R(0, 0.6);
+        db += spath(`M${f1(lerp(ax0, ax1, t0))},${f1(ay + rr.R(4, 22))}l${f1(rr.R(20, 50))},${f1(rr.R(-1, 3))}`, rr.ch(0.5) ? '#FFF4DC' : c.P(col, -0.6), rr.R(1.2, 2.6), rr.R(0.25, 0.5));
+      }
+      c.land.push(g(db, `filter="${c.f('dry')}"`));
+    }
   }
   // bread and grain at the open middle bay
   let mid = '';
@@ -2774,8 +2917,8 @@ function marketHall(c) {
   rf += rect(770, 350, 60, 20, c.P('#D8C9AE', T.frontK), 1, edge(c, 0.6)) + pg([[762, 352], [838, 352], [800, 336]], c.P(roof, 0.4), 1, edge(c, 0.6));
   if (S.snow) rf += pg([[380, 452], [1220, 452], [1040, 372], [560, 372]], '#F4F6F9', 0.88);
   c.land.push(g(rf, `filter="${c.f('arch')}"`));
-  // shadow under the eave
-  c.land.push(g(rect(392, 468, 816, 24, c.P('#2E2420', -0.5), 0.45), `filter="${c.f('b4')}"`));
+  // warm violet shade under the eave, deepening toward the back of the hall
+  c.land.push(g(rect(392, 466, 816, 30, '#5A4A60', 0.35) + rect(392, 492, 816, 76, c.lg([[0, '#5A4A60', 0.22], [1, '#5A4A60', 0]]), 1), `filter="${c.f('b4')}"`));
   // the big brass scale in the open bay
   const brass = '#D4A84E';
   let sc = ell(800 - T.litSide * 16, 578, 30, 4, T.shade, 0.35);
@@ -2792,9 +2935,35 @@ function marketHall(c) {
   if (c.time === 'sunset' || c.time === 'night') {
     for (const x of [494, 698, 902, 1106]) {
       c.land.push(line(x, 468, x, 478, c.P('#3A3F48', 0), 1));
-      addLight(c, x, 482, 4, { halo: 46, col: '#FFD27E' });
+      addLight(c, x + (c.hallDX || 0), 482, 4, { halo: 46, col: '#FFD27E' });
     }
   }
+}
+
+// A small person in a big world: a few wet strokes, light on one shoulder.
+function figure(c, x, y, h, col, r) {
+  const { T } = c;
+  const lx = T.litSide;
+  const skin = c.P(r.pick(['#E2B48E', '#C68E64', '#9A6A4A']), 0.2);
+  const cloth = c.P(col, 0);
+  const lean = r.R(-0.08, 0.08) * h;
+  let s = ell(x - lx * h * 0.3, y + 1, h * 0.36, h * 0.07, '#5A4A60', 0.3);
+  s += spath(`M${f1(x - h * 0.06)},${f1(y)}l${f1(r.R(-2, 1))},${f1(-h * 0.36)}M${f1(x + h * 0.06)},${f1(y)}l${f1(r.R(-1, 2))},${f1(-h * 0.36)}`, c.P('#3E3A48', -0.2), h * 0.08, 0.9);
+  s += pth(`M${f1(x - h * 0.17)},${f1(y - h * 0.32)}Q${f1(x - h * 0.2 + lean)},${f1(y - h * 0.7)} ${f1(x - h * 0.08 + lean)},${f1(y - h * 0.8)}L${f1(x + h * 0.1 + lean)},${f1(y - h * 0.8)}Q${f1(x + h * 0.2 + lean)},${f1(y - h * 0.62)} ${f1(x + h * 0.16)},${f1(y - h * 0.3)}Z`, cloth);
+  s += pth(`M${f1(x + lx * h * 0.02 + lean)},${f1(y - h * 0.78)}Q${f1(x + lx * h * 0.18 + lean)},${f1(y - h * 0.6)} ${f1(x + lx * h * 0.14)},${f1(y - h * 0.34)}L${f1(x + lx * h * 0.06)},${f1(y - h * 0.36)}Z`, mix(cloth, T.light, 0.45), 0.7);
+  s += circ(x + lean * 1.1, y - h * 0.9, h * 0.1, skin);
+  if (r.ch(0.5)) s += ell(x + lx * h * 0.24, y - h * 0.4, h * 0.12, h * 0.08, c.P('#C49A5A', 0.2));
+  c.land.push(g(s, `filter="${c.f('arch')}"`));
+}
+
+function crate(c, x, y, w, r) {
+  const { T } = c;
+  const wood = c.P('#A8845A', 0.2);
+  let s = ell(x - T.litSide * w * 0.4, y + 1, w * 0.7, w * 0.12, '#5A4A60', 0.3);
+  s += pg([[x - w / 2, y], [x + w / 2, y + r.R(-1, 1)], [x + w / 2, y - w * 0.5], [x - w / 2, y - w * 0.52]], wood, 1, edge(c, 0.5));
+  s += line(x - w / 2, y - w * 0.26, x + w / 2, y - w * 0.25, c.P('#6A4A30', -0.2), 1, 0.6);
+  for (let j = 0; j < 4; j++) s += circ(x - w * 0.36 + j * w * 0.24 + r.R(-1, 1), y - w * 0.55, w * 0.12, c.P(r.pick(['#E08A3A', '#E8C35A', '#8FB860', '#B5503A']), 0.3));
+  c.land.push(g(s, `filter="${c.f('arch')}"`));
 }
 
 function handCart(c, x, y) {
