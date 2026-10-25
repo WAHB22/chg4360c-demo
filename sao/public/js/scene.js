@@ -1210,6 +1210,24 @@ function pine(c, x, y, h, o = {}) {
 function treeline(c, x0, x1, yAt, o = {}) {
   const r = c.sub('tl' + x0 + ':' + (o.key || ''));
   let x = x0;
+  if (o.groups) {
+    // clumps of three to five at mixed scale with open meadow between, the
+    // farther clumps paler, sinking into the haze
+    while (x < x1) {
+      const n = r.RI(3, 5);
+      const far = r.ch(0.4);
+      const d = far ? (o.d || 0.3) + 0.25 : o.d;
+      for (let i = 0; i < n && x < x1; i++) {
+        const sc = r.R(0.6, 1.3) * (far ? 0.75 : 1);
+        const s0 = r.R(o.min || 16, o.max || 34) * sc;
+        if (r.ch(o.pines || 0)) pine(c, x, yAt(x) + 4, s0 * 2.2, { d, col: far ? '#9FB0B8' : undefined });
+        else bush(c, x, yAt(x) + s0 * 0.3, s0, { d, flat: o.flat });
+        x += s0 * r.R(0.5, 0.9);
+      }
+      x += r.R(60, 220);
+    }
+    return;
+  }
   while (x < x1) {
     const s = r.R(o.min || 16, o.max || 34);
     if (o.pines && r.ch(o.pines)) pine(c, x, yAt(x) + 4, s * 2.2, { d: o.d });
@@ -1853,14 +1871,15 @@ function castShadow(c, x0, x1, y, h, o = {}) {
 
 function lampPost(c, x, y, h, o = {}) {
   const col = o.col || '#3E4656';
-  const pole = c.P(col, -0.1);
-  const lit = c.P(col, 0.7);
+  // red posts are painted, not lacquered: a deep lit red, a darker shade red
+  const pole = o.red ? c.P('#5E2620', 0) : c.P(col, -0.1);
+  const lit = o.red ? c.P('#9C3B2E', 0.1) : c.P(col, 0.7);
   const w = Math.max(1.3, h * 0.024);
   let s = '';
   s += ell(x - c.T.litSide * h * 0.3 * c.T.shadowLen, y + 1, w * 3 + h * 0.2 * c.T.shadowLen, w * 1.2, c.T.shade, 0.3);
-  s += pg([[x - w * 2, y], [x + w * 2, y], [x + w * 1.2, y - h * 0.12], [x - w * 1.2, y - h * 0.12]], pole);
   s += rect(x - w / 2, y - h, w, h, pole);
-  s += rect(x + (c.T.litSide < 0 ? -w / 2 : 0), y - h, w / 2, h, lit, 0.5);
+  s += rect(x + (c.T.litSide < 0 ? -w / 2 : 0), y - h, w / 2, h, lit, o.red ? 0.9 : 0.5);
+  s += pg([[x - w * 2, y], [x + w * 2, y], [x + w * 1.2, y - h * 0.12], [x - w * 1.2, y - h * 0.12]], o.red ? c.P('#33302F', 0) : pole);
   // lantern head
   const hy = y - h;
   const lw = w * 2.4;
@@ -1868,7 +1887,7 @@ function lampPost(c, x, y, h, o = {}) {
   s += pg([[x - lw * 0.5, hy - lw * 0.35], [x + lw * 0.5, hy - lw * 0.35], [x + lw * 0.75, hy - lw * 1.75], [x - lw * 0.75, hy - lw * 1.75]], c.P('#E8DEC2', 0.2), 0.8);
   s += pg([[x - lw * 1.2, hy - lw * 1.9], [x + lw * 1.2, hy - lw * 1.9], [x, hy - lw * 2.8]], pole);
   s += circ(x, hy - lw * 2.9, w * 0.8, pole);
-  (o.to || c.land).push(g(s, `filter="${c.f('arch')}"`));
+  (o.to || c.land).push(g(s, `filter="${c.f(o.red ? 'wc' : 'arch')}"`));
   addLight(c, x, hy - lw * 1.05, lw * 0.6, { halo: h * 0.42 + 10, shape: pg([[x - lw * 0.5, hy - lw * 0.35], [x + lw * 0.5, hy - lw * 0.35], [x + lw * 0.75, hy - lw * 1.75], [x - lw * 0.75, hy - lw * 1.75]], '#FFE2A0', 0.95) });
   if (c.time === 'sunset' || c.time === 'night') {
     c.lights.push(g(ell(x, y + 2, h * 0.34, h * 0.07, '#FFC879', 0.14), `class="lw" filter="${c.f('b10')}"`));
@@ -2327,6 +2346,101 @@ function nearFoliage(c, x, y, rx, ry) {
 
 /* ---------------------------------------------------------------- places */
 
+// A painted house: a cool shade glaze on its side face, and patchy warm
+// glazes on the front so no two walls read as the same flat box.
+function houseWash(c, b, r) {
+  const right = b.S(0, 0)[0] > b.F(0, 0)[0] + 1;
+  let s = pg(quad(b.S, 0, 0, 1, 1), '#8E8EA4', (right ? 1 : -1) === c.T.litSide ? 0.14 : 0.5);
+  const [x0, y0] = b.F(0, 0);
+  const [x1, y1] = b.F(1, 1);
+  for (let i = 0; i < 4; i++) s += pth(blob(r.r, lerp(x0, x1, r.R(0.1, 0.9)), lerp(y0, y1, r.R(0.15, 0.85)), Math.abs(x1 - x0) * r.R(0.12, 0.3), Math.abs(y1 - y0) * r.R(0.1, 0.25), 0.5, 8), r.pick(['#D9C7A4', '#D9C7A4', '#C9B8A8']), r.R(0.22, 0.4));
+  s += spath(`M${pt(...b.S(0, 1))}L${pt(...b.S(1, 1))}`, '#5E6478', 1.4, 0.35);
+  c.land.push(g(g(s, `filter="${c.f('pig')}"`), `clip-path="${c.clip(pg(quad(b.F, 0, 0, 1, 1), '#000') + pg(quad(b.S, 0, 0, 1, 1), '#000'))}" style="mix-blend-mode:multiply"`));
+}
+
+// Paint fn() and slide what it laid down (land and lights) as one piece, so a
+// subject can sit off centre without retyping every coordinate inside it.
+function shifted(c, fn, dx, dy = 0) {
+  const l0 = c.land.length;
+  const g0 = c.lights.length;
+  const out = fn();
+  const tr = `transform="translate(${dx},${dy})"`;
+  const lm = c.land.splice(l0).join('');
+  if (lm) c.land.push(g(lm, tr));
+  const gm = c.lights.splice(g0).join('');
+  if (gm) c.lights.push(g(gm, tr));
+  return out;
+}
+
+// SHARED COMPOSITION RULE: the walk enters from low on one side and curves
+// up to the subject, keeping the place's own wiggle (percent points in, out).
+function bendPath(c, pts, from) {
+  const sx = c.subject ? (c.subject.cx / W) * 100 : 50;
+  const n = Math.max(1, pts.length - 1);
+  return pts.map(([x, y], i) => {
+    const t = i / n;
+    const base = lerp(from, sx, 1 - Math.pow(1 - t, 1.7));
+    return [base + (x - 50) * (0.35 + t * 0.4), y];
+  });
+}
+
+// SHARED COMPOSITION RULE: a dark soft foreground mass in a bottom corner,
+// deep blue green to olive, its inner edge lost in a wet bloom, a few leaves
+// along its rim found by the light. It frames the picture and stops below the
+// subject box so it never covers the subject.
+function cornerMass(c, side, k = 1) {
+  const { T } = c;
+  const r = c.sub('cmass' + side);
+  const night = c.time === 'night';
+  const tint = (x) => (night ? mix(x, '#0E1A26', 0.5) : c.time === 'sunset' ? mix(x, '#3A2638', 0.2) : x);
+  const ox = side < 0 ? -40 : W + 40;
+  const oy = H + 50;
+  const rx = 380 * k;
+  const top = c.subject ? c.subject.y1 + 46 : 640;
+  const ry = Math.max(120, Math.min(250 * k, oy - top));
+  const cols = ['#2F3D35', '#34402F', '#3B4532', '#4A4A30', '#2F3A3A', '#3E3A2C'].map(tint);
+  // the core is a heavy blurred wash, so its inner edge is lost; the rim is
+  // built from leaf masses, so the silhouette is found where light touches it
+  let base = pth(blob(r.r, ox, oy, rx * 0.78, ry * 0.8, 0.38, 13), cols[0], 0.9);
+  let mid = '';
+  for (let i = 0; i < 8; i++) {
+    const a = r.R(0.12, 1.45);
+    const d = r.R(0.2, 0.72);
+    mid += pth(blob(r.r, ox - side * Math.cos(a) * rx * d, oy - Math.sin(a) * ry * d, r.R(60, 150) * k, r.R(40, 95) * k, 0.45, 9), r.pick(cols), r.R(0.4, 0.78));
+  }
+  let lv = '';
+  for (let cl = 0; cl < 22; cl++) {
+    const a = r.R(0.04, 1.52);
+    const d = Math.sqrt(r.R(0.15, 0.92));
+    const cx = ox - side * Math.cos(a) * rx * d;
+    const cy = oy - Math.sin(a) * ry * d;
+    const sz = r.R(40, 80) * k;
+    const ang = -Math.PI / 2 + r.R(-0.9, 0.9);
+    for (let i = 0; i < 16; i++) {
+      const L = r.R(14, 32) * k;
+      lv += leaf(cx + r.R(-sz, sz) * 0.5, cy + r.R(-sz, sz) * 0.4, L, L * r.R(0.3, 0.45), ang + r.R(-1, 1), r.pick(cols), r.R(0.8, 0.96));
+    }
+  }
+  const rim = night ? '#6E80A0' : mix(T.light, '#C9B66A', 0.45);
+  for (let i = 0; i < 16; i++) {
+    const a = r.R(0.45, 1.35);
+    const d = r.R(0.84, 0.98);
+    const L = r.R(9, 18) * k;
+    lv += leaf(ox - side * Math.cos(a) * rx * d, oy - Math.sin(a) * ry * d, L, L * 0.36, -Math.PI / 2 + r.R(-0.9, 0.9), rim, r.R(0.22, 0.48));
+  }
+  let gr = '';
+  for (let i = 0; i < 30; i++) {
+    const bx = ox - side * r.R(30, rx * 0.9);
+    const u = Math.abs(bx - ox) / rx;
+    const hh = ry * Math.sqrt(Math.max(0, 1 - u * u)) - 40;
+    if (hh < 20) continue;
+    const bh = hh * r.R(0.5, 1.05) + 20;
+    const lean = r.R(-0.3, 0.3) * bh;
+    gr += spath(`M${pt(bx, H + 4)}Q${pt(bx + lean * 0.3, H - bh * 0.6)} ${pt(bx + lean, H - bh)}`, r.pick(cols), r.R(1.6, 3.4), r.R(0.6, 0.9));
+  }
+  c.front.unshift(g(base, `filter="${c.f('b24')}"`) + g(mid, `filter="${c.f('wet')}"`) + g(gr + lv, `filter="${c.f('fg')}"`));
+}
+
 const BUILD = {};
 
 BUILD.campus = (c, pl) => {
@@ -2359,18 +2473,23 @@ BUILD.campus = (c, pl) => {
   ground(c, lawn, { d: 0.05, dabs: 700, persp: [458, 900], leaves: 260, key: 'lawn', strokes: 700 });
   mist(c, 456, 50);
   // six course halls, three each side, each with a small seal on the gable
-  for (const [x, y, w, side] of [[150, 506, 78, 1], [265, 498, 66, 1], [372, 512, 60, 1], [1200, 512, 62, -1], [1300, 500, 70, -1], [1420, 508, 78, -1]]) {
-    const b = block(c, { x, y, w, h: w * 0.55, d: w * 0.5, side, kind: 'gable', roofH: w * 0.42, wall: '#DCC29A', roof: '#8C939C', haze: 0.18 });
+  for (const [x, y, w, side, roof, wall] of [[150, 506, 78, 1, '#8C939C', '#DCC29A'], [265, 498, 66, 1, '#8A6A58', '#D8C4A4'], [372, 512, 60, 1, '#8C939C', '#DCC29A'], [1300, 500, 50, -1, '#7E6E62', '#CDB894'], [1420, 508, 78, -1, '#8C939C', '#DCC29A']]) {
+    const b = block(c, { x, y, w, h: w * (wall === '#DCC29A' ? 0.55 : 0.7), d: w * 0.5, side, kind: 'gable', roofH: w * 0.42, wall, roof, haze: 0.18 });
     windowsGrid(c, b.F, 2, 1, { by0: 0.25, by1: 0.8, fill: 0.45, glass: c.P('#5C6A80', -0.1, 0.18) });
     c.land.push(circ(x + w / 2, b.top - w * 0.16, w * 0.07, c.P('#E8C88E', 0.5, 0.15)) + circ(x + w / 2, b.top - w * 0.16, w * 0.04, c.P('#B89A62', 0, 0.15)));
   }
   // the body goes down opaque first so nothing behind ever shows through
-  c.land.push(g(pth('M468,548L468,366L612,366L800,296L718,296L718,288L722,288A78,74 0 0 1 878,288L882,288L882,296L800,296L988,366L1132,366L1132,548Z', c.P('#E6D3AE', 0)), `filter="${c.f('archP')}"`));
-  tabaret(c);
-  tabaretGlaze(c);
+  // the hall stands left of centre; the big maple on the right overlaps its east wing
+  shifted(c, () => {
+    c.land.push(g(pth('M468,548L468,366L612,366L800,296L718,296L718,288L722,288A78,74 0 0 1 878,288L882,288L882,296L800,296L988,366L1132,366L1132,548Z', c.P('#E6D3AE', 0)), `filter="${c.f('archP')}"`));
+    tabaret(c);
+    tabaretGlaze(c);
+    // the portico recess is deep warm shadow between the columns
+    c.land.push(g(rect(640, 400, 320, 148, '#3E352C', 0.42), `filter="${c.f('wet')}" style="mix-blend-mode:multiply"`));
+  }, -60);
   // the walk bends in from the right and meets the steps a little left of
   // center, so the hall is seen slightly from the side, not as a flat elevation
-  const walk = pl.path.map(([px, py], i) => [px - 3.75 * Math.pow(i / Math.max(1, pl.path.length - 1), 1.3) + (i === 1 ? 1.2 : 0), py]);
+  const walk = pl.path.map(([px, py], i) => [px + 2 - 9.5 * Math.pow(i / Math.max(1, pl.path.length - 1), 1.3) + (i === 1 ? 1.2 : 0), py]);
   const rd = road(c, walk, { w0: 392, w1: 232, kind: 'stone', col: S.snow ? '#E6EAF0' : '#D9C9A8', pow: 1.1 });
   // warm stone broken with cooler and greyer dabs, larger toward the viewer
   {
@@ -2384,7 +2503,7 @@ BUILD.campus = (c, pl) => {
     }
     c.land.push(g(wd, `filter="${c.f('pig')}"`));
   }
-  stairs(c);
+  shifted(c, () => stairs(c), -60);
   // shade of the big elm out of frame falls across the walk, broken by light
   dapple(c, [T.litSide < 0 ? 760 : 380, 600, T.litSide < 0 ? 1320 : 940, 900], { n: 34, key: 'walk' });
   // flower beds and red iron lamp posts along the walkway
@@ -2397,10 +2516,10 @@ BUILD.campus = (c, pl) => {
     flowerBed(c, bed, { cols: ['#B8473A', '#C9573F', '#A8433E', '#E09A52'] });
   }
   // uOttawa red lamp posts: three down the west side at uneven spacing, one far on the east
-  const lamps = [[616, -1, 0], [722, -1, 8], [884, -1, -16], [590, 1, 4]];
+  const lamps = [[616, -1, 0], [722, -1, 8], [884, -1, 44], [590, 1, 4]];
   for (const [y, side, dx] of lamps) {
     const k = rd.wAt(y) / 560;
-    lampPost(c, rd.at(y) + side * (rd.wAt(y) / 2 + 34 * k) + dx, y, 250 * k, { col: '#8A3B30' });
+    lampPost(c, rd.at(y) + side * (rd.wAt(y) / 2 + 34 * k) + dx, y, 250 * k, { red: true });
   }
   // the forgotten coffee cup on a stone bench
   stoneBench(c, 360, 690, 90);
@@ -2415,8 +2534,8 @@ BUILD.campus = (c, pl) => {
   tree(c, 300, 566, 62, { d: 0.14 });
   tree(c, 128, 650, 118, { n: 9, touches: 46, wide: 1.05 });
   campusOakDepth(c, 128, 650, 118, 1.05);
-  tree(c, 1450, 820, 210, { n: 10, touches: 50 });
-  campusRightTrunk(c);
+  tree(c, 1330, 820, 214, { n: 10, touches: 50 });
+  shifted(c, () => campusRightTrunk(c), -120);
   warmLight(c);
   vignette(c, 0.32);
   frame(c, { tr: 0.7, tl: 1, bl: 0.9, br: 0.8 });
@@ -2681,6 +2800,7 @@ BUILD.town = (c, pl) => {
   const { T, S } = c;
   sky(c, { horizon: 430 });
   cloudSky(c, {});
+  if (c.time === 'morning' || c.time === 'day') c.sky.push(g(rect(-20, 300, W + 40, 150, c.lg([[0, '#C7B9C9', 0], [0.6, '#C7B9C9', c.time === 'morning' ? 0.55 : 0.3], [1, '#C7B9C9', 0.2]])), `filter="${c.f('b10')}"`));
   range(c, { base: 432, amp: 70, d: 0.6, col: '#7E86B0', scale: 480, key: 'far' });
   hazeBand(c, 430, 60, 0.5);
   // the canal and the slim white footbridge in the right background
@@ -2697,6 +2817,8 @@ BUILD.town = (c, pl) => {
   const hN = noise1(c.r);
   const hill = profile(-20, W + 20, 10, (x) => 486 + Math.pow((x - 900) / 700, 2) * 110 + fbm(hN, x / 160) * 16);
   ground(c, hill, { d: 0.08, dabs: 700, persp: [480, 900], leaves: 220, key: 'hill', strokes: 700 });
+  // the town sits right of centre: everything on the hill slides as one
+  shifted(c, () => {
   // back row of houses, then the tower and the Memory Tree, then the front row
   const houses = [
     [640, 492, 70, 52, 'eave', 1, '#C8784A'], [712, 486, 64, 58, 'gable', 1, '#D28C52'], [1020, 488, 70, 56, 'gable', -1, '#BD6E44'], [1094, 494, 64, 48, 'eave', -1, '#C8784A'],
@@ -2704,7 +2826,9 @@ BUILD.town = (c, pl) => {
   ];
   for (const [x, y, w, h, kind, side, roof] of houses) {
     const b = block(c, { x, y, w, h, d: w * 0.5, side, kind, roofH: w * 0.38, wall: '#EADBC0', roof, haze: 0.06 });
-    windowsGrid(c, b.F, 2, kind === 'gable' ? 2 : 1, { fill: 0.42, fillH: 0.5, by0: 0.2, by1: 0.85 });
+    const rwn = c.sub('twin' + x);
+    windowsGrid(c, b.F, rwn.pick([1, 2, 2, 3]), kind === 'gable' ? rwn.pick([1, 2]) : 1, { fill: rwn.R(0.32, 0.46), fillH: 0.5, by0: 0.2, by1: 0.85 });
+    houseWash(c, b, rwn);
     if (kind === 'eave' && c.r() < 0.6) chimney(c, x + w * 0.7, b.top - 12, 9, 18, { smoke: false });
   }
   // the slim white tower with its terracotta roof
@@ -2736,13 +2860,15 @@ BUILD.town = (c, pl) => {
       const [hx, hy] = b.F(1.0, 0.72);
       c.land.push(line(hx, hy, hx + 14, hy, c.P('#3E4656', 0), 1.4) + rect(hx + 6, hy + 2, 14, 11, c.P('#B8925E', 0.3), 1, edge(c, 0.6)));
     } else {
-      windowsGrid(c, b.F, 2, 2, { fill: 0.42, fillH: 0.5 });
+      const rwn = c.sub('tfw' + x);
+      windowsGrid(c, b.F, rwn.pick([1, 2, 3]), rwn.pick([1, 2, 2]), { fill: rwn.R(0.3, 0.46), fillH: 0.5 });
       // flower boxes
       if (c.S.flowers) {
         const [fx, fy] = b.F(0.12, 0.2);
         c.land.push(rect(fx, fy - 3, w * 0.3, 4, c.P('#8A6446', 0)) + ell(fx + w * 0.15, fy - 4, w * 0.15, 3, c.P(c.S.flowers[1], 0.2), 0.9));
       }
     }
+    houseWash(c, b, c.sub('tfg' + x));
     if (kind === 'eave') chimney(c, x + w * (side > 0 ? 0.75 : 0.2), b.top - 14, 9, 18, { smoke: tag === 'inn', smokeSize: 0.6 });
   }
   // pigeons on the roofs
@@ -2787,9 +2913,10 @@ BUILD.town = (c, pl) => {
     wall += circ(x, 540, 5, c.P(wc, 0.5));
   }
   c.land.push(g(wall, `filter="${c.f('arch')}"`));
-  road(c, pl.path, { w0: 300, w1: 60, kind: 'cobble', col: S.snow ? '#E6EAF0' : '#D3C1A0' });
+  }, 92);
+  road(c, bendPath(c, pl.path, 38), { w0: 300, w1: 60, kind: 'cobble', col: S.snow ? '#E6EAF0' : '#D3C1A0' });
   tree(c, 230, 700, 120, { d: 0.02 });
-  tree(c, 1380, 680, 130, { d: 0.02 });
+  tree(c, 1470, 640, 64, { d: 0.06 });
   bush(c, 470, 612, 34, { cols: [c.S.leaf[5] || c.S.leaf[0], c.S.leaf[0]] });
   bush(c, 1290, 618, 40, { cols: [c.S.leaf[5] || c.S.leaf[0], c.S.leaf[1]] });
   warmLight(c);
@@ -3699,23 +3826,25 @@ BUILD.gym = (c, pl) => {
   cloudSky(c, { big: 1 });
   range(c, { base: 400, amp: 60, d: 0.68, key: 'far' });
   range(c, { base: 474, amp: 240, d: 0.3, col: '#8C88A0', scale: 240, key: 'heights', shape: (x) => -Math.exp(-Math.pow((x - 800) / 520, 2)) * 30 });
-  hazeBand(c, 424, 44, 0.3);
+  // the haze stays on the mountains only; the land below the horizon is clear
+  c.land.push(g(rect(-20, 250, W + 40, 190, c.lg([[0, '#A9B4C8', 0], [0.55, '#A9B4C8', 0.35], [1, '#A9B4C8', 0.12]])), `filter="${c.f('b10')}"`));
+  hazeBand(c, 424, 44, 0.08);
   // a loose stand of pines on the west slope, two strays on the east: never mirrored
   for (const [x, y, h] of [[150, 476, 58], [196, 468, 82], [238, 474, 64], [282, 466, 48], [1352, 462, 70], [1508, 470, 52]]) pine(c, x, y, h, { d: 0.22 });
   const n = noise1(c.r);
   const field = profile(-20, W + 20, 10, (x) => 482 + fbm(n, x / 200) * 10 - Math.max(0, (x - 1150) / 450) * 26);
   ground(c, field, { d: 0.04, dabs: 620, persp: [482, 900], key: 'field', strokes: 640, leaves: 120 });
-  mist(c, 462, 30);
-  fort(c);
-  road(c, pl.path, { w0: 250, w1: 70, kind: 'dirt', col: '#D9C49A' });
-  rocks(c, [[300, 560, 90, 50], [1360, 586, 70, 36], [150, 760, 190, 90]]);
-  // an old oak leans in from the west and holds the near left; on the east
-  // only a pair of poplars and a low spreading shrub, farther back
-  tree(c, 268, 742, 196, { kind: 'oak', wide: 1.2, touches: 60 });
-  tree(c, 1262, 574, 96, { kind: 'poplar', d: 0.06 });
-  tree(c, 1300, 584, 78, { kind: 'poplar', d: 0.08 });
-  bush(c, 1420, 604, 54, { flat: 0.5 });
-  bush(c, 1460, 610, 36, { flat: 0.45 });
+  mist(c, 462, 14);
+  // the fort stands right of centre; the yard walk climbs to it from low left
+  shifted(c, () => fort(c), 150);
+  road(c, bendPath(c, pl.path, 40), { w0: 250, w1: 70, kind: 'dirt', col: '#D9C49A' });
+  rocks(c, [[420, 572, 70, 40], [1500, 600, 60, 30], [96, 780, 170, 80]]);
+  // the old oak is pushed into the near left corner, dark and lost into the
+  // corner mass; one poplar and a low shrub east of the fort, farther back
+  tree(c, 300, 620, 104, { kind: 'oak', wide: 1.2, touches: 50, d: 0.04 });
+  tree(c, 1420, 574, 92, { kind: 'poplar', d: 0.07 });
+  bush(c, 1500, 606, 44, { flat: 0.5 });
+  c.cornerK = 1.35;
   warmLight(c);
   vignette(c, 0.3);
   frame(c, { tl: 1, tr: 0.9, bl: 0.9, br: 1 });
@@ -3801,6 +3930,25 @@ function fort(c) {
     }
     c.land.push(g(g(sv, `filter="${c.f('pig')}"`), `clip-path="${c.clip(fs)}" style="mix-blend-mode:multiply"`));
   }
+  // the curtain wall glazed warm, broken dry brush joints, and a cool shadow
+  // face on the east tower
+  {
+    const rj = c.sub('fortjoints');
+    let jn = '';
+    for (let row = 0; row < 6; row++) {
+      let x = 476 + rj.R(0, 30);
+      const y = 402 + row * 15 + rj.R(-2, 2);
+      while (x < 1110) {
+        const len = rj.R(30, 110);
+        jn += spath(`M${pt(x, y + rj.R(-1.5, 1.5))}Q${pt(x + len / 2, y + rj.R(-2, 2))} ${pt(x + len, y + rj.R(-1.5, 1.5))}`, '#6E6458', rj.R(1, 2), 0.25);
+        x += len + rj.R(10, 50);
+      }
+    }
+    const wallP = '<path d="M470,392L1130,392L1130,488L470,488Z"/>';
+    c.land.push(g(g(rect(460, 380, 680, 120, '#C9BBA0', 0.34), `filter="${c.f('wet')}"`) + g(jn, `filter="${c.f('dry')}"`), `clip-path="${c.clip(wallP)}" style="mix-blend-mode:multiply"`));
+    const ex = T.litSide < 0 ? 1132 + 4 : 1132 - 46;
+    c.land.push(g(pth(`M${ex},356C${ex + 3},400 ${ex - 2},450 ${ex + 1},498L${ex + 40},498C${ex + 42},440 ${ex + 38},400 ${ex + 40},356Z`, '#7C8496', 0.5), `filter="${c.f('pig')}" style="mix-blend-mode:multiply"`));
+  }
   // the cloth banner over the gate with three round shields (the weekly gym shields)
   const cloth = '#41607E';
   const rb = c.sub('banner');
@@ -3853,7 +4001,14 @@ function fort(c) {
   const wood = '#7A5A40';
   let pr = '';
   const posts = [[540, 560], [592, 556], [644, 552]];
-  for (const [x, y] of posts) pr += ell(x - T.litSide * 8, y + 2, 10, 2.5, T.shade, 0.3) + rect(x - 3, y - 50, 6, 50, c.P(wood, T.litSide < 0 ? 0.3 : -0.2), 1, edge(c, 0.6));
+  // warm cast shadows laid along the ground, away from the light
+  let cs = '';
+  for (const [x, y, w2, h2] of [[540, 560, 6, 50], [592, 556, 6, 50], [644, 552, 6, 50], [712, 582, 20, 50], [904, 590, 24, 28], [960, 568, 6, 80], [1040, 566, 6, 80], [1110, 560, 6, 80]]) {
+    const dx = -T.litSide * h2 * 0.9 * (T.shadowLen || 1);
+    cs += pg([[x - w2 / 2, y], [x + w2 / 2, y], [x + w2 / 2 + dx, y + h2 * 0.16], [x - w2 / 2 + dx, y + h2 * 0.2]], '#5A4632', 0.4);
+  }
+  c.land.push(g(cs, `filter="${c.f('b2')}" style="mix-blend-mode:multiply"`));
+  for (const [x, y] of posts) pr += rect(x - 3, y - 50, 6, 50, c.P(wood, T.litSide < 0 ? 0.3 : -0.2), 1, edge(c, 0.3));
   for (let i = 0; i < posts.length - 1; i++) {
     const [x0, y0] = posts[i];
     const [x1, y1] = posts[i + 1];
@@ -4269,7 +4424,7 @@ BUILD.vault = (c, pl) => {
   const n = noise1(c.r);
   const back = profile(-20, W + 20, 10, (x) => 470 + fbm(n, x / 170) * 24);
   ground(c, back, { d: 0.3, dabs: 200, key: 'back', nearDark: 0 });
-  treeline(c, -20, W + 20, (x) => back.at(x) + 6, { d: 0.34, min: 12, max: 24, pines: 0.6 });
+  treeline(c, -20, W + 20, (x) => back.at(x) + 6, { d: 0.34, min: 12, max: 24, pines: 0.6, groups: true });
   mist(c, 490, 50);
   const hill = profile(-20, W + 20, 8, (x) => 572 + Math.pow((x - 800) / 560, 2) * 170 + fbm(n, x / 120 + 5) * 18 - 9);
   ground(c, hill, { d: 0.03, dabs: 680, persp: [560, 900], key: 'hill', strokes: 680, leaves: 120 });
@@ -4290,17 +4445,18 @@ BUILD.vault = (c, pl) => {
     c.lights.push(g(lm, 'transform="translate(-80,0)"'));
   }
   // the quiet ring of old stones
-  rocks(c, [[640, 640, 34, 70], [560, 664, 30, 56], [470, 700, 40, 74], [1000, 646, 30, 64], [1090, 674, 36, 72], [1190, 712, 44, 84], [360, 760, 56, 96], [1290, 780, 60, 100], [720, 680, 46, 22], [930, 690, 50, 24]], { col: '#A8A2A6' });
+  const stones = [[600, 652, 30, 60], [1010, 640, 26, 58], [1100, 684, 40, 80], [1320, 772, 62, 104], [860, 694, 48, 22]];
+  rocks(c, stones, { col: '#A8A2A6' });
   // lichen on the stones: rust, sage and pale grey dabs on the lit tops
   {
     const rl = c.sub('lichen');
     let lc = '';
-    for (const [x, y, w2, h2] of [[640, 640, 34, 70], [560, 664, 30, 56], [470, 700, 40, 74], [1000, 646, 30, 64], [1090, 674, 36, 72], [1190, 712, 44, 84], [360, 760, 56, 96], [1290, 780, 60, 100]]) {
+    for (const [x, y, w2, h2] of stones.slice(0, 4)) {
       for (let k = 0; k < 5; k++) lc += ell(x + rl.R(-0.3, 0.3) * w2 + T.litSide * w2 * 0.12, y - h2 * rl.R(0.08, 0.36), rl.R(1.6, 4), rl.R(1, 2.4), rl.pick(['#C9A45A', '#9AAE7A', '#D2CCC2', '#B98A5A']), rl.R(0.35, 0.6));
     }
     c.land.push(g(lc, `filter="${c.f('pig')}"`));
   }
-  road(c, pl.path, { w0: 220, w1: 40, kind: 'dirt' });
+  road(c, bendPath(c, pl.path, 60), { w0: 220, w1: 40, kind: 'dirt' });
   // a dark ivy mass swallows the ruins at the bottom left: wet edged, two greens
   {
     const ri2 = c.sub('ivymass');
@@ -4360,6 +4516,22 @@ function stronghold(c) {
   c.land.push(g(tw, `filter="${c.f('arch')}"`));
   // thick walls with a battered foot and buttresses
   const b = block(c, { x: X0, y: BY, w: X1 - X0, h: BY - TOP, d: 120, side: 1, kind: 'flat', wall: st, roofTop: '#9A958C' });
+  {
+    // the east face in real shade: a cool final wash over the time tint, its
+    // top edge broken where the roof meets it, a shadow line under the eave,
+    // and two lighter wet streaks along the roof slope
+    const rf = c.sub('vaultface');
+    const sp = quad(b.S, 0, 0, 1, 1);
+    let fw = pg(sp, '#5E6478', 0.62);
+    for (let i = 0; i < 6; i++) fw += pth(blob(rf.r, ...b.S(rf.R(0.1, 0.9), rf.R(0.2, 0.8)), rf.R(10, 24), rf.R(14, 36), 0.5, 8), rf.pick(['#4E5466', '#6E6A78', '#5A5E6E']), rf.R(0.2, 0.4));
+    c.land.push(g(g(fw, `filter="${c.f('pig')}"`), `clip-path="${c.clip(pg(sp, '#000'))}" style="mix-blend-mode:multiply"`));
+    let br = '';
+    for (let i = 0; i < 7; i++) br += pth(blob(rf.r, ...b.S(rf.R(0, 1), 1), rf.R(5, 12), rf.R(3, 7), 0.5, 7), c.P('#8A8478', rf.R(-0.2, 0.3)), rf.R(0.5, 0.85));
+    br += spath(`M${pt(...b.F(0, 0.985))}L${pt(...b.F(1, 0.985))}L${pt(...b.S(1, 0.985))}`, '#3A3A40', 2.2, 0.45);
+    const [ax, ay] = b.F(0.08, 1);
+    br += spath(`M${pt(ax, ay - 6)}Q${pt(ax + 120, ay - 18)} ${pt(ax + 260, ay - 12)}`, '#B4AEA2', 5, 0.3) + spath(`M${pt(ax + 140, ay - 4)}Q${pt(ax + 220, ay - 16)} ${pt(ax + 330, ay - 22)}`, '#A8A296', 4, 0.25);
+    c.land.push(g(br, `filter="${c.f('wc')}"`));
+  }
   let s = pg([[X0 - 14, BY + 2], [X1 + 14, BY + 2], [X1 + 2, BY - 50], [X0 - 2, BY - 50]], c.P(st, T.frontK - 0.12), 1, edge(c, 0.8));
   const r = c.sub('ashlar');
   const joint = c.P('#5A4E48', -0.4);
@@ -4954,6 +5126,14 @@ function build(id, time, season, weather, extra) {
   const c = makeCtx(id, time, season, w, extra);
   c.subject = rectOf(PLACE[id]);
   (BUILD[id] || generic)(c, PLACE[id]);
+  // the dark corner mass sits on the side away from the subject, a smaller
+  // echo on the other side only where the place asks for it
+  {
+    const sx = c.subject ? c.subject.cx : W / 2;
+    const side = sx > W * 0.515 ? -1 : sx < W * 0.485 ? 1 : (c.seed % 2 ? -1 : 1);
+    cornerMass(c, side, c.cornerK || 1.3);
+    if (c.cornerEcho) cornerMass(c, -side, c.cornerEcho);
+  }
   const out = {
     defs: filters(c) + c.defs.join(''),
     sky: c.sky.join(''),

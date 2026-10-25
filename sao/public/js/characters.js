@@ -19,10 +19,11 @@ import { period } from './clock.js';
 const INK = '#5A4638B3';    // warm brown ink at 0.7, never black (lite sprites only)
 const INK_SOLID = '#4E3A30';  // the pen: warm dark brown
 const INK_PRESS = '#3E3230';  // where the pen pressed (shadow side)
-const SHADE = '#8E93A8';    // the one cool shadow tone (gouache, not a gradient)
+const SHADE = '#6E7490';    // the one cool shadow tone, laid on with multiply (gouache glaze, not a gradient)
+const MUL = ' style="mix-blend-mode:multiply"';
 const RIM = '#E8D8B0';      // warm rim light on the sun side
 const BOUNCE = '#C9B48E';   // warm light bounced up from the ground
-const CONTACT = '#3E3230';  // soft contact shadow, warm brown
+const CONTACT = '#3A3A30';  // soft contact shadow, warm dark earth (multiply)
 const EYE = '#22303A';      // deep blue green, never black
 const CREAM = '#FFF3DC';    // top light
 const COOL = '#5B76A6';     // cool underside for cool colors
@@ -73,7 +74,15 @@ const MARK_Y = { scholar: 24, scout: 30, baker: 10, keeper: 27, steward: 19, bar
 
 // Dustier, less synthetic body colors where the UI token reads as AI pastel.
 const BODY_TONE = { bard: '#B9A3CF', scholar: '#93B0D6', steward: '#A8ABAE' };
-const tone = (id) => BODY_TONE[id] || BOT[id].color;
+// Pigment, not screen pastel: every body color loses about a fifth of its
+// saturation and leans a touch toward the warm paper.
+function desat(h, k = 0.2) {
+  const c = rgb(h);
+  const l = c[0] * 0.3 + c[1] * 0.59 + c[2] * 0.11;
+  return mix(hex(c.map((v) => v + (l - v) * k)), '#E9DCC0', 0.05);
+}
+const TONES = {};
+const tone = (id) => TONES[id] || (TONES[id] = desat(BODY_TONE[id] || BOT[id].color));
 
 let uid = 0;
 
@@ -174,7 +183,13 @@ function makeCtx(lite, pose = {}, light = LIGHT) {
 const LOST = ['17 3.2 26 5.4 9 4 21 6.4', '23 5 12 3.4 30 6 8 4.6', '14 4.4 19 6 27 3.6 11 5'];
 const PRESS = ['0 8 13 21 7 29', '0 15 9 24 16 18', '0 5 18 27 6 22'];
 function ink(ctx, d, w = 1) {
-  if (ctx.lite) return `<path d="${d}" fill="none" stroke="${INK}" stroke-width="${r2(ctx.sw * w)}" stroke-linejoin="round" stroke-linecap="round"/>`;
+  if (ctx.lite) {
+    const k = ctx.inkN++;
+    return (
+      `<path d="${d}" fill="none" stroke="${INK}" stroke-width="${r2(ctx.sw * w * 0.72)}" stroke-linejoin="round" stroke-linecap="round"/>` +
+      `<path d="${d}" fill="none" stroke="${INK_PRESS}" stroke-opacity="0.5" stroke-width="${r2(ctx.sw * w * 1.05)}" stroke-linecap="round" stroke-dasharray="${PRESS[k % 3]}" stroke-dashoffset="${(k * 23 + 7) % 41}" transform="translate(${r2(0.7 * ctx.L.dir)} 0.8)"/>`
+    );
+  }
   const k = ctx.inkN++;
   const a = r2(ctx.sw * w * 0.9);
   const off = (k * 37 + 11) % 61;
@@ -207,7 +222,7 @@ function ellipse(ctx, cx, cy, rx, ry, color, { line = 1, rot = 0, op = 1, flat =
   const o = op < 1 ? ` opacity="${op}"` : '';
   let s = `<ellipse cx="${cx}" cy="${cy}" rx="${rx}" ry="${ry}" fill="${fill}"/>`;
   // a small cool underside on round parts (feet, paws, buns): one tone, hard edge
-  if (!ctx.lite && !flat && rx > 2.2) s += `<ellipse cx="${r2(cx + rx * 0.16 * ctx.L.dir)}" cy="${r2(cy + ry * 0.34)}" rx="${r2(rx * 0.8)}" ry="${r2(ry * 0.6)}" fill="${SHADE}" opacity="0.3"/>`;
+  if (!ctx.lite && !flat && rx > 2.2) s += `<ellipse cx="${r2(cx + rx * 0.16 * ctx.L.dir)}" cy="${r2(cy + ry * 0.34)}" rx="${r2(rx * 0.8)}" ry="${r2(ry * 0.6)}" fill="${SHADE}" opacity="0.42"${MUL}/>`;
   if (line) s += ink(ctx, ellipsePath(cx, cy, rx, ry), line);
   return `<g${t}${o}>${s}</g>`;
 }
@@ -224,7 +239,7 @@ function puffs(ctx, circles, color) {
   const out = circles.map(([x, y, r]) => `<circle cx="${x}" cy="${y}" r="${r2(r + ctx.sw / 2)}"/>`).join('');
   const fill = circles.map(([x, y, r]) => `<circle cx="${x}" cy="${y}" r="${r}" fill="${ctx.paint(color)}"/>`).join('');
   let shade = '';
-  if (!ctx.lite) shade = circles.map(([x, y, r]) => `<circle cx="${r2(x + r * 0.22 * ctx.L.dir)}" cy="${r2(y + r * 0.36)}" r="${r2(r * 0.7)}" fill="${SHADE}" opacity="0.22"/>`).join('');
+  if (!ctx.lite) shade = circles.map(([x, y, r]) => `<circle cx="${r2(x + r * 0.22 * ctx.L.dir)}" cy="${r2(y + r * 0.36)}" r="${r2(r * 0.7)}" fill="${SHADE}" opacity="0.34"${MUL}/>`).join('');
   const line = ctx.lite ? `<g fill="${INK}">${out}</g>` : `<g fill="${INK_SOLID}" opacity="0.5">${out}</g>`;
   return `${line}${fill}${shade}`;
 }
@@ -246,10 +261,10 @@ function body(ctx, id, d, color, box, coolOp = 0.42) {
   const x0 = box.cx - box.rx - 6;
   const x1 = box.cx + box.rx + 6;
   const R = `M${r2(x0)} ${r2(top - 6)}H${r2(x1)}V${r2(box.cy + box.ry + 6)}H${r2(x0)}Z`;
-  const shOp = r2(Math.min(0.46, coolOp));
-  s += `<path d="${R}${lit}" fill-rule="evenodd" fill="${SHADE}" opacity="${shOp}"/>`;
+  const shOp = r2(Math.min(0.56, coolOp + 0.1));
+  s += `<path d="${R}${lit}" fill-rule="evenodd" fill="${SHADE}" opacity="${shOp}"${MUL}/>`;
   if (!ctx.lite) {
-    const dab = DABS[id] || DABS.icon;
+    const dab = (DABS[id] || DABS.icon).map((c) => desat(c, 0.25));
     // wet edge: the shadow wash dried with a darker rim, broken like a real wash
     s += `<path d="${lit}" fill="none" stroke="${mix(SHADE, DEEP, 0.35)}" stroke-width="1.3" opacity="0.34" stroke-dasharray="11 2.6 18 3.4 7 2"/>`;
     // a wet in wet bloom where a cooler drop ran into the shadow
@@ -265,6 +280,7 @@ function body(ctx, id, d, color, box, coolOp = 0.42) {
     s += `<path d="${d}" fill="none" stroke="${mix(color, DEEP, 0.45)}" stroke-width="2.2" opacity="0.3"/>`;
   }
   s += `</g>`;
+  if (ctx.lite) s += crescent(ctx, d, r2(2.6 * dir), 2.4, L.rim, Math.min(0.8, L.rimOp + 0.12));
   if (!ctx.lite) {
     // rim light on the side the light comes from, a cool band on the turned
     // away side, and warm light bounced up from the ground underneath
@@ -808,15 +824,15 @@ export function spriteSVG(id, opts = {}) {
   if (showShadow) {
     const sh = ctx.id('s');
     ctx.defs.push(`<filter id="${sh}" x="-30%" y="-100%" width="160%" height="300%"><feGaussianBlur stdDeviation="1.3"/></filter>`);
-    const rx = key === 'icon' ? 18 : key === 'keeper' ? 25 : 21;
+    const rx = key === 'icon' ? 19 : key === 'keeper' ? 24 : 20;
     // soft contact shadow cast away from the light: short by day, long and
     // thin at sunset, faint under the moon; a dark core right under the feet
     const cx = r2(50 + (L.sh.x / 100) * rx * 2 * 0.5);
     const lx = r2(rx * L.sh.s);
     shadow =
-      `<g class="p-shadow" filter="url(#${sh})" opacity="${L.sh.o}"><ellipse cx="50" cy="94.6" rx="${r2(rx * 1.35)}" ry="5" fill="${BOUNCE}" opacity="0.15"/>` +
-      `<ellipse cx="${cx}" cy="94.2" rx="${lx}" ry="${L.sh.s > 1.3 ? 2.6 : 3.4}" fill="${CONTACT}" opacity="0.3"/>` +
-      `<ellipse cx="${r2(50 + 1 * L.dir)}" cy="93.8" rx="${r2(rx * 0.55)}" ry="1.8" fill="${CONTACT}" opacity="0.2"/></g>`;
+      `<g class="p-shadow" filter="url(#${sh})" opacity="${L.sh.o}"${MUL}>` +
+      `<ellipse cx="${cx}" cy="94.4" rx="${lx}" ry="${L.sh.s > 1.3 ? 2.8 : 3.8}" fill="${CONTACT}" opacity="0.35"/>` +
+      `<ellipse cx="${r2(50 + 1.4 * L.dir)}" cy="93.9" rx="${r2(rx * 0.62)}" ry="1.9" fill="${CONTACT}" opacity="0.3"/></g>`;
   }
   let mk = '';
   const kind = showMarker ? markerKind(state) : null;
@@ -870,10 +886,8 @@ const CSS = `
 .sao-bot:focus-visible{outline:2px solid #E8C88E;outline-offset:2px}
 .sao-bot .sao-body{position:absolute;left:50%;bottom:0;transform-origin:50% 94%;will-change:transform;pointer-events:none}
 .sao-bot .sao-body svg,.sao-bot .sao-body img{display:block;width:100%;height:100%;user-select:none;-webkit-user-drag:none}
-.sao-bot .sao-shadow{position:absolute;left:50%;bottom:0;border-radius:50% 46% 52% 48%;background:radial-gradient(closest-side,rgba(94,106,138,.3),rgba(94,106,138,.24) 45%,rgba(94,106,138,.1) 78%,rgba(94,106,138,0));opacity:var(--sho,1);pointer-events:none;mix-blend-mode:multiply}
-.sao-bot .sao-shadow::after{content:"";position:absolute;left:30%;right:18%;top:22%;bottom:30%;border-radius:50%;background:radial-gradient(closest-side,rgba(78,74,96,.22),rgba(78,74,96,0))}
-.sao-bot .sao-body>svg,.sao-bot .sao-body>img{filter:drop-shadow(var(--rimx,-1px) var(--rimy,-.6px) .7px var(--rim,rgba(244,226,190,.5)))}
-.sao-crowd.is-quiet{--rim:rgba(196,206,232,.28)}
+.sao-bot .sao-shadow{position:absolute;left:50%;bottom:0;border-radius:52% 46% 50% 47%;background:radial-gradient(closest-side,rgba(58,58,48,.35),rgba(58,58,48,.3) 50%,rgba(58,58,48,.12) 80%,rgba(58,58,48,0));opacity:var(--sho,1);pointer-events:none;mix-blend-mode:multiply}
+.sao-bot .sao-shadow::after{content:"";position:absolute;left:26%;right:20%;top:20%;bottom:26%;border-radius:50%;background:radial-gradient(closest-side,rgba(58,52,40,.3),rgba(58,52,40,0))}
 .sao-bot .sao-mark{position:absolute;left:50%;bottom:0;pointer-events:none}
 .sao-bot .sao-mark svg{display:block;width:100%;height:100%}
 .sao-sprite-svg g,.sao-marker-svg g,.sao-marker-svg text{transform-box:view-box}
@@ -1185,8 +1199,8 @@ function measure() {
     for (const a of crowd.actors.values()) {
       a.bodyEl.style.width = `${base}px`;
       a.bodyEl.style.height = `${base}px`;
-      a.shadowEl.style.width = `${Math.round(base * (a.core === 'keeper' ? 0.7 : 0.6))}px`;
-      a.shadowEl.style.height = `${Math.round(base * 0.13)}px`;
+      a.shadowEl.style.width = `${Math.round(base * (a.core === 'keeper' ? 0.5 : a.core === 'icon' ? 0.4 : 0.44))}px`;
+      a.shadowEl.style.height = `${Math.round(base * 0.1)}px`;
       const m = Math.round(base * 0.26);
       a.markEl.style.width = `${m}px`;
       a.markEl.style.height = `${m}px`;
@@ -1612,8 +1626,8 @@ export function setScene(placeId, bots = [], { quiet = false, reduced } = {}) {
       const b = crowd.base;
       a.bodyEl.style.width = `${b}px`;
       a.bodyEl.style.height = `${b}px`;
-      a.shadowEl.style.width = `${Math.round(b * (sp.core === 'keeper' ? 0.7 : 0.6))}px`;
-      a.shadowEl.style.height = `${Math.round(b * 0.13)}px`;
+      a.shadowEl.style.width = `${Math.round(b * (sp.core === 'keeper' ? 0.5 : sp.core === 'icon' ? 0.4 : 0.44))}px`;
+      a.shadowEl.style.height = `${Math.round(b * 0.1)}px`;
       const m = Math.round(b * 0.26);
       a.markEl.style.width = `${m}px`;
       a.markEl.style.height = `${m}px`;

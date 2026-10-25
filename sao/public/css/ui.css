@@ -1413,3 +1413,84 @@ html[data-panel^="place:"] .caption { opacity: 0; visibility: hidden; transition
 /* the vista's own crop is the banner while the full painting decodes: it was
    hidden with the waiting image and left a blank cream card */
 .well.has-snap.is-waiting canvas.well-art { opacity: 1; }
+
+/* ================================================= loop 14: painted, not
+   templated. Cards lose the coloured side rule, the menu badges become ink,
+   the tower is laid in stone courses, one small caps label per screen. */
+
+/* the brief banner never shows an empty sketch: it stays folded until the
+   painted town at morning is ready, then opens */
+.well.is-waiting:not(.has-snap) { height: 0; margin-top: 0; opacity: 0; }
+.well.is-bare { display: none; }
+.well { transition: height 420ms var(--ease-out), opacity 420ms var(--ease-out), margin-top 420ms var(--ease-out); }
+
+/* question cards: a thin warm gold hairline on all four sides, the navy
+   glass tinted toward the bot colour, no accent stripe */
+.qcard,
+.qcard.is-lit,
+.qcard.is-answered {
+  border: 1px solid rgba(232, 200, 142, 0.34);
+  border-radius: 5px 9px 6px 8px;
+  background:
+    linear-gradient(color-mix(in srgb, var(--bot, #E8C88E) 8%, transparent), color-mix(in srgb, var(--bot, #E8C88E) 8%, transparent)),
+    rgba(27, 34, 48, 0.5);
+}
+.qcard.is-lit { border-color: rgba(232, 200, 142, 0.62); }
+.qcard.is-answered { border-color: rgba(232, 200, 142, 0.22); }
+
+/* the menu column: discs threaded on an uneven, hand inked gold spine;
+   counts are cream ink numerals, no badge disc, nothing at all at zero */
+.menu-list { position: relative; isolation: isolate; }
+.menu-list::before {
+  content: ""; position: absolute; z-index: -1; pointer-events: none;
+  left: calc(50% - 5px); width: 10px; top: 10px; bottom: 10px;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 400' preserveAspectRatio='none'%3E%3Cpath d='M5.2 0 C4.1 40 6.3 70 5.4 112 C4.6 150 3.9 170 5.1 214 C6 250 6.4 280 4.8 318 C4.2 350 5.6 372 5 400' fill='none' stroke='%23C9A86A' stroke-width='2.2' stroke-linecap='round' opacity='.85'/%3E%3Cpath d='M5.6 22 C5 60 6.6 88 6 120 M4.4 188 C4.1 210 5.2 236 5.8 262 M5.4 300 C4.6 330 5.4 350 5.2 380' fill='none' stroke='%23E8C88E' stroke-width='.7' stroke-linecap='round' opacity='.55'/%3E%3C/svg%3E") center / 100% 100% no-repeat;
+}
+.disc-badge {
+  top: -4px; right: auto; left: -11px; min-width: 0; height: auto; padding: 0;
+  border: 0; border-radius: 0; background: none;
+  color: #F3E6CC; font-size: 15px; line-height: 1; font-style: italic;
+  text-shadow: 0 0 2px rgba(20, 26, 38, 0.95), 0 1px 3px rgba(20, 26, 38, 0.8);
+}
+.disc-badge[hidden] { display: none; }
+.is-quiet .disc-badge { color: rgba(216, 204, 176, 0.8); }
+
+/* the tower: every floor a stone course, a lighter top lip, a warm mortar
+   line between courses; cleared floors show one small lit window */
+.floor,
+.floor.is-upcoming,
+.floor.is-current,
+.floor.is-cleared,
+.floor.is-boss:not(.is-cleared) {
+  border: 0; border-radius: 0;
+  border-bottom: 1px solid rgba(110, 96, 74, 0.5);
+  background:
+    linear-gradient(180deg, #4A4E5A 0 3px, rgba(74, 78, 90, 0) 3px),
+    radial-gradient(40px 12px at 18% 62%, rgba(255, 240, 214, 0.035), transparent 70%),
+    radial-gradient(60px 14px at 82% 40%, rgba(16, 18, 26, 0.12), transparent 70%),
+    #3A3E4A;
+  box-shadow: none;
+}
+.floor.is-current {
+  background:
+    linear-gradient(180deg, #4E505A 0 3px, rgba(74, 78, 90, 0) 3px),
+    radial-gradient(110px 40px at 34px 55%, rgba(255, 206, 140, 0.2), transparent 75%),
+    #3D404A;
+}
+.floor.is-current .floor-n { box-shadow: 0 0 6px 1px rgba(255, 196, 120, 0.3); }
+.floor.is-cleared .floor-n {
+  width: 16px; height: 22px; margin-left: 3px; margin-right: 3px;
+  border-radius: 8px 8px 1px 2px; border: 2px solid #2C2A2C;
+  background:
+    linear-gradient(90deg, transparent 6px, rgba(44, 42, 44, 0.85) 6px 8px, transparent 8px),
+    linear-gradient(180deg, transparent 9px, rgba(44, 42, 44, 0.85) 9px 10px, transparent 10px),
+    radial-gradient(circle at 45% 65%, #FBE3B0, #E9B676 55%, #B97E48);
+  color: transparent; font-size: 0;
+}
+.floor.is-cleared .floor-meta { color: #C9B48A; font-style: italic; }
+.floor.is-boss:not(.is-cleared) .floor-n { border-color: rgba(233, 168, 107, 0.6); }
+
+/* small caps on one label per screen (the Week meter); the rest italic */
+.status-bots::before { font-variant: normal; font-style: italic; font-size: 14px; }
+.psec-title { font-variant: normal; font-style: italic; letter-spacing: 0; }
+.signoff::after { font-variant: normal; font-style: italic; }

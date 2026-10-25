@@ -5,7 +5,7 @@
 // URL overrides for screenshots and tests:
 //   ?place=<id>  ?time=morning|day|sunset|night  ?season=...  ?weather=...
 //   ?open=report|brief|floors|rules|settings|bots|drafts|questions|map|place:<id>
-//   ?demo=1  ?intro=0  ?at=<ISO time>
+//   ?demo=1  ?intro=0  ?brief=0  ?at=<ISO time>
 
 import { PLACE } from './places.js';
 import { BOT } from './bots.js';
@@ -583,6 +583,8 @@ function maybeBrief() {
   const n = clock.now();
   const [hh] = clock.fmtTime(n).split(':').map(Number);
   if (S.quiet || hh < 7) return;
+  // ?brief=0 (and ?intro=0, used by screenshots and tests) land on the world itself
+  if (param('brief') === '0' || param('intro') === '0') return;
   if (store(BRIEF_DAY) === clock.fmtDate(n)) return;
   if (!st().brief) return;
   openView('brief');
