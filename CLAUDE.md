@@ -7,9 +7,11 @@
 ## SAO in this repo
 
 * SAO is the artificial world where Claude lives and works. ICON is Wahb's digital twin, with his knowledge and style. Claude and its bots work for ICON, so for Wahb. Mission: financial freedom and knowledge.
-* Code lives in `sao/`. Run it with `cd sao && npm install && npm start`, then open http://127.0.0.1:3210.
-* Local only. No API billing, no Vercel deploy, no paid services, no third party AI providers. Everything runs on Wahb's own Claude Code login.
-* Build in phases and stop after each one for Wahb's OK. Phase 1 (world shell, mock data) is built.
+* Code lives in `sao/`. Run it with `cd sao && npm start` (no dependencies), then open http://127.0.0.1:3210. `sao/SPEC.md` is the build contract, `sao/README.md` the run and deploy steps.
+* The world (v1, from the SAO World Bible, option A on all 27) is built: 11 painted places, the parchment map, ICON and the 7 core bots, the floating interface, demo data.
+* Vercel ready, demo only: Root Directory `sao`, no build, output `public`. A deployment ships only `sao/public` with invented demo data; live data stays on the laptop through the local engine (opt in with `?engine=on`). Never add an `api/` folder. Deploy only on Wahb's go, each time.
+* No API billing, no paid services, no third party AI providers. Everything runs on Wahb's own Claude Code login.
+* Build in phases and stop after each one for Wahb's OK. Next: phase 2 (engine wired to memory and orders), after his OK.
 
 ## WORKING RULES
 

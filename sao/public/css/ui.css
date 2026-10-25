@@ -1352,3 +1352,64 @@ html[data-panel^="place:"] .caption { opacity: 0; visibility: hidden; transition
 .well.has-snap.is-waiting .well-veil { opacity: 1; }
 .well.has-snap.is-waiting .well-herald { opacity: 1; }
 .well.has-snap { background: #D9D3C4; }
+
+/* ================================================= loop 13: legible HUD,
+   an honest tower, a menu that reads like a written list */
+
+/* the status subline and labels in warm cream so they hold 4.5:1 on the glass */
+.status-src { color: rgba(216, 204, 176, 0.9); font-style: italic; }
+.status-phase { color: rgba(216, 204, 176, 0.88); }
+.meter-label { color: rgba(216, 204, 176, 0.92); }
+
+/* bots out now: a small caps label, then each dot over its own name */
+.status-bots {
+  display: grid; grid-template-columns: auto repeat(3, minmax(0, max-content));
+  justify-content: start; align-items: end; column-gap: 2px; margin: 4px -4px -4px 0;
+}
+.status-bots::before {
+  content: "Out now"; align-self: center; margin-right: 8px;
+  font-variant: small-caps; font-size: 14px; letter-spacing: 0;
+  color: rgba(216, 204, 176, 0.92);
+}
+.bot-dot { width: auto; min-width: 44px; height: auto; min-height: 44px; padding: 10px 4px 2px; display: grid; justify-items: center; align-content: end; gap: 3px; }
+.bot-dot-mark { top: 0; }
+.bot-dot-name { font-size: var(--fs-13); line-height: 1.15; color: rgba(216, 204, 176, 0.92); white-space: nowrap; }
+
+/* the tower keeps one width from base to roof; each course drifts 2 to 4 px
+   like stone laid by hand, never a stepped pyramid */
+.tower { max-width: 420px; }
+.floor,
+.floor:nth-child(3n+1),
+.floor:nth-child(4n+2) { margin-inline: 0; }
+.floor:nth-child(5n+1) { margin-left: 3px; margin-right: -1px; }
+.floor:nth-child(5n+2) { margin-left: -2px; margin-right: 2px; }
+.floor:nth-child(5n+3) { margin-left: 1px; margin-right: -3px; }
+.floor:nth-child(5n+4) { margin-left: -3px; margin-right: 1px; }
+.floor:nth-child(5n) { margin-left: 2px; margin-right: 3px; }
+/* the roof overhangs the walls a little, weathered so it sits with the stone */
+.tower::before { left: -16px; right: -12px; top: -54px; height: 54px; filter: saturate(0.72) brightness(0.94); }
+.tower::after { left: -14px; right: -10px; }
+.tower-base { margin: 0 -14px 0 -18px; }
+
+/* desktop menu: an inked list down the right, icon then name, sized to its content */
+@media (min-width: 600px) {
+  .sheet-panel.is-menu { bottom: auto; width: 296px; max-height: calc(100% - 76px); }
+  .is-menu .menu-grid { grid-template-columns: 1fr; gap: 2px; margin-top: 4px; }
+  .is-menu .disc-labeled {
+    display: flex; align-items: center; gap: 14px; justify-items: start;
+    padding: 4px 0; cursor: pointer; border-bottom: 1px solid rgba(232, 200, 142, 0.14);
+  }
+  .is-menu li:last-child .disc-labeled { border-bottom: 0; }
+  .is-menu .disc-labeled .disc { width: 44px; height: 44px; flex: none; }
+  .is-menu .disc-name { font-size: var(--fs-15); text-align: left; color: var(--text); }
+  .is-menu li:nth-child(even) .disc-labeled { padding-left: 10px; }
+}
+@media (max-width: 599px) {
+  .status { max-width: calc(100% - 148px); }
+  .status-bots::before { margin-right: 4px; font-size: 13px; }
+  .bot-dot { min-width: 38px; padding-inline: 2px; }
+  .tower { margin-inline: 18px; }
+}
+/* the vista's own crop is the banner while the full painting decodes: it was
+   hidden with the waiting image and left a blank cream card */
+.well.has-snap.is-waiting canvas.well-art { opacity: 1; }

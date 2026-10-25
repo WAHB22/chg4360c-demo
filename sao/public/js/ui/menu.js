@@ -30,6 +30,8 @@ export function disc(item, onOpen, { withLabel = false } = {}) {
   btn.addEventListener('click', () => onOpen(item.id, btn));
   if (!withLabel) return { btn, badge, node: btn };
   const node = h('div', { class: 'disc-labeled' }, btn, h('span', { class: 'disc-name', text: item.label, 'aria-hidden': 'true' }));
+  // the written name is part of the target, so the whole row answers a tap
+  node.addEventListener('click', (e) => { if (!btn.contains(e.target)) btn.click(); });
   return { btn, badge, node };
 }
 

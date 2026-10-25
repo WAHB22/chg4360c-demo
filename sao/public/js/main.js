@@ -151,8 +151,9 @@ async function boot() {
   }
 
   await intro;
+  // any deep link (?open= or ?place=) is where Wahb meant to land: no brief over it
   if (openParam) openFromParam(openParam);
-  else maybeBrief();
+  else if (!param('place')) maybeBrief();
   setTimeout(() => (window.requestIdleCallback || ((f) => setTimeout(f, 1)))(() => safe(prewarmBrief, 'prewarmBrief'), { timeout: 4000 }), 3500);
 }
 

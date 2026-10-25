@@ -36,7 +36,7 @@ export function mountStatus(parent, { onBotTap } = {}) {
     pctEl,
   );
   fillsEl = h('div', { class: 'meter-fills', id: 'meter-fills', hidden: true });
-  dotsEl = h('div', { class: 'status-bots', role: 'list', 'aria-label': 'Active bots' });
+  dotsEl = h('div', { class: 'status-bots', role: 'list', 'aria-label': 'Bots out working now' });
   root.append(h('div', { class: 'status-who' }, nameEl, phaseEl, srcEl), meterBtn, fillsEl, dotsEl);
   parent.appendChild(root);
 
@@ -115,6 +115,8 @@ export function renderStatus() {
       { class: `bot-dot is-${b.state}`, type: 'button', role: 'listitem', 'aria-label': label, title: label, style: { '--bot': core.color } },
       h('span', { class: 'bot-dot-body', 'aria-hidden': 'true' }),
       h('span', { class: 'bot-dot-mark', 'aria-hidden': 'true', html: markerIcon(b.state, 10) }),
+      // each dot says whose it is, so the row reads without hovering
+      h('span', { class: 'bot-dot-name', 'aria-hidden': 'true', text: clean(b.name) || core.name }),
     );
     dot.addEventListener('click', () => onBot && onBot(b.id));
     dotsEl.appendChild(dot);
