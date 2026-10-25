@@ -2346,7 +2346,14 @@ BUILD.bobino = (c, pl) => {
   ground(c, profile(-20, W + 20, 10, (x) => 440 + fbm(n, x / 180) * 14), { d: 0.3, dabs: 200, key: 'back', nearDark: 0 });
   // tall trees behind the café
   // an uneven stand of old trees, grown where they grew, not planted in a row
-  for (const [x, y, sz, d] of [[214, 504, 58, 0.2], [372, 486, 112, 0.16], [520, 474, 84, 0.18], [664, 462, 140, 0.13], [842, 470, 98, 0.16], [1012, 456, 152, 0.12], [1178, 478, 90, 0.17], [1318, 488, 124, 0.15], [1512, 508, 70, 0.2]]) tree(c, x, y, sz, { d });
+  for (const [x, y, sz, d, o] of [[214, 504, 58, 0.2], [372, 486, 112, 0.16], [664, 462, 176, 0.13, { wide: 0.55, trunkH: 1.05 }], [842, 470, 98, 0.16], [1012, 456, 152, 0.12, { wide: 0.9 }], [1318, 492, 84, 0.15, { wide: 1.75, trunkH: 0.55 }], [1512, 508, 70, 0.2]]) tree(c, x, y, sz, { d, ...(o || {}) });
+  // the far crowns go pale and blue in the air
+  {
+    const rh = c.sub('farhaze');
+    let hz = '';
+    for (const [x, y, rx] of [[214, 444, 54], [372, 392, 80], [842, 404, 70], [1512, 456, 60]]) hz += pth(blob(rh.r, x, y, rx, rx * 0.6, 0.3, 9), '#B9C4D6', 0.45);
+    c.land.push(g(hz, `filter="${c.f('b10')}"`));
+  }
   mist(c, 480, 60);
   const lot = profile(-20, W + 20, 10, (x) => 516 + fbm(n, x / 260 + 9) * 10);
   ground(c, lot, { d: 0.02, dabs: 520, persp: [516, 900], key: 'lot', strokes: 420, leaves: 140 });
@@ -2355,7 +2362,7 @@ BUILD.bobino = (c, pl) => {
     const rp = c.sub('patio');
     const pav = S.snow ? '#E8ECF2' : '#CDBFA6';
     const L = 'M436,560C600,574 760,586 840,588C960,584 1100,568 1244,552L1252,570C1254,600 1256,630 1250,654L1076,662C1070,640 1068,620 1062,604C960,612 860,614 820,614C700,612 560,600 430,584Z';
-    let pv = pth(L, c.P(pav, 0.1), 0.82);
+    let pv = g(pth(L, c.P(pav, 0.1), 0.5), `filter="${c.f('b4')}"`) + pth(L, c.P(pav, 0.1), 0.42);
     let dots = '';
     for (let i = 0; i < 260; i++) {
       const inLeg = rp.ch(0.4);
@@ -2365,8 +2372,14 @@ BUILD.bobino = (c, pl) => {
     }
     // the curb: a lit top edge and a cool shadow under it
     const curb = 'M430,584C560,600 700,612 820,614C860,614 960,612 1062,604C1068,620 1070,640 1076,662L1250,654';
-    let cb = spath(curb, mix(T.shade, '#4E4A6A', 0.3), 5, 0.35, ' transform="translate(0 3)"');
-    cb += spath(curb, c.P('#E6DED0', 0.5), 2.4, 0.85);
+    let cb = spath(curb, '#8E86A8', 7, 0.25, ' transform="translate(0 4)"');
+    cb += spath(curb, c.P('#E6DED0', 0.5), 1.8, 0.4, ' stroke-dasharray="70 14 120 22 40 9"');
+    // grass creeping back over the stone edge
+    for (let i = 0; i < 70; i++) {
+      const x = rp.R(1060, 1256);
+      const y = rp.ch(0.5) ? rp.R(648, 664) : rp.R(552, 572);
+      cb += ell(x, y, rp.R(3, 9), rp.R(1, 2.4), c.P(rp.pick(S.leaf), rp.R(-0.1, 0.4)), rp.R(0.3, 0.6), rp.R(-20, 20));
+    }
     c.land.push(g(pv, `filter="${c.f('wc')}"`) + g(dots, `filter="${c.f('pig')}"`) + g(cb, `filter="${c.f('archP')}"`));
   }
   // the street running down to the trailer wagon
@@ -2374,7 +2387,7 @@ BUILD.bobino = (c, pl) => {
   trailer(c, 1420, 576, 0.85);
   cafe(c);
   for (const [x, y] of [[1118, 628], [1196, 620], [1162, 650]]) {
-    let tb = ell(x - T.litSide * 12, y + 3, 18, 3.5, T.shade, 0.3);
+    let tb = g(ell(x - T.litSide * 16, y + 4, 24, 5, '#8E86A8', 0.25), `filter="${c.f('b2')}"`);
     tb += line(x, y, x, y - 17, c.P('#2E3638', 0), 1.8) + ell(x, y - 17, 12, 3.6, c.P('#E8E2D6', 0.5));
     for (const sd of [-1, 1]) tb += pg([[x + sd * 20, y + 2], [x + sd * 16, y - 13], [x + sd * 12, y - 13], [x + sd * 14, y + 2]], c.P('#2E3638', 0), 0.9);
     c.land.push(g(tb, `filter="${c.f('arch')}"`));
@@ -2404,7 +2417,7 @@ BUILD.bobino = (c, pl) => {
 function cafe(c) {
   const { T, S } = c;
   // the left face recedes: at its far end the wall stands about 30 percent shorter
-  const ctrl = [[452, 522, 93], [560, 537, 104], [680, 553, 119], [762, 564, 129], [812, 569, 134], [862, 568, 134], [922, 563, 131], [1040, 551, 124], [1160, 539, 116], [1226, 532, 111]];
+  const ctrl = [[452, 522, 66], [560, 537, 76], [680, 553, 94], [762, 564, 116], [812, 569, 132], [862, 568, 134], [922, 563, 131], [1040, 551, 124], [1160, 539, 116], [1226, 532, 111]];
   const base = crSample(ctrl.map(([x, y]) => [x, y]), 6);
   const hs = crSample(ctrl.map(([x, , h]) => [x, h]), 6).map((p) => p[1]);
   const pink = '#C97B6E';
@@ -2509,10 +2522,49 @@ function cafe(c) {
     }
   }
   c.land.push(g(frames + roof + bagels + shapeAll, `filter="${c.f('archP')}"`));
+  // the left face turns away from us: a darker rose glaze over brick and glass alike
+  {
+    const left = base.map((p, i) => [p, hs[i]]).filter(([[x]]) => x <= 836);
+    const face = [...left.map(([[x, y], h]) => [x, y - h - 1]), ...left.slice().reverse().map(([[x, y]]) => [x, y + 1])];
+    c.land.push(g(pg(face, '#9E6E6A', 0.5), 'style="mix-blend-mode:multiply"'));
+  }
   garageDoors(c, base, hs, lit);
-  // the blank sign area on the curved corner
-  const [sx, sy] = base[24];
-  c.land.push(g(rect(sx - 38, sy - hs[24] + 8, 76, 22, c.P('#F3EFE6', 0.45), 1, ` rx="4"${edge(c, 0.8)}`) + rect(sx - 33, sy - hs[24] + 12, 66, 14, 'none', 1, ` rx="3" stroke="${c.P('#E8C88E', 0.2)}" stroke-width="1" stroke-opacity="0.8"`), `filter="${c.f('arch')}"`));
+  // the corner catches the light: one broken vertical stroke down the turn
+  {
+    const ci = base.reduce((b, p, i) => (Math.abs(p[0] - 836) < Math.abs(base[b][0] - 836) ? i : b), 0);
+    const [cx, cy] = base[ci];
+    const rc = c.sub('corner');
+    let ed = '';
+    let y = cy - hs[ci] + 2;
+    while (y < cy - 2) {
+      const len = rc.R(10, 34);
+      ed += spath(`M${f1(cx + rc.R(-0.8, 0.8))},${f1(y)}L${f1(cx + rc.R(-1, 1))},${f1(Math.min(cy - 2, y + len))}`, '#F4D9C0', rc.R(2.2, 3.4), rc.R(0.55, 0.9));
+      y += len + rc.R(3, 11);
+    }
+    c.land.push(g(ed, `filter="${c.f('dry')}"`));
+  }
+  // the café sign on the corner: a cream board, a hand brushed mark (a shape, never words)
+  {
+    const si = 26;
+    const [sx, sy] = base[si];
+    const top = sy - hs[si] + 7;
+    const rs = c.sub('sign');
+    let sg = pth(`M${f1(sx - 34)},${f1(top + 1)}Q${f1(sx)},${f1(top - 1.5)} ${f1(sx + 35)},${f1(top + 0.5)}L${f1(sx + 34)},${f1(top + 21)}Q${f1(sx)},${f1(top + 23)} ${f1(sx - 33)},${f1(top + 21.5)}Z`, '#EFE4CC', 0.9);
+    sg += spath(`M${f1(sx - 34)},${f1(top + 21)}Q${f1(sx)},${f1(top + 23)} ${f1(sx + 34)},${f1(top + 21)}`, '#8E86A8', 2, 0.35);
+    // a round bagel shaped loop, then a run of loose brush marks
+    sg += `<ellipse cx="${f1(sx - 22)}" cy="${f1(top + 11)}" rx="5.4" ry="5" fill="none" stroke="#3E3230" stroke-width="2.2" stroke-opacity="0.8"/>`;
+    let px = sx - 12;
+    let d = '';
+    for (let k = 0; k < 6; k++) {
+      const w = rs.R(4, 7.5);
+      const hi = rs.ch(0.3) ? 9 : 5.5;
+      d += `M${f1(px)},${f1(top + 15.5)}q${f1(w * 0.3)},${f1(-hi)} ${f1(w * 0.6)},${f1(-rs.R(0, 1.5))}q${f1(w * 0.25)},${f1(hi * 0.8)} ${f1(w * 0.4)},${f1(rs.R(-0.5, 0.8))}`;
+      px += w + rs.R(1, 3);
+    }
+    sg += spath(d, '#3E3230', 1.6, 0.8);
+    sg += spath(`M${f1(sx - 10)},${f1(top + 18.5)}L${f1(px - 3)},${f1(top + 18)}`, '#3E3230', 0.9, 0.5);
+    c.land.push(g(g(sg, `transform="rotate(-1.2 ${f1(sx)} ${f1(top + 10)})"`), `filter="${c.f('arch')}"`));
+  }
   // chimney with steam
   chimney(c, 1012, 549 - 124 - 12, 10, 22, { col: '#9A9CA2', smokeSize: 0.75 });
   // terrace deck with planters, tables, shade sails
@@ -2568,9 +2620,16 @@ function garageDoors(c, base, hs, lit) {
   let mort = '';
   const x0 = 888;
   const step = 66;
+  // hand set doors: widths wander, each hangs a little out of true, one stands half open
+  const widths = [1.06, 0.93, 1.02, 0.95, 1.07];
+  const tilts = [0.7, -1.2, 0.5, -0.9, 1.4];
+  const openJ = 2;
+  const pxAt = [x0 - 10];
+  for (let j = 0; j < 5; j++) pxAt.push(pxAt[j] + step * widths[j]);
   const P = (x, t) => { const [y, h] = at(x); return [x, y - h * t]; };
   for (let j = 0; j <= 5; j++) {
-    const px = x0 + j * step - 10;
+    const px = pxAt[j];
+    const stepJ = j < 5 ? pxAt[j + 1] - pxAt[j] : step;
     const pw = 12;
     piers += pg([P(px, 0.7), P(px + pw, 0.7), P(px + pw, 0), P(px, 0)], c.P(j % 2 ? '#B57A74' : '#C98E86', k));
     for (let q = 0; q < 6; q++) {
@@ -2579,28 +2638,59 @@ function garageDoors(c, base, hs, lit) {
     }
     if (j === 5) break;
     const da = px + pw;
-    const db = px + step - 10;
+    const db = px + stepJ;
     const top = 0.66;
     const quadD = [P(da, top), P(db, top), P(db, 0.02), P(da, 0.02)];
-    doors += pg(quadD, lit ? '#E8B878' : c.lg([[0, '#2C3A3C'], [1, '#1E2A2E']], 0, 0, 0, 1));
-    if (!lit) {
+    const [bx0, by0] = P((da + db) / 2, 0.02);
+    const half = j === openJ;
+    let dr = '';
+    if (half) {
+      // the open door: the panel rolled up into the head, warm room and a regular inside
+      const [, yl] = P(da, 0.3);
+      dr += pg(quadD, '#5A4636', 1);
+      dr += pg([P(da, 0.36), P(db, 0.36), P(db, 0.02), P(da, 0.02)], '#E8C88E', 0.4);
+      dr += pg([P(da, 0.36), P(db, 0.36), P(db, 0.02), P(da, 0.02)], '#C98E5A', 0.25);
+      const fx = lerp(da, db, 0.42);
+      const [, fy] = P(fx, 0.03);
+      const fh = (fy - yl) * 0.92;
+      dr += ell(fx, fy - 1, fh * 0.32, fh * 0.06, '#8E86A8', 0.3);
+      dr += pth(`M${f1(fx - fh * 0.15)},${f1(fy)}Q${f1(fx - fh * 0.2)},${f1(fy - fh * 0.6)} ${f1(fx - fh * 0.05)},${f1(fy - fh * 0.78)}L${f1(fx + fh * 0.1)},${f1(fy - fh * 0.78)}Q${f1(fx + fh * 0.2)},${f1(fy - fh * 0.5)} ${f1(fx + fh * 0.14)},${f1(fy)}Z`, '#4E5A6A', 0.85);
+      dr += circ(fx + fh * 0.02, fy - fh * 0.88, fh * 0.1, '#C99A6A', 0.9);
+      dr += spath(`M${f1(fx + fh * 0.1)},${f1(fy - fh * 0.62)}l${f1(fh * 0.16)},${f1(fh * 0.08)}`, '#4E5A6A', fh * 0.07, 0.85);
+      dr += pg([P(da, top), P(db, top), P(db, 0.4), P(da, 0.4)], c.lg([[0, '#2C3A3C'], [1, '#1E2A2E']], 0, 0, 0, 1));
+      dr += pg([P(da, top), P(db, top), P(db, top - 0.08), P(da, top - 0.08)], mix(T.sky[3][1], '#E8EEF4', 0.3), lit ? 0.1 : 0.35);
+    } else dr += pg(quadD, lit ? '#E8B878' : c.lg([[0, '#2C3A3C'], [1, '#1E2A2E']], 0, 0, 0, 1));
+    if (!lit && !half) {
+      // the sky lies on the upper third of the glass in soft broken streaks
+      const skyC = mix(T.sky[3][1], '#E4ECF4', 0.35);
+      for (let q = 0; q < 5; q++) {
+        const t0 = r.R(0.46, 0.64);
+        const u0 = r.R(0, 0.7);
+        const u1 = clamp(u0 + r.R(0.2, 0.5), 0, 1);
+        dr += pg([P(lerp(da, db, u0), t0), P(lerp(da, db, u1), t0 + r.R(-0.02, 0.03)), P(lerp(da, db, u1 - 0.08), t0 - r.R(0.03, 0.07)), P(lerp(da, db, u0 + 0.05), t0 - r.R(0.03, 0.06))], skyC, r.R(0.18, 0.4));
+      }
+    }
+    doors += g(dr, `transform="rotate(${tilts[j]} ${f1(bx0)} ${f1(by0)})"`);
+    if (!lit && !half) {
       // a warm slant of the morning across the glass, and the room deep behind
       const s0 = r.R(0.15, 0.5);
-      doors += pg([P(lerp(da, db, s0), top), P(lerp(da, db, s0 + 0.22), top), P(lerp(da, db, s0 - 0.05), 0.02), P(lerp(da, db, s0 - 0.3), 0.02)].map(([x, y]) => [clamp(x, da, db), y]), '#E8C88E', 0.25);
-      doors += pg([P(da, 0.3), P(db, 0.3), P(db, 0.02), P(da, 0.02)], '#5A4636', 0.35);
+      const rot = `transform="rotate(${tilts[j]} ${f1(bx0)} ${f1(by0)})"`;
+      doors += g(pg([P(lerp(da, db, s0), top), P(lerp(da, db, s0 + 0.22), top), P(lerp(da, db, s0 - 0.05), 0.02), P(lerp(da, db, s0 - 0.3), 0.02)].map(([x, y]) => [clamp(x, da, db), y]), '#E8C88E', 0.25) + pg([P(da, 0.3), P(db, 0.3), P(db, 0.02), P(da, 0.02)], '#5A4636', 0.35), rot);
     }
-    // frame and four horizontal mullions
-    const fr = lit ? '#3A2E28' : '#141C1E';
-    doors += spath(`M${quadD.map(([x, y]) => `${f1(x)},${f1(y)}`).join('L')}Z`, fr, 2, 0.95);
+    // frame and four horizontal mullions, hand drawn, a little loose
+    const fr = lit ? '#3A2E28' : '#1C2426';
+    let fm = spath(`M${quadD.map(([x, y]) => `${f1(x + r.R(-0.6, 0.6))},${f1(y + r.R(-0.6, 0.6))}`).join('L')}Z`, fr, r.R(1.6, 2.2), 0.9);
     for (let m = 1; m <= 4; m++) {
       const t = 0.02 + (top - 0.02) * (m / 5);
+      if (half && t < 0.4) continue;
       const [ax, ay] = P(da, t);
       const [bx, by] = P(db, t);
-      doors += line(ax, ay, bx, by, fr, 1.4, 0.9);
-      if (!lit) doors += line(ax, ay - 1.2, bx, by - 1.2, '#8A9AA0', 0.6, 0.35);
+      fm += line(ax, ay + r.R(-0.5, 0.5), bx, by + r.R(-0.5, 0.5), fr, r.R(1, 1.6), r.R(0.6, 0.9));
+      if (!lit) fm += line(ax, ay - 1.2, bx - r.R(0, 8), by - 1.2, '#8A9AA0', 0.6, 0.35);
     }
-    const [hx, hy] = P((da + db) / 2, 0.06);
-    doors += line(hx - 5, hy, hx + 5, hy, '#9AA4A8', 1.2, 0.8);
+    const [hx, hy] = half ? P((da + db) / 2, 0.42) : P((da + db) / 2, 0.06);
+    fm += line(hx - 5, hy, hx + 5, hy, '#9AA4A8', 1.2, 0.8);
+    doors += g(fm, `transform="rotate(${tilts[j]} ${f1(bx0)} ${f1(by0)})"`);
   }
   c.land.push(g(piers + g(mort, `filter="${c.f('pig')}"`) + doors, `filter="${c.f('archP')}"`));
   if (lit) for (let j = 0; j < 5; j += 2) { const [lx, ly] = P(x0 + j * step + 24, 0.3); addLight(c, lx, ly, 0, { halo: 60, always: true }); }
@@ -3211,13 +3301,33 @@ BUILD.market = (c, pl) => {
   // the hall stands off center and to the right, so the square opens on the left
   const n0 = c.land.length;
   c.hallDX = 120;
+  // true recession: the right end of the hall stands farther off, so it is drawn
+  // in narrow upright strips, each scaled toward the horizon a little more
+  const hx0 = 300;
+  const hx1 = 1260;
+  const hor = 420;
+  const sc = (x) => 1 - 0.17 * clamp((x - hx0) / (hx1 - hx0), 0, 1);
+  const X = (x) => { const u = clamp(x, hx0, hx1) - hx0; return hx0 + u - (0.17 / (hx1 - hx0)) * u * u * 0.5 + (x > hx1 ? (x - hx1) * sc(hx1) : 0) + (x < hx0 ? x - hx0 : 0); };
+  c.hallMap = (x, y) => [X(x) + 120, hor + (y - hor) * sc(x)];
   marketHall(c);
   const hall = c.land.splice(n0).join('');
-  c.land.push(g(hall, 'transform="translate(120 0) translate(380 572) skewY(-1.4) scale(0.975 1) translate(-380 -572)"'));
+  c.hallMap = null;
+  let strips = '';
+  const NS = 18;
+  for (let i = 0; i < NS; i++) {
+    const xa = i === 0 ? hx0 - 80 : hx0 + ((hx1 - hx0) * i) / NS;
+    const xb = i === NS - 1 ? hx1 + 80 : hx0 + ((hx1 - hx0) * (i + 1)) / NS;
+    const ca = Math.max(hx0, xa);
+    const cb = Math.min(hx1, xb);
+    const k = sc((ca + cb) / 2);
+    const cp = c.clip(rect(xa - 0.6, 200, xb - xa + 1.2, 560, '#000'));
+    strips += g(g(hall, `clip-path="${cp}"`), `transform="translate(${f2(X(ca) - ca * k)} ${f2(hor - hor * k)}) scale(${f2(k)})"`);
+  }
+  c.land.push(g(strips, 'transform="translate(120 0)"'));
   c.land.push(g(rect(500, 572, 900, 26, c.lg([[0, '#5A4A60', 0.3], [1, '#5A4A60', 0]])), `filter="${c.f('b4')}"`));
   // a loose cluster of shoppers, crates and baskets, never in a row
   const rf = c.sub('folk');
-  const folk = [[612, 606, 30, '#6A7E9A'], [640, 612, 27, '#B5654A'], [884, 592, 24, '#7E8A5A'], [1172, 626, 31, '#8C6A86'], [1196, 620, 22, '#C9A15A'], [356, 646, 34, '#4E6A78']];
+  const folk = [[612, 606, 36, '#6A7E9A'], [636, 614, 22, '#B5654A'], [884, 592, 26, '#7E8A5A'], [1172, 630, 44, '#8C6A86'], [1198, 626, 30, '#C9A15A'], [1214, 632, 18, '#9A5A4A'], [356, 656, 52, '#4E6A78'], [990, 600, 28, '#6A6E8A']];
   for (const [x, y, h, col] of folk) figure(c, x, y, h, col, rf);
   for (const [x, y, w] of [[676, 616, 26], [700, 622, 20], [1236, 640, 30], [1140, 640, 18]]) crate(c, x, y, w, rf);
   road(c, pl.path, { w0: 240, w1: 80, kind: 'dirt', col: S.snow ? '#E6EAF0' : '#CDBB9A', edges: false, dapple: true });
@@ -3227,6 +3337,8 @@ BUILD.market = (c, pl) => {
   }
   tree(c, 150, 660, 120, {});
   tree(c, 1470, 680, 130, {});
+  // the near corner: crates heaped by the trader, half in the foreground shade
+  for (const [x, y, w] of [[1280, 772, 64], [1336, 780, 54], [1300, 730, 50], [1384, 770, 46]]) crate(c, x, y, w, rf);
   warmLight(c);
   vignette(c, 0.3);
   frame(c, { tl: 1, tr: 1, bl: 0.8, br: 0.8 });
@@ -3244,7 +3356,14 @@ function marketHall(c) {
   // stalls with striped awnings, counters and produce
   const awn = ['#C98A4E', '#5E9A8E', '#9A5A4A', '#7FA05A', '#E7C66A', '#D2A256', '#8E9A6A', '#B9876A'];
   const posts = [];
-  for (let i = 0; i <= 8; i++) posts.push(392 + i * 102);
+  {
+    // bays built one at a time: none the same width
+    const bw = [0.94, 1.08, 0.9, 1.1, 1.0, 0.92, 1.1, 0.96];
+    const tot = bw.reduce((a, b) => a + b, 0);
+    let x = 392;
+    posts.push(x);
+    for (const w of bw) { x += (816 * w) / tot; posts.push(x); }
+  }
   const rr = c.sub('stalls');
   for (let i = 0; i < 8; i++) {
     const x0 = posts[i] + 8;
@@ -3298,6 +3417,9 @@ function marketHall(c) {
       // a torn panel hanging loose
       const u0 = lerp(ax0, ax1, 4 / 6);
       a += pth(`M${f1(u0)},${f1(ay)}L${f1(u0 + 20)},${f1(ay)}L${f1(u0 + 14)},${f1(ay + 16)}L${f1(u0 + 18)},${f1(ay + 24)}L${f1(u0 + 9)},${f1(ay + 38)}L${f1(u0 + 4)},${f1(ay + 22)}Z`, c.P(col, 0.1), 0.85);
+      // the rip: the cloth belly sags through it, frayed threads
+      a += pth(`M${f1(u0 - 14)},${f1(hem(0.5) - 4)}Q${f1(u0 + 4)},${f1(hem(0.5) + 18)} ${f1(u0 + 26)},${f1(hem(0.7) - 2)}`, c.P(col, -0.2), 0.7);
+      a += spath(`M${f1(u0 - 6)},${f1(hem(0.5) + 6)}l-1,7M${f1(u0 + 2)},${f1(hem(0.55) + 9)}l1,6M${f1(u0 + 12)},${f1(hem(0.6) + 6)}l-1,8`, c.P(col, -0.4), 0.8, 0.7);
     }
     const nsc = Math.round(5 + wf * 3);
     for (let k = 0; k < nsc; k++) {
@@ -3343,7 +3465,23 @@ function marketHall(c) {
   }
   rf += pg([[368, 458], [1232, 458], [1232, 468], [368, 468]], c.P(wood, -0.3), 1, edge(c, 0.6));
   // ridge vent
-  rf += rect(770, 350, 60, 20, c.P('#D8C9AE', T.frontK), 1, edge(c, 0.6)) + pg([[762, 352], [838, 352], [800, 336]], c.P(roof, 0.4), 1, edge(c, 0.6));
+  rf += pg([[946, 371], [984, 370], [983, 356], [947, 357]], c.P('#D8C9AE', T.frontK - 0.1), 1, edge(c, 0.6)) + pg([[940, 358], [990, 357], [967, 345]], c.P(roof, 0.25), 1, edge(c, 0.6));
+  // the roof in two tones: a sun warmed run and a weathered patch, tiles laid in dry brush
+  {
+    const rt = c.sub('rooftone');
+    let tn = pg([[560, 370], [760, 370], [700, 460], [370, 460]], c.P('#C98A5A', 0.3), 0.35);
+    tn += pg([[880, 370], [1040, 370], [1230, 460], [980, 460]], c.P('#8E5A46', -0.2), 0.3);
+    let dbr = '';
+    for (let k = 0; k < 90; k++) {
+      const t = rt.R(0.05, 0.98);
+      const y = lerp(372, 456, t);
+      const xa = lerp(560, 370, t);
+      const xb = lerp(1040, 1230, t);
+      const x = rt.R(xa, xb - 40);
+      dbr += spath(`M${f1(x)},${f1(y)}l${f1(rt.R(20, 70))},${f1(rt.R(-0.6, 0.6))}`, rt.ch(0.5) ? '#E8B48A' : '#6E4434', rt.R(1, 2.4), rt.R(0.2, 0.45));
+    }
+    rf += tn + g(dbr, `filter="${c.f('dry')}"`);
+  }
   if (S.snow) rf += pg([[380, 452], [1220, 452], [1040, 372], [560, 372]], '#F4F6F9', 0.88);
   c.land.push(g(rf, `filter="${c.f('arch')}"`));
   // warm violet shade under the eave, deepening toward the back of the hall
@@ -3373,7 +3511,8 @@ function marketHall(c) {
   if (c.time === 'sunset' || c.time === 'night') {
     for (const x of [494, 698, 902, 1106]) {
       c.land.push(line(x, 468, x, 478, c.P('#3A3F48', 0), 1));
-      addLight(c, x + (c.hallDX || 0), 482, 4, { halo: 46, col: '#FFD27E' });
+      const [lx, ly] = c.hallMap ? c.hallMap(x, 482) : [x + (c.hallDX || 0), 482];
+      addLight(c, lx, ly, 4, { halo: 46, col: '#FFD27E' });
     }
   }
 }
