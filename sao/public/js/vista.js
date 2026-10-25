@@ -444,14 +444,16 @@ function bake(cv, img, { grade = true, haze = false, hole = null, grain = 0, twi
         // soft feathered edge, so only what lies behind it goes pale
         const cx = (hole.x / 100) * W2;
         const cy = (hole.y / 100) * h;
-        const rx = Math.max(1, (hole.w / 100) * W2 * 0.62);
-        const ry = Math.max(1, (hole.h / 100) * h * 0.62);
+        // the cut covers the whole subject box (not only its core), so no
+        // milky veil ever sits on the subject's edges
+        const rx = Math.max(1, (hole.w / 100) * W2 * 0.8);
+        const ry = Math.max(1, (hole.h / 100) * h * 0.8);
         c.save();
         c.globalAlpha = 1;
         c.globalCompositeOperation = 'destination-out';
         c.translate(cx, cy);
         c.scale(1, ry / rx);
-        const rg = c.createRadialGradient(0, 0, rx * 0.55, 0, 0, rx);
+        const rg = c.createRadialGradient(0, 0, rx * 0.62, 0, 0, rx);
         rg.addColorStop(0, 'rgba(0,0,0,1)');
         rg.addColorStop(1, 'rgba(0,0,0,0)');
         c.fillStyle = rg;
