@@ -10,8 +10,10 @@ const KINDS = ['clear', 'clouds', 'rain', 'snow', 'fog'];
 const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
-const WEATHER_URL = 'https://api.open-meteo.com/v1/forecast?latitude=45.4215&longitude=-75.6972&current=temperature_2m,weather_code&timezone=America%2FToronto';
-const CACHE_KEY = 'sao.weather.v1';
+// Weather never comes from a third party in the browser: the engine answers
+// /api/weather (Open-Meteo fetched on the laptop, cached 30 min), and the demo
+// uses the stable weather that ships in demo/state.json.
+const CACHE_KEY = 'sao.weather.v2';
 const CACHE_MS = 20 * 60 * 1000;
 
 function param(name) {
@@ -176,29 +178,6 @@ export function weekday(date) {
 
 const LABELS = { clear: 'Clear', clouds: 'Cloudy', rain: 'Rain', snow: 'Snow', fog: 'Fog' };
 
-function fromCode(code) {
-  const c = Number(code);
-  if (c === 0) return { kind: 'clear', label: 'Clear' };
-  if (c === 1) return { kind: 'clear', label: 'Mainly clear' };
-  if (c === 2) return { kind: 'clouds', label: 'Partly cloudy' };
-  if (c === 3) return { kind: 'clouds', label: 'Overcast' };
-  if (c === 45 || c === 48) return { kind: 'fog', label: 'Fog' };
-  if (c >= 51 && c <= 55) return { kind: 'rain', label: 'Drizzle' };
-  if (c === 56 || c === 57) return { kind: 'rain', label: 'Freezing drizzle' };
-  if (c === 61) return { kind: 'rain', label: 'Light rain' };
-  if (c === 63) return { kind: 'rain', label: 'Rain' };
-  if (c === 65) return { kind: 'rain', label: 'Heavy rain' };
-  if (c === 66 || c === 67) return { kind: 'rain', label: 'Freezing rain' };
-  if (c === 71) return { kind: 'snow', label: 'Light snow' };
-  if (c === 73) return { kind: 'snow', label: 'Snow' };
-  if (c === 75) return { kind: 'snow', label: 'Heavy snow' };
-  if (c === 77) return { kind: 'snow', label: 'Snow grains' };
-  if (c >= 80 && c <= 82) return { kind: 'rain', label: c === 82 ? 'Heavy showers' : 'Rain showers' };
-  if (c === 85 || c === 86) return { kind: 'snow', label: 'Snow showers' };
-  if (c >= 95) return { kind: 'rain', label: 'Thunderstorm' };
-  return { kind: 'clouds', label: 'Cloudy' };
-}
-
 function readCache() {
   try {
     if (typeof localStorage === 'undefined') return null;
@@ -212,38 +191,52 @@ function readCache() {
   }
 }
 
-function writeCache(data) {
+function writeCache(data, base) {
   try {
     if (typeof localStorage === 'undefined') return;
-    localStorage.setItem(CACHE_KEY, JSON.stringify({ at: Date.now(), data }));
+    localStorage.setItem(CACHE_KEY, JSON.stringify({ at: Date.now(), base, data }));
   } catch (e) { /* storage blocked */ }
 }
 
 let inflight = null;
+let dataMod = null;
+
+async function dataModule() {
+  if (!dataMod) dataMod = import('./data.js').catch(() => null);
+  return dataMod;
+}
+
+function clean(w) {
+  if (!w || typeof w !== 'object' || !KINDS.includes(w.kind)) return null;
+  const t = Number(w.tempC);
+  return { kind: w.kind, tempC: w.tempC != null && isFinite(t) ? Math.round(t) : null, label: String(w.label || LABELS[w.kind]).slice(0, 40) };
+}
 
 export async function weather() {
   try {
     const o = param('weather');
     if (o && KINDS.includes(o)) return { kind: o, tempC: null, label: LABELS[o] };
+    const d = await dataModule();
+    const base = d && typeof d.engineBase === 'function' ? d.engineBase() : null;
+    if (!base) {
+      // demo mode (static deployment, ?demo=1, or no engine): the same answer every load
+      return d && typeof d.demoWeather === 'function' ? clean(await d.demoWeather()) : null;
+    }
     const cached = readCache();
-    if (cached && Date.now() - cached.at < CACHE_MS) return cached.data;
+    if (cached && cached.base === base && Date.now() - cached.at < CACHE_MS) return cached.data;
     if (typeof fetch !== 'function') return cached ? cached.data : null;
     if (!inflight) {
       inflight = (async () => {
         let timer = null;
         try {
           const ctl = typeof AbortController === 'function' ? new AbortController() : null;
-          if (ctl) timer = setTimeout(() => ctl.abort(), 8000);
-          const res = await fetch(WEATHER_URL, ctl ? { signal: ctl.signal } : undefined);
-          if (!res.ok) throw new Error('weather ' + res.status);
+          if (ctl) timer = setTimeout(() => ctl.abort(), 10000);
+          const res = await fetch(`${base}/weather`, { cache: 'no-store', credentials: 'omit', signal: ctl ? ctl.signal : undefined });
+          if (!res.ok) return cached ? cached.data : null;
           const j = await res.json();
-          const cur = j && j.current;
-          if (!cur || cur.weather_code == null) throw new Error('weather shape');
-          const m = fromCode(cur.weather_code);
-          const t = Number(cur.temperature_2m);
-          const data = { kind: m.kind, tempC: isFinite(t) ? Math.round(t) : null, label: m.label };
-          writeCache(data);
-          return data;
+          const data = clean(j && j.weather);
+          if (data) writeCache(data, base);
+          return data || (cached ? cached.data : null);
         } catch (e) {
           return cached ? cached.data : null;
         } finally {

@@ -8,6 +8,7 @@
 //   POST /api/answer    {id, answer}           records an answer on a question
 //   POST /api/approve   {id}                   records an approval
 //   POST /api/activity  {}                     writes last-activity.json
+//   GET  /api/weather   {ok, weather}         Ottawa now, from Open-Meteo, cached 30 min, never fails
 //
 // Rules: JSON bodies only, at most 64 KB; never crash on missing or malformed
 // files; never overwrite a file it could not parse; never log file contents.
@@ -454,8 +455,72 @@ async function editOrders(change) {
   });
 }
 
+// Weather for the vista, fetched here so the browser never calls a third party
+// (a 429 there would show as a console error). Cached 30 minutes in memory; on
+// any failure the last good answer (or null) is returned, always with 200.
+const WEATHER_URL = 'https://api.open-meteo.com/v1/forecast?latitude=45.4215&longitude=-75.6972&current=temperature_2m,weather_code&timezone=America%2FToronto';
+const WEATHER_MS = 30 * 60 * 1000;
+const WEATHER_RETRY_MS = 5 * 60 * 1000;
+const weatherCache = { at: 0, tried: 0, data: null, inflight: null };
+
+function weatherFromCode(code) {
+  const c = Number(code);
+  if (c === 0) return ['clear', 'Clear'];
+  if (c === 1) return ['clear', 'Mainly clear'];
+  if (c === 2) return ['clouds', 'Partly cloudy'];
+  if (c === 3) return ['clouds', 'Overcast'];
+  if (c === 45 || c === 48) return ['fog', 'Fog'];
+  if (c >= 51 && c <= 57) return ['rain', 'Drizzle'];
+  if (c === 61) return ['rain', 'Light rain'];
+  if (c === 63) return ['rain', 'Rain'];
+  if (c === 65) return ['rain', 'Heavy rain'];
+  if (c === 66 || c === 67) return ['rain', 'Freezing rain'];
+  if (c === 71) return ['snow', 'Light snow'];
+  if (c === 73) return ['snow', 'Snow'];
+  if (c === 75) return ['snow', 'Heavy snow'];
+  if (c === 77) return ['snow', 'Snow grains'];
+  if (c >= 80 && c <= 82) return ['rain', c === 82 ? 'Heavy showers' : 'Rain showers'];
+  if (c === 85 || c === 86) return ['snow', 'Snow showers'];
+  if (c >= 95) return ['rain', 'Thunderstorm'];
+  return ['clouds', 'Cloudy'];
+}
+
+async function currentWeather() {
+  const t = Date.now();
+  if (weatherCache.data && t - weatherCache.at < WEATHER_MS) return weatherCache.data;
+  if (t - weatherCache.tried < WEATHER_RETRY_MS) return weatherCache.data;
+  if (weatherCache.inflight) return weatherCache.inflight;
+  weatherCache.tried = t;
+  weatherCache.inflight = (async () => {
+    try {
+      if (typeof fetch !== 'function') return weatherCache.data;
+      const r = await fetch(WEATHER_URL, { signal: AbortSignal.timeout(8000) });
+      if (!r.ok) return weatherCache.data;
+      const j = await r.json();
+      const cur = j && j.current;
+      if (!cur || cur.weather_code == null) return weatherCache.data;
+      const [kind, label] = weatherFromCode(cur.weather_code);
+      const temp = Number(cur.temperature_2m);
+      weatherCache.data = { kind, tempC: Number.isFinite(temp) ? Math.round(temp) : null, label };
+      weatherCache.at = Date.now();
+      return weatherCache.data;
+    } catch {
+      return weatherCache.data;
+    } finally {
+      weatherCache.inflight = null;
+    }
+  })();
+  return weatherCache.inflight;
+}
+
 const API = {
   'GET /api/state': async () => [200, await buildState()],
+
+  'GET /api/weather': async () => {
+    let weather = null;
+    try { weather = await currentWeather(); } catch { weather = null; }
+    return [200, { ok: true, weather }];
+  },
 
   // memory.md is for this laptop only: never answered to another origin
   'GET /api/memory': async (body, req) => {

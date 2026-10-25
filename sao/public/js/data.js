@@ -21,6 +21,7 @@ const LOCAL = {
 let api = null; // the engine base that answered, or null in demo mode
 let source = null; // 'engine' | 'demo' | 'none'
 let lastText = '';
+let demoState = null; // the demo file as loaded, for its stable weather
 
 /* ------------------------------------------------------------- helpers */
 
@@ -141,6 +142,7 @@ async function loadDemo(error) {
     const r = await fetchWithTimeout(DEMO_URL, {}, 8000);
     if (!r.ok) throw new Error(`demo ${r.status}`);
     const state = await r.json();
+    demoState = state && typeof state === 'object' ? state : null;
     api = null;
     source = 'demo';
     const out = { state: withLocalDemo(state && typeof state === 'object' ? state : {}), source: 'demo' };
@@ -266,4 +268,28 @@ export function onState(cb) {
 
 export function currentSource() {
   return source;
+}
+
+// The engine base that answered (for example '/api' on this laptop), or null.
+export function engineBase() {
+  return source === 'engine' && api ? api : null;
+}
+
+// The stable weather that ships with the demo state, or null. Never calls the
+// network beyond the demo file itself, so the tag reads the same on every load.
+export async function demoWeather() {
+  try {
+    if (!demoState) {
+      const r = await fetchWithTimeout(DEMO_URL, {}, 8000);
+      if (r.ok) demoState = await r.json();
+    }
+    const w = demoState && demoState.weather;
+    if (!w || typeof w !== 'object') return null;
+    const kinds = ['clear', 'clouds', 'rain', 'snow', 'fog'];
+    const kind = kinds.includes(w.kind) ? w.kind : 'clear';
+    const t = Number(w.tempC);
+    return { kind, tempC: Number.isFinite(t) ? Math.round(t) : null, label: String(w.label || 'Clear').slice(0, 40) };
+  } catch (e) {
+    return null;
+  }
 }

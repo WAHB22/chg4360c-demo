@@ -93,6 +93,11 @@ canvas.sv-cloudstrip{display:block}
 .sv-wx .sv-fall svg{will-change:transform;animation:svFlip var(--flip,1.8s) cubic-bezier(.45,.05,.55,.95) infinite;animation-delay:var(--delay,0s)}
 .sv-wx .sv-flake{width:var(--size,4px);height:var(--size,4px);border-radius:50%;background:rgba(246,248,252,.9);box-shadow:0 0 4px rgba(246,248,252,.5)}
 .sv-wx svg{display:block}
+.sv-leaves{pointer-events:none;overflow:visible}
+.sv-leaf{position:absolute;display:block;opacity:0;will-change:transform,opacity;animation:svLeaf var(--dur,12s) linear infinite;animation-delay:var(--delay,0s)}
+.sv-leaf>b{display:block;animation:svSway var(--sway,4s) cubic-bezier(.37,0,.63,1) infinite alternate;animation-delay:var(--delay,0s)}
+.sv-leaf svg{display:block;will-change:transform;animation:svFlip var(--flip,1.8s) cubic-bezier(.45,.05,.55,.95) infinite;animation-delay:var(--delay,0s)}
+html.reduce-motion .sv-leaves{display:none}
 .sv-vista[data-paused="on"] *{animation-play-state:paused!important}
 @keyframes svDrift{from{transform:translate3d(-50%,0,0)}to{transform:translate3d(0,0,0)}}
 @keyframes svPulse{0%{opacity:.8}22%{opacity:.97}38%{opacity:.9}61%{opacity:1}83%{opacity:.86}100%{opacity:.8}}
@@ -103,12 +108,13 @@ canvas.sv-cloudstrip{display:block}
 @keyframes svBreatheF{from{transform:translate3d(0,0,0)}to{transform:translate3d(5px,-2px,0)}}
 @keyframes svFlip{0%{transform:rotateX(0) rotateZ(0)}28%{transform:rotateX(70deg) rotateZ(16deg)}52%{transform:rotateX(175deg) rotateZ(-8deg)}79%{transform:rotateX(260deg) rotateZ(11deg)}100%{transform:rotateX(360deg) rotateZ(0)}}
 @keyframes svRain{from{transform:translate3d(0,-40px,0) rotate(12deg)}to{transform:translate3d(calc(var(--svh,900px) * -.21),calc(var(--svh,900px) + 40px),0) rotate(12deg)}}
+@keyframes svLeaf{0%{transform:translate3d(0,0,0);opacity:0}8%{opacity:.95}70%{opacity:.85}100%{transform:translate3d(var(--dx,60px),var(--fy,240px),0);opacity:0}}
 @keyframes svFall{from{transform:translate3d(0,-30px,0)}to{transform:translate3d(var(--dx,0px),calc(var(--svh,900px) + 30px),0)}}
 @keyframes svSway{0%{transform:translate3d(calc(var(--amp,30px) * -1),-7px,0) rotate(calc(var(--rot,50deg) * -1))}50%{transform:translate3d(0,5px,0) rotate(0)}100%{transform:translate3d(var(--amp,30px),-7px,0) rotate(var(--rot,50deg))}}
 @media (prefers-reduced-motion: reduce){
   .sv-cloudstrip,.sv-vista[data-glow="on"] .sv-lights,.sv-shafts,.sv-mist,.sv-vista .sv-stage,.sv-vista .sv-frontwrap{animation:none!important}
   .sv-cloudstrip.sv-cb{opacity:.3}
-  .sv-wx{display:none}
+  .sv-wx,.sv-leaves{display:none}
   .sv-grade,.sv-haze,.sv-lights{transition-duration:.2s}
 }
 `;
@@ -372,10 +378,12 @@ function paper() {
   return c;
 }
 
-function bakeSize() {
+// f < 1 gives the quick first pass (a soft low resolution version that is
+// swapped for the full one when the browser has time)
+function bakeSize(f = 1) {
   const dpr = (typeof devicePixelRatio === 'number' && devicePixelRatio) || 1;
-  const k = Math.min(1.5, Math.max(0.7, (geom.scale || 1) * dpr));
-  return { w: Math.round(VW * k), h: Math.round(VH * k) };
+  const k = Math.min(1.5, Math.max(0.7, (geom.scale || 1) * dpr)) * f;
+  return { w: Math.round(VW * k), h: Math.round(VH * k), k: Math.round(k * 100) / 100 };
 }
 
 function rasterize(svg) {
@@ -396,24 +404,23 @@ function rasterize(svg) {
 
 // draws one painted layer into a canvas, then lays the grade, haze and grain
 // only where that layer has paint (masked by its own alpha)
-function bake(cv, img, { grade = true, haze = false, hole = null, grain = 0, twice = false, flip = false } = {}) {
-  const { w, h } = bakeSize();
+function bake(cv, img, { grade = true, haze = false, hole = null, grain = 0, twice = false, flip = false, f = 1 } = {}) {
+  const { w, h } = bakeSize(f);
   const W2 = twice ? w * 2 : w;
   cv.width = W2;
   cv.height = h;
   const x = cv.getContext('2d');
   if (!x) return false;
-  const draw = (ctx) => {
-    if (flip) {
-      ctx.save();
-      ctx.translate(W2, 0);
-      ctx.scale(-1, 1);
-    }
-    ctx.drawImage(img, 0, 0, w, h);
-    if (twice) ctx.drawImage(img, w, 0, w, h);
-    if (flip) ctx.restore();
-  };
-  draw(x);
+  // the SVG is rasterized once (it is the costly step); the second copy of a
+  // cloud strip and the masks below reuse those pixels
+  if (flip) {
+    x.save();
+    x.translate(W2, 0);
+    x.scale(-1, 1);
+  }
+  x.drawImage(img, 0, 0, w, h);
+  if (flip) x.restore();
+  if (twice) x.drawImage(cv, flip ? w : 0, 0, w, h, flip ? 0 : w, 0, w, h);
   const G = GRADE[amb.time] || GRADE.day;
   const passes = [];
   if (grade && G.op) passes.push([G.op, (c) => { c.fillStyle = G.color; c.fillRect(0, 0, W2, h); }]);
@@ -461,11 +468,17 @@ function bake(cv, img, { grade = true, haze = false, hole = null, grain = 0, twi
     }]);
   }
   if (passes.length) {
+    // the layer's own alpha, copied once before any pass changes it
+    const mask = document.createElement('canvas');
+    mask.width = W2;
+    mask.height = h;
+    const mx = mask.getContext('2d');
     const t = document.createElement('canvas');
     t.width = W2;
     t.height = h;
     const tx = t.getContext('2d');
-    if (tx) {
+    if (tx && mx) {
+      mx.drawImage(cv, 0, 0);
       for (const [op, paint] of passes) {
         tx.globalCompositeOperation = 'source-over';
         tx.globalAlpha = 1;
@@ -473,14 +486,29 @@ function bake(cv, img, { grade = true, haze = false, hole = null, grain = 0, twi
         paint(tx);
         tx.globalAlpha = 1;
         tx.globalCompositeOperation = 'destination-in';
-        draw(tx);
+        tx.drawImage(mask, 0, 0);
         x.globalCompositeOperation = op;
         x.drawImage(t, 0, 0);
       }
       x.globalCompositeOperation = 'source-over';
+      mask.width = mask.height = t.width = t.height = 0;
     }
   }
   return true;
+}
+
+// a mirrored copy of a baked cloud strip (the grade is even, so mirroring the
+// result equals baking the mirrored image, at none of the cost)
+function mirror(dst, src) {
+  dst.width = src.width;
+  dst.height = src.height;
+  const x = dst.getContext('2d');
+  if (!x) return;
+  x.save();
+  x.translate(src.width, 0);
+  x.scale(-1, 1);
+  x.drawImage(src, 0, 0);
+  x.restore();
 }
 
 // shafts of light through the sky at day and morning: soft wedges, baked once
@@ -547,9 +575,39 @@ function lightGroups(svg) {
   return [0, 1, 2, 3].map((q) => only(`.lw{display:none}.lw.q${q}{display:inline}`));
 }
 
-function buildStage(id) {
-  const stage = el('div', 'sv-stage');
-  const front = el('div', 'sv-frontwrap');
+// Every baked view is kept (per place, time, season, weather, quiet hours and
+// weekday or weekend), so a revisit or a travel back is instant. The cache is
+// held to a pixel budget, oldest first out.
+const layerCache = new Map();
+const svgCache = new Map();
+const CACHE_BYTES = 180 * 1024 * 1024;
+const QUICK = 0.45;
+
+function stageKey(id) {
+  return [id, amb.time, amb.season, kindOf(amb.weather), amb.quiet ? 1 : 0, isWeekend() ? 1 : 0].join('|');
+}
+
+function bytesOf(L) {
+  let n = 0;
+  for (const c of [L.sky, L.ca, L.cb, L.land, L.front, ...(L.lights || [])]) if (c) n += c.width * c.height * 4;
+  return n;
+}
+
+function cachePut(key, L) {
+  layerCache.delete(key);
+  layerCache.set(key, L);
+  let total = 0;
+  for (const v of layerCache.values()) total += v.bytes || 0;
+  for (const [k, v] of layerCache) {
+    if (total <= CACHE_BYTES || layerCache.size <= 1) break;
+    if (v.inUse && v.inUse()) continue;
+    total -= v.bytes || 0;
+    layerCache.delete(k);
+  }
+}
+
+function sceneParts(id, key) {
+  if (svgCache.has(key)) return svgCache.get(key);
   const o = sceneOpts();
   let parts = null;
   try {
@@ -563,6 +621,76 @@ function buildStage(id) {
   } catch (e) {
     parts = { sky: paintPlace(id, o), clouds: '', land: '', lights: '', front: '' };
   }
+  svgCache.set(key, parts);
+  if (svgCache.size > 6) svgCache.delete(svgCache.keys().next().value);
+  return parts;
+}
+
+// lets the browser paint a frame (and answer a tap) between two costly layers
+function breathe(ms = 0) {
+  return new Promise((r) => {
+    if (typeof requestIdleCallback === 'function' && ms > 0) requestIdleCallback(() => r(), { timeout: ms });
+    else setTimeout(r, ms);
+  });
+}
+
+// Falling leaves come only from the trees each place really has: crown
+// centres and sizes in painting pixels, read from the scene layout.
+const CROWNS = {
+  campus: [[432, 390, 150], [1450, 543, 170], [120, 495, 90]],
+  town: [[872, 443, 80], [230, 542, 100], [1380, 508, 105]],
+  bobino: [[286, 466, 125], [664, 290, 110], [1012, 255, 120], [1318, 325, 100]],
+  home: [[1150, 368, 150]],
+  kitchen: [[250, 465, 115], [1290, 502, 100]],
+  gym: [[160, 508, 85], [1460, 502, 100]],
+  market: [[150, 502, 100], [1470, 508, 105]],
+  fields: [[104, 443, 105], [1452, 455, 70]],
+};
+const MAX_LEAVES = 6;
+
+function buildLeaves(id, parent) {
+  const crowns = CROWNS[id];
+  if (!crowns || reduced()) return;
+  const kind = kindOf(amb.weather);
+  if (!(amb.season === 'autumn' || amb.season === 'spring') || kind === 'rain' || kind === 'snow') return;
+  const box = el('div', 'sv-layer sv-leaves', parent);
+  box.setAttribute('aria-hidden', 'true');
+  const cols = amb.season === 'autumn' ? ['#D9822B', '#E6A73E', '#C2672E', '#B9783A', '#E9B04A', '#A9552F', '#D7A24C'] : ['#F4C9D4', '#F8DDE4', '#EAB1C3'];
+  const night = amb.time === 'night';
+  const n = Math.min(MAX_LEAVES, amb.season === 'autumn' ? 6 : 4);
+  for (let i = 0; i < n; i++) {
+    const [cx, cy, r] = crowns[i % crowns.length];
+    const d = el('i', 'sv-leaf', box);
+    const b = el('b', '', d);
+    const col = cols[(i * 3) % cols.length];
+    const w = Math.round(rnd(10, 16));
+    b.innerHTML = `<svg width="${w}" height="${Math.round(w * 0.55)}" viewBox="0 0 20 11" aria-hidden="true"><path d="M0 5.5Q8 -1.5 20 5.5Q8 12.5 0 5.5Z" fill="${col}" fill-opacity="${night ? 0.45 : 0.9}"/><path d="M1 5.5L18 5.5" stroke="rgba(90,60,40,.5)" stroke-width=".8"/></svg>`;
+    // born inside the lower half of the crown, then a long slow fall that
+    // fades out before it reaches the ground
+    d.style.left = `${Math.round(cx + rnd(-0.7, 0.7) * r)}px`;
+    d.style.top = `${Math.round(cy + rnd(-0.1, 0.45) * r)}px`;
+    const dur = rnd(9, 15);
+    d.style.setProperty('--dur', `${dur.toFixed(1)}s`);
+    // every leaf waits its turn, so they never leave the trees all at once
+    d.style.setProperty('--delay', `${(-rnd(0, dur) + i * 0.4).toFixed(1)}s`);
+    d.style.setProperty('--fy', `${Math.round(rnd(1.3, 2.2) * r)}px`);
+    d.style.setProperty('--dx', `${Math.round(rnd(40, 160))}px`);
+    b.style.setProperty('--sway', `${rnd(2.2, 4).toFixed(1)}s`);
+    b.style.setProperty('--amp', `${Math.round(rnd(14, 34))}px`);
+    b.style.setProperty('--rot', `${Math.round(rnd(35, 80))}deg`);
+    b.style.setProperty('--flip', `${rnd(1.2, 2.6).toFixed(2)}s`);
+  }
+}
+
+// timing marks for measuring first paint and travel (performance panel only)
+function mark(rec, what) {
+  try { if (typeof performance !== 'undefined' && performance.mark) performance.mark(`sao-vista-${what}-${rec.id}`); } catch (e) { /* not available */ }
+}
+
+function buildStage(id) {
+  const stage = el('div', 'sv-stage');
+  const front = el('div', 'sv-frontwrap');
+  const key = stageKey(id);
   const drift = 40 + ((id.length * 7) % 30); // 40 to 70 s per pass
   const kind = kindOf(amb.weather);
   const shafts = (amb.time === 'day' || amb.time === 'morning') && (kind === 'clear' || kind === 'clouds');
@@ -572,43 +700,88 @@ function buildStage(id) {
     c.setAttribute('aria-hidden', 'true');
     return c;
   };
-  const sky = cv('sv-layer sv-sky', stage);
+  let sky = cv('sv-layer sv-sky', stage);
   const cl = el('div', 'sv-layer sv-clouds', stage);
-  const ca = cv('sv-cloudstrip', cl);
-  const cb = cv('sv-cloudstrip sv-cb', cl);
+  let ca = cv('sv-cloudstrip', cl);
+  let cb = cv('sv-cloudstrip sv-cb', cl);
   cl.style.setProperty('--drift', `${drift}s`);
   cl.style.setProperty('--drift2', `${Math.round(drift * 1.7)}s`);
-  const land = cv('sv-layer sv-land', stage);
+  let land = cv('sv-layer sv-land', stage);
   const sh = shafts ? cv('sv-layer sv-shafts', stage) : null;
   const m1 = mist ? cv('sv-layer sv-mist', stage) : null;
   const m2 = mist ? cv('sv-layer sv-mist m2', stage) : null;
   const lightsEl = el('div', 'sv-layer sv-lights', stage);
-  const fr = cv('sv-layer sv-frontpic', front);
-  const rec = { id, stage, front, image: false, time: amb.time, urls: [], lightCanvases: [] };
-
-  const groups = parts.lights ? lightGroups(parts.lights) : [];
-  const jobs = [
-    rasterize(parts.sky).then((im) => im && bake(sky, im, { haze: true, grain: 0.1 })),
-    rasterize(parts.clouds).then((im) => {
-      if (!im) return;
-      bake(ca, im, { twice: true });
-      bake(cb, im, { twice: true, flip: true });
-    }),
-    rasterize(parts.land).then((im) => im && bake(land, im, { haze: true, hole: PLACE[id] && PLACE[id].subject, grain: 0.12 })),
-    rasterize(parts.front).then((im) => im && bake(fr, im, { grain: 0.08 })),
-    ...groups.map((svg, i) => rasterize(svg).then((im) => {
-      if (!im) return;
-      const c = cv('', lightsEl);
-      bake(c, im, { grade: false });
-      rec.lightCanvases[i] = c;
-    })),
-  ];
+  let fr = cv('sv-layer sv-frontpic', front);
+  buildLeaves(id, stage);
+  const rec = { id, key, stage, front, image: false, time: amb.time, urls: [], lightCanvases: [], res: 'quick', dead: false };
+  const quietLights = () => {
+    if (amb.quiet && rec.lightCanvases.length) rec.lightCanvases.forEach((c, i) => { c.style.opacity = i === 0 ? '0.6' : '0'; });
+  };
+  const size = bakeSize();
+  const hit = layerCache.get(key);
+  if (hit && hit.k === size.k && ![hit.sky, hit.land].some((c) => c && c.isConnected)) {
+    // a view painted before: its finished bitmaps move straight in
+    sky.replaceWith(hit.sky); sky = hit.sky;
+    ca.replaceWith(hit.ca); ca = hit.ca;
+    cb.replaceWith(hit.cb); cb = hit.cb;
+    land.replaceWith(hit.land); land = hit.land;
+    fr.replaceWith(hit.front); fr = hit.front;
+    for (const c of hit.lights) {
+      c.style.cssText = '';
+      lightsEl.appendChild(c);
+    }
+    rec.lightCanvases = hit.lights.slice();
+    rec.res = 'full';
+    stage.dataset.res = 'full';
+    hit.inUse = () => !rec.dead;
+    cachePut(key, hit);
+    rec.ready = Promise.resolve().then(quietLights).then(() => mark(rec, 'cache'));
+  } else {
+    stage.dataset.res = 'quick';
+    const parts = sceneParts(id, key);
+    const groups = parts.lights ? lightGroups(parts.lights) : [];
+    const lightCv = groups.map(() => cv('', lightsEl));
+    rec.lightCanvases = lightCv.slice();
+    const subject = PLACE[id] && PLACE[id].subject;
+    // what to paint, most visible first
+    const layers = [
+      [parts.land, (im, f) => bake(land, im, { haze: true, hole: subject, grain: 0.12, f })],
+      [parts.sky, (im, f) => bake(sky, im, { haze: true, grain: 0.1, f })],
+      [parts.front, (im, f) => bake(fr, im, { grain: 0.08, f })],
+      [parts.clouds, (im, f) => { bake(ca, im, { twice: true, f }); mirror(cb, ca); }],
+      ...groups.map((svg, i) => [svg, (im, f) => bake(lightCv[i], im, { grade: false, f })]),
+    ];
+    const imgs = Promise.all(layers.map(([svg]) => rasterize(svg)));
+    const quick = imgs.then(async (list) => {
+      for (let i = 0; i < layers.length; i++) {
+        if (rec.dead) return;
+        if (list[i]) layers[i][1](list[i], QUICK);
+        if (i < 3) await breathe(0);
+      }
+    }).catch(() => {});
+    rec.ready = Promise.race([quick, wait(6000)]).then(quietLights).then(() => mark(rec, 'quick'));
+    // then the full resolution, one layer at a time while the browser is idle,
+    // after any travel has settled; the finished view goes into the cache
+    rec.full = quick.then(async () => {
+      const list = await imgs;
+      await wait(reduced() ? 300 : 1300);
+      for (let i = 0; i < layers.length; i++) {
+        if (rec.dead) return;
+        await breathe(1500);
+        if (rec.dead) return;
+        if (list[i]) layers[i][1](list[i], 1);
+      }
+      rec.res = 'full';
+      stage.dataset.res = 'full';
+      mark(rec, 'full');
+      const L = { k: size.k, sky, ca, cb, land, front: fr, lights: lightCv, inUse: () => !rec.dead };
+      L.bytes = bytesOf(L);
+      cachePut(key, L);
+    }).catch(() => {});
+  }
   if (sh) bakeShafts(sh);
   if (m1) bakeMist(m1, 4111 + id.length, kind === 'fog');
   if (m2) bakeMist(m2, 9277 + id.length * 3, kind === 'fog');
-  rec.ready = Promise.race([Promise.all(jobs).catch(() => {}), wait(4000)]).then(() => {
-    if (amb.quiet && rec.lightCanvases.length) rec.lightCanvases.forEach((c, i) => { c.style.opacity = i === 0 ? '0.6' : '0'; });
-  });
   const url = assetUrl(id, amb.time);
   probe(url).then((ok) => {
     if (!ok || !stage.isConnected) return;
@@ -657,6 +830,7 @@ function mountRec(rec) {
 
 function dropRec(rec) {
   if (!rec) return;
+  rec.dead = true;
   rec.stage.remove();
   rec.front.remove();
   // keep the blob alive a moment in case the browser is still decoding it
@@ -764,28 +938,6 @@ function buildWeather() {
       b.style.setProperty('--amp', `${Math.round(rnd(8, 22))}px`);
       b.style.setProperty('--rot', '0deg');
       b.style.opacity = rnd(0.5, 0.95).toFixed(2);
-      frag.appendChild(d);
-    }
-  }
-  const leafy = (amb.season === 'autumn' || amb.season === 'spring') && kind !== 'rain' && kind !== 'snow';
-  if (leafy) {
-    const n = amb.season === 'autumn' ? 12 : 8;
-    const cols = amb.season === 'autumn' ? ['#D9822B', '#E6A73E', '#C2672E', '#B9783A', '#E9B04A', '#A9552F', '#D7A24C'] : ['#F4C9D4', '#F8DDE4', '#EAB1C3'];
-    const night = amb.time === 'night';
-    for (let i = 0; i < Math.min(20, n); i++) {
-      const d = el('i', 'sv-fall');
-      const b = el('b', '', d);
-      const col = cols[i % cols.length];
-      const w = Math.round(rnd(9, 15));
-      b.innerHTML = `<svg width="${w}" height="${Math.round(w * 0.55)}" viewBox="0 0 20 11" aria-hidden="true"><path d="M0 5.5Q8 -1.5 20 5.5Q8 12.5 0 5.5Z" fill="${col}" fill-opacity="${night ? 0.45 : 0.9}"/><path d="M1 5.5L18 5.5" stroke="rgba(90,60,40,.5)" stroke-width=".8"/></svg>`;
-      d.style.left = `${rnd(-5, 100)}%`;
-      d.style.setProperty('--dur', `${rnd(12, 22).toFixed(1)}s`);
-      d.style.setProperty('--delay', `${(-rnd(0, 22)).toFixed(1)}s`);
-      d.style.setProperty('--dx', `${Math.round(rnd(60, 220))}px`);
-      b.style.setProperty('--sway', `${rnd(2.2, 4).toFixed(1)}s`);
-      b.style.setProperty('--amp', `${Math.round(rnd(18, 46))}px`);
-      b.style.setProperty('--rot', `${Math.round(rnd(35, 80))}deg`);
-      b.style.setProperty('--flip', `${rnd(1.2, 2.6).toFixed(2)}s`);
       frag.appendChild(d);
     }
   }
