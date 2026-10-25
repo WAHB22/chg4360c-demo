@@ -28,7 +28,7 @@ export const BOT = Object.fromEntries(CORE.map((b) => [b.id, b]));
 // Visible states and their markers (color is never the only signal).
 export const STATES = {
   working: { label: 'Working', marker: 'diamond' },
-  traveling: { label: 'Traveling', marker: 'diamond' },
+  traveling: { label: 'Travelling', marker: 'diamond' },
   waiting: { label: 'Waiting on you', marker: 'question' },
   sleeping: { label: 'Sleeping', marker: 'z' },
   done: { label: 'Done', marker: 'none' },

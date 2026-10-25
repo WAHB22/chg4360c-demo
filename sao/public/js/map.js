@@ -44,7 +44,7 @@ const NUDGE = { home: [24, 2], kitchen: [8, 0] };
 const REGION_NUDGE = {
   'The Northern Heights': [150, -5],
   'The Lake': [10, -14],
-  'The Center': [-70, 40],
+  'The Centre': [-70, 40],
   'The Eastern Village': [20, -65],
   'The Quiet Slope': [-10, 20],
   'The Southern Meadows': [0, 20],
