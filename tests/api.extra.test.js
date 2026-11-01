@@ -305,48 +305,54 @@ test('sameOrigin: first x-forwarded-host wins, default ports are ignored, the ho
 
 /* ---------- api/read.js ---------- */
 
+// The counter is one blob per read under finance-meta/reads/<Toronto day>/ (spec section 11, Read limit counter).
+const READS_DAY = 'finance-meta/reads/2026-11-14/';
+const seedReads = (fake, n) => { for (let i = 0; i < n; i++) fake.seed(PUB, `${READS_DAY}other-device-${i}.json`, '{}'); };
+
 test('the read is counted before Claude is called', async () => {
   mock.timers.enable({ apis: ['Date'], now: Date.parse('2026-11-14T15:00:00Z') });
   let countSeen = null;
   const { fake } = setup({
     reply: () => {
-      countSeen = fake.json(PUB, 'finance-meta/read-count-2026-11-14.json');
+      countSeen = fake.pathnames(PUB, READS_DAY);
       return reply(OCT31);
     },
   });
   assert.equal((await post(file())).status, 200);
-  assert.deepEqual(countSeen, { count: 1 });
+  assert.deepEqual(countSeen, [READS_DAY + 'read-01.json']);
 });
 
 test('the 31st read is refused even when the day started with reads from another device', async () => {
   mock.timers.enable({ apis: ['Date'], now: Date.parse('2026-11-14T15:00:00Z') });
   const { fake, claude } = setup();
-  fake.seed(PUB, 'finance-meta/read-count-2026-11-14.json', '{"count":29}');
+  seedReads(fake, 29);
   assert.equal((await post(file())).status, 200);
   const r = await post(file());
   assert.equal(r.status, 429);
   assert.deepEqual(r.json, { error: 'You have used all 30 reads for today. They reset at midnight. CSV files still work.' });
   assert.equal(claude.length, 1);
-  assert.deepEqual(fake.json(PUB, 'finance-meta/read-count-2026-11-14.json'), { count: 30 });
+  assert.equal(fake.pathnames(PUB, READS_DAY).length, 30, 'the refused read writes nothing');
 });
 
-test('the counter retries up to 3 times: a read that loses 3 races and wins the 4th is counted once', async () => {
+test('a read that loses 3 races for its place takes the next free one and is counted once', async () => {
   mock.timers.enable({ apis: ['Date'], now: Date.parse('2026-11-14T15:00:00Z') });
   const { fake, claude } = setup();
-  const path = 'finance-meta/read-count-2026-11-14.json';
-  fake.seed(PUB, path, '{"count":3}');
+  for (const n of ['01', '02', '03']) fake.seed(PUB, `${READS_DAY}read-${n}.json`, '{}');
+  // Between this read's list and each of its first 3 puts, another device takes that very place.
   let lose = 3;
   setBlobApi({
     ...fake.api,
     put: async (p, body, o) => {
-      if (p === path && lose > 0) { lose--; fake.seed(PUB, p, JSON.stringify({ count: fake.json(PUB, p).count + 1 })); }
+      if (p.startsWith(READS_DAY) && lose > 0) { lose--; fake.seed(PUB, p, '{"at":"elsewhere"}'); }
       return fake.api.put(p, body, o);
     },
   });
   const r = await post(file());
   assert.equal(r.status, 200);
   assert.equal(claude.length, 1);
-  assert.deepEqual(fake.json(PUB, path), { count: 7 }, '3 reads from elsewhere plus this one');
+  const names = fake.pathnames(PUB, READS_DAY);
+  assert.equal(names.length, 7, '3 before, 3 reads from elsewhere, plus this one');
+  assert.notEqual(fake.json(PUB, READS_DAY + 'read-07.json').at, 'elsewhere');
 });
 
 test('torontoDay on the days the clocks change (Mar 8 and Nov 1 2026)', () => {
@@ -388,7 +394,7 @@ test('Cache-Control private, no-store on the 413, 422, 429, 500, 502 and 503 ans
 
   let { fake } = setup();
   check(await post(file({ data: Buffer.alloc(10 * 1024 * 1024 + 1).toString('base64') })));
-  fake.seed(PUB, 'finance-meta/read-count-2026-11-14.json', '{"count":30}');
+  seedReads(fake, 30);
   check(await post(file()));
   cleanup();
 
@@ -402,7 +408,7 @@ test('Cache-Control private, no-store on the 413, 422, 429, 500, 502 and 503 ans
   cleanup();
 
   ({ fake } = setup());
-  fake.failNext('get', new Error('blob is down'));
+  fake.failNext('list', new Error('blob is down'));
   check(await post(file()));
   cleanup();
 

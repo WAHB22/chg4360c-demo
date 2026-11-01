@@ -40,7 +40,11 @@ async function toBuffer(body) {
 }
 
 /**
- * createFakeBlob({ stores: { [token]: 'public' | 'private' }, pageSize, now })
+ * createFakeBlob({ stores: { [token]: 'public' | 'private' }, pageSize, now, latency })
+ *   latency          ms each call takes on the "network" before the store acts on it: a number, or
+ *                    (call) => ms for jitter. Default 0 (only a setImmediate yield, as before).
+ *                    The store checks (exists, ETag) happen after the wait, like on the real server.
+ *   fake.setLatency(latency) change it later
  *   fake.api         {put, list, del, get, head} to pass to setBlobApi
  *   fake.addStore(token, access)
  *   fake.seed(token, pathname, text, {uploadedAt, contentType})   write directly, no checks, no log entry
@@ -53,7 +57,7 @@ async function toBuffer(body) {
  *   fake.failNext(fn, error) the next call of fn throws error
  *   fake.setClock(fn) source of uploadedAt (default Date.now)
  */
-export function createFakeBlob({ stores = {}, pageSize = 1000, now = () => Date.now() } = {}) {
+export function createFakeBlob({ stores = {}, pageSize = 1000, now = () => Date.now(), latency = 0 } = {}) {
   const data = new Map(); // token -> {access, storeId, blobs: Map<pathname, record>}
   const calls = [];
   const holds = [];
@@ -89,6 +93,8 @@ export function createFakeBlob({ stores = {}, pageSize = 1000, now = () => Date.
   async function enter(call) {
     calls.push(call);
     await yieldNow();
+    const ms = typeof latency === 'function' ? latency(call) : latency;
+    if (ms > 0) await new Promise(r => setTimeout(r, ms));
     for (const h of holds) {
       if (h.active && h.match(call)) {
         held++;
@@ -259,6 +265,9 @@ export function createFakeBlob({ stores = {}, pageSize = 1000, now = () => Date.
     },
     setClock(fn) {
       clock = fn;
+    },
+    setLatency(next) {
+      latency = next;
     },
   };
 }

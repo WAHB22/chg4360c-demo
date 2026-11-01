@@ -476,9 +476,70 @@ test('txName on raw v1 tx from his data shape', () => {
 // on the 1st and the last day. After the fall change the step lands at 11:00 and an occurrence on the 1st is
 // dropped from both months; after the spring change it lands at 13:00 and one on the last day is dropped.
 // Kept as a todo so the run stays green; it starts passing once core.js is fixed.
-test('a biweekly bill on Nov 1 2026, right after the fall time change, is still due', { todo: 'lib/core.js billOccurrences drops it in America/Toronto' }, () => {
+test('a biweekly bill on Nov 1 2026, right after the fall time change, is still due', () => {
   const s = withPays(migrate({ bills: [{ id: 'bw', name: 'Biweekly', amt: 25, freq: 'biweekly', anchor: '2026-10-18', note: '' }], months: {} }), ['2026-10-23']);
   const r = safeToSpend(s, '2026-10-30');
   assert.deepEqual(r.parts.billsDue.map(b => b.date), ['2026-10-04', '2026-10-18', '2026-11-01']);
   assert.equal(monthTotals(s, '2026-11').billsTotal, 75); // Nov 1, 15, 29
+});
+
+/* ---------- SPEC 11: pay kinds and early ticks ---------- */
+
+const interac = (id, date, amt) => ({ id, date, amt, hours: null, note: 'Interac e-Transfer Sam', kind: 'income' });
+
+test('an Interac pay (kind income) on Nov 10 does not move the Nov 20 estimate, but it still counts as income', () => {
+  for (const [name, s] of [['v1', clone(sample)], ['migrated', migrate(sample)]]) {
+    getMonth(s, '2026-11').pays.push(interac('p-sam', '2026-11-10', 50));
+    assert.deepEqual(nextPay(s, '2026-11-14'), { date: '2026-11-20', estimate: true, lastPay: '2026-11-06' }, name);
+    assert.equal(payPeriod(s, '2026-11-14').days, 6, name);
+    const r = safeToSpend(s, '2026-11-14');
+    assert.deepEqual(r.nextPay, { date: '2026-11-20', estimate: true, lastPay: '2026-11-06' }, name);
+    assert.equal(r.days, 6, name);
+    assert.equal(r.parts.income, 1350, name); // 1300 paycheque + 50 Interac
+    assert.equal(r.pool, -243.05, name);      // 1350 - 647 - 828.11 - (27.11 + 90.83)
+    assert.equal(monthTotals(s, '2026-11').earned, 1350, name);
+  }
+});
+
+test('pay kinds: kind pay and no kind are paycheques; Interac alone never gives a payday', () => {
+  const bobino = migrate(sample);
+  getMonth(bobino, '2026-11').pays.push({ id: 'p-bob', date: '2026-11-10', amt: 1300, hours: null, note: 'Bobino pay', kind: 'pay' });
+  assert.deepEqual(nextPay(bobino, '2026-11-14'), { date: '2026-11-24', estimate: true, lastPay: '2026-11-10' });
+
+  // A future dated Interac is not the next pay either.
+  const future = migrate(sample);
+  getMonth(future, '2026-11').pays.push(interac('p-fut', '2026-11-16', 80));
+  assert.deepEqual(nextPay(future, '2026-11-14'), { date: '2026-11-20', estimate: true, lastPay: '2026-11-06' });
+  assert.equal(safeToSpend(future, '2026-11-14').parts.income, 1300); // not received yet
+  assert.equal(safeToSpend(future, '2026-11-16').parts.income, 1380);
+
+  // Only Interac money ever logged: no payday is invented.
+  const only = { bills: [], months: { '2026-11': { pays: [interac('p-a', '2026-11-03', 40)], tx: [], paid: {} } } };
+  assert.equal(nextPay(only, '2026-11-14'), null);
+  assert.equal(payPeriod(only, '2026-11-14'), null);
+  assert.deepEqual(safeToSpend(only, '2026-11-14'), { missing: 'pay' });
+  assert.equal(monthTotals(only, '2026-11').earned, 40);
+});
+
+test('safe to spend lists the bills ticked early in parts.billsPaidEarly, and billsPaid stays the total', () => {
+  const s = withPays(migrate(sample), ['2026-11-20']);
+  tick(s, 'b-rent', '2026-12-01');
+  tick(s, 'b-icloud', '2026-12-03');
+  tick(s, 'b-claude', '2026-12-04'); // pay day: outside this pay period, so neither paid nor due here
+  const r = safeToSpend(s, '2026-11-28');
+  assert.equal(r.nextPay.date, '2026-12-04');
+  assert.deepEqual(r.parts.billsPaidEarly, [
+    { billId: 'b-rent', name: 'Rent (my half)', date: '2026-12-01', amt: 587.5 },
+    { billId: 'b-icloud', name: 'iCloud', date: '2026-12-03', amt: 4.59 },
+  ]);
+  // 828.11 ticked in November + 587.50 + 4.59 ticked early
+  assert.equal(r.parts.billsPaid, 1420.20);
+  assert.equal(r.parts.billsPaid, sum([monthTotals(s, '2026-11').paid, ...r.parts.billsPaidEarly.map(b => b.amt)]));
+  assert.ok(!r.parts.billsDue.some(b => b.billId === 'b-rent' || b.billId === 'b-icloud'));
+  assert.equal(r.pool, 203.85); // ticking early never changes the pool
+
+  // Nothing ticked early: an empty list, and the acceptance numbers do not move.
+  const plain = safeToSpend(sample, expect.today);
+  assert.deepEqual(plain.parts.billsPaidEarly, []);
+  assert.equal(plain.parts.billsPaid, expect.billsPaidNov);
 });

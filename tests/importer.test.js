@@ -45,7 +45,7 @@ test('Oct 31 acceptance: apply, then importing the same rows again flags all 4 e
   const state = freshState();
   const first = review(state, batch('shot1', oct31.rows));
   const res = applyImport(state, first);
-  assert.deepEqual(res, { expenses: 4, pays: 0, bills: 0, total: 158.27 });
+  assert.deepEqual(res, { expenses: 4, pays: 0, bills: 0, total: 158.27, skipped: 0 });
 
   const oct = peekMonth(state, '2026-10');
   assert.equal(oct.tx.length, 4);
@@ -69,7 +69,7 @@ test('Oct 31 acceptance: apply, then importing the same rows again flags all 4 e
 
   // Ticking nothing changes nothing.
   const before = canonical(state);
-  assert.deepEqual(applyImport(state, again), { expenses: 0, pays: 0, bills: 0, total: 0 });
+  assert.deepEqual(applyImport(state, again), { expenses: 0, pays: 0, bills: 0, total: 0, skipped: 0 });
   assert.equal(canonical(state), before);
 });
 
@@ -181,7 +181,7 @@ test('a statement line matching a bill within 5% ticks that bill for its month',
   assert.equal(rows[0].billMatch.key, 'b-netflix@2026-11-16');
 
   const res = applyImport(state, rows);
-  assert.deepEqual(res, { expenses: 0, pays: 0, bills: 3, total: 0 });
+  assert.deepEqual(res, { expenses: 0, pays: 0, bills: 3, total: 0, skipped: 0 });
   const paid = state.months['2026-11'].paid;
   assert.equal(paid['b-netflix@2026-11-16'], true);
   assert.equal(paid['b-phone@2026-11-18'], true);
@@ -312,7 +312,7 @@ test('picking a category on a bill row turns it into an expense', () => {
   const next = setCategory(state, rows, rows[0].key, 'i-toys');
   assert.deepEqual([next[0].kind, next[0].status, next[0].ticked, next[0].billMatch, next[0].statusText], ['expense', 'new', true, null, '']);
   const res = applyImport(state, next);
-  assert.deepEqual(res, { expenses: 1, pays: 0, bills: 0, total: 129.99 });
+  assert.deepEqual(res, { expenses: 1, pays: 0, bills: 0, total: 129.99, skipped: 0 });
   assert.deepEqual(state.months['2026-11'].paid, {});
 });
 
@@ -345,11 +345,11 @@ test('pays, Interac income and Visa refunds are applied with the right notes and
   rows[3] = { ...rows[3], ticked: true };
 
   const res = applyImport(state, rows);
-  assert.deepEqual(res, { expenses: 1, pays: 2, bills: 0, total: -25 });
+  assert.deepEqual(res, { expenses: 1, pays: 2, bills: 0, total: -25, skipped: 0 });
   const nov = state.months['2026-11'];
-  assert.deepEqual(nov.pays.slice(1).map(p => [p.date, p.amt, p.hours, p.note]), [
-    ['2026-11-20', 1300, null, 'Bobino pay'],
-    ['2026-11-21', 40, null, 'Interac e-Transfer from Kylie'],
+  assert.deepEqual(nov.pays.slice(1).map(p => [p.date, p.amt, p.hours, p.note, p.kind]), [
+    ['2026-11-20', 1300, null, 'Bobino pay', 'pay'],
+    ['2026-11-21', 40, null, 'Interac e-Transfer from Kylie', 'income'],
   ]);
   const refund = nov.tx.at(-1);
   assert.deepEqual([refund.amt, refund.item, refund.src, refund.fp, refund.account], [-25, 'i-groc', 'statement', '2500|costco wholesale w1234', 'visa']);

@@ -4,10 +4,10 @@ import { test, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 
 import handler from '../api/data.js';
-import { listVersions, setBlobApi, storeConfig, withLock, PREVIEW_NOTE } from '../api/_store.js';
+import { listVersions, setBlobApi, storeConfig, withLock, writeVersion, PREVIEW_NOTE } from '../api/_store.js';
 import { checkKey, sameOrigin, readJson } from '../api/_auth.js';
 import { createFakeBlob } from './helpers/api-fake-blob.js';
-import { callApi, makeFetch, useEnv } from './helpers/api-harness.js';
+import { callApi, makeFetch, makeReqRes, useEnv } from './helpers/api-harness.js';
 
 const KEY = 'device-key-for-tests';
 const PUB = 'vercel_blob_rw_publicstore_fakesecret';
@@ -17,8 +17,8 @@ const MB = 1024 * 1024;
 let cleanup = null;
 afterEach(() => { if (cleanup) cleanup(); cleanup = null; });
 
-function setup({ env = {}, stores = { [PUB]: 'public' }, pageSize } = {}) {
-  const fake = createFakeBlob({ stores, pageSize });
+function setup({ env = {}, stores = { [PUB]: 'public' }, pageSize, latency } = {}) {
+  const fake = createFakeBlob({ stores, pageSize, latency });
   setBlobApi(fake.api);
   const restore = useEnv({
     APP_KEY: KEY, VERCEL_ENV: 'preview', BLOB_READ_WRITE_TOKEN: PUB, PRIVATE_BLOB_READ_WRITE_TOKEN: undefined, ...env,
@@ -48,6 +48,10 @@ function seedLegacy(fake, token, count, { start = Date.UTC(2026, 9, 1), pretty =
   }
   return out; // oldest first
 }
+
+// What crypto.randomUUID() gives: 8-4-4-4-12 lowercase hex, version 4.
+const UUID = '[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}';
+const sleep = ms => new Promise(r => setTimeout(r, ms));
 
 const writes = (fake, token) => fake.calls.filter(c => (c.fn === 'put' || c.fn === 'del') && (!token || c.token === token));
 const writtenPaths = c => c.pathnames || [c.pathname];
@@ -190,7 +194,7 @@ test('history lists the last 10 versions newest first, and version= returns one 
   assert.equal(h.status, 200);
   assert.deepEqual(h.json.versions.map(v => v.note), ['Save 3', 'Save 2', 'Save 1']);
   assert.deepEqual(h.json.versions.map(v => v.savedAt), [...saved].reverse());
-  for (const v of h.json.versions) assert.match(v.id, /^finance-preview\/data-\d+-[a-z0-9]{6}\.json$/);
+  for (const v of h.json.versions) assert.match(v.id, new RegExp(`^finance-preview/data-\\d{13}-${UUID}\\.json$`));
 
   const v = await get('?version=' + encodeURIComponent(h.json.versions[2].id));
   assert.equal(v.status, 200);
@@ -245,24 +249,41 @@ test('two PUTs racing on the same base: exactly one 200 and one 409', async () =
     assert.ok(lost.json.latest && Array.isArray(lost.json.latest.bills), 'latest doc in the 409 body');
     const won = results.find(r => r.status === 200);
     assert.equal((await get()).json.savedAt, won.json.savedAt);
+    assert.equal(lost.json.latest.savedAt, won.json.savedAt, 'the 409 already holds the winner');
+    assert.equal(lost.json.latest.note, won === results[0] ? `left ${round}` : `right ${round}`);
   }
   assert.ok(a.status === 200);
 });
 
-test('a PUT that arrives while another holds the lock gets 409 with latest, and nothing is lost', async () => {
+test('a PUT that arrives while another holds the lock waits for it, then gets 409 with the save that just landed', async () => {
   const fake = setup();
   const first = await put(doc({ savedAt: null, note: 'first' }));
 
   const release = fake.pause(c => c.fn === 'put' && c.pathname.includes('/data-'));
   const slow = put(doc({ baseSavedAt: first.json.savedAt, note: 'slow' }));
   await fake.paused();
-  const blocked = await put(doc({ baseSavedAt: first.json.savedAt, note: 'blocked' }));
-  assert.equal(blocked.status, 409);
-  assert.equal(blocked.json.error, 'conflict');
-  assert.equal(blocked.json.latest.note, 'first');
+
+  // The second PUT is driven by hand so the lock can be read at the moment it answers.
+  const { req, res, done } = makeReqRes({ method: 'PUT', url: '/api/data', headers: auth, body: doc({ baseSavedAt: first.json.savedAt, note: 'blocked' }) });
+  let lockAtAnswer = 'not answered';
+  const end = res.end.bind(res);
+  res.end = data => { lockAtAnswer = fake.text(PUB, 'finance-preview/lock.json'); return end(data); };
+  const blocked = handler(req, res);
+
+  await sleep(500);
+  assert.equal(res.headersSent, false, 'still waiting while the other save holds the lock');
+  const polls = fake.calls.filter(c => c.fn === 'head' && c.pathname === 'finance-preview/lock.json').length;
+  assert.ok(polls >= 3, `checked the lock again while waiting (${polls} times)`);
+
   release();
-  const done = await slow;
-  assert.equal(done.status, 200);
+  assert.equal((await slow).status, 200);
+  await blocked;
+  const out = await done;
+  const json = JSON.parse(out.body);
+  assert.equal(out.status, 409);
+  assert.equal(json.error, 'conflict');
+  assert.equal(json.latest.note, 'slow', 'latest already holds the save that won');
+  assert.equal(lockAtAnswer, null, 'the lock was released before the 409 went out');
 
   const notes = [];
   for (const p of fake.pathnames(PUB, 'finance-preview/data-')) notes.push(fake.json(PUB, p).note);
@@ -270,29 +291,77 @@ test('a PUT that arrives while another holds the lock gets 409 with latest, and 
   assert.equal(fake.text(PUB, 'finance-preview/lock.json'), null, 'lock released');
 });
 
-test('a fresh lock blocks, a lock older than the lease is taken over', async () => {
-  const fake = setup();
-  fake.seed(PUB, 'finance-preview/lock.json', '{"at":"now"}', { uploadedAt: Date.now() - 1000 });
-  const blocked = await put(doc({ savedAt: null }));
-  assert.equal(blocked.status, 409);
-  assert.equal(blocked.json.latest, null);
-
-  fake.seed(PUB, 'finance-preview/lock.json', '{"at":"long ago"}', { uploadedAt: Date.now() - 31_000 });
-  const ok = await put(doc({ savedAt: null }));
-  assert.equal(ok.status, 200);
+test('two devices saving at the same moment (with network latency): exactly one 409, and its latest already holds the winner', async () => {
+  const fake = setup({ latency: () => 5 + Math.floor(Math.random() * 25) });
+  const start = await put(doc({ savedAt: null, note: 'start' }));
+  for (let round = 0; round < 3; round++) {
+    const base = (await get()).json.savedAt;
+    const results = await Promise.all(['phone', 'laptop'].map(who => put(doc({ baseSavedAt: base, note: `${who} ${round}`, who }))));
+    assert.deepEqual(results.map(r => r.status).sort(), [200, 409]);
+    const won = results.find(r => r.status === 200), lost = results.find(r => r.status === 409);
+    assert.equal(lost.json.latest.savedAt, won.json.savedAt, 'the 409 carries the save that won, not the one both started from');
+    // The loser replays on top of that latest and gets in on the first try: no second 409.
+    const replay = await put({ ...lost.json.latest, baseSavedAt: lost.json.latest.savedAt, note: `replay ${round}` });
+    assert.equal(replay.status, 200);
+  }
+  assert.equal(start.status, 200);
   assert.equal(fake.text(PUB, 'finance-preview/lock.json'), null);
 });
 
-test('withLock: two takeovers of the same stale lock, one wins through ifMatch', async () => {
+test('a lock held by a save that never finishes: the PUT waits about 3 s, polling about every 150 ms, then 409 with the newest doc', async () => {
+  const fake = setup();
+  const saved = await put(doc({ savedAt: null, note: 'saved before the crash' }));
+  fake.seed(PUB, 'finance-preview/lock.json', '{"at":"now"}', { uploadedAt: Date.now() - 1000 });
+  const t0 = Date.now();
+  const blocked = await put(doc({ baseSavedAt: saved.json.savedAt, note: 'blocked' }));
+  const waited = Date.now() - t0;
+  assert.equal(blocked.status, 409);
+  assert.equal(blocked.json.error, 'conflict');
+  assert.equal(blocked.json.latest.note, 'saved before the crash');
+  assert.equal(blocked.json.latest.savedAt, saved.json.savedAt);
+  assert.ok(waited >= 2800 && waited < 6000, `waited ${waited} ms`);
+  // 1 try plus a check every 150 ms: about 21 (fewer when a busy machine stretches the timers).
+  const polls = fake.calls.filter(c => c.fn === 'head' && c.pathname === 'finance-preview/lock.json').length;
+  assert.ok(polls >= 8 && polls <= 22, `${polls} lock checks`);
+  assert.equal(fake.pathnames(PUB, 'finance-preview/data-').length, 1, 'nothing written');
+  assert.equal(fake.text(PUB, 'finance-preview/lock.json'), '{"at":"now"}', 'the held lock is left alone');
+});
+
+test('a lock older than the lease is taken over at once', async () => {
+  const fake = setup();
+  fake.seed(PUB, 'finance-preview/lock.json', '{"at":"long ago"}', { uploadedAt: Date.now() - 31_000 });
+  const t0 = Date.now();
+  const ok = await put(doc({ savedAt: null }));
+  assert.equal(ok.status, 200);
+  assert.ok(Date.now() - t0 < 1000, 'no wait');
+  assert.equal(fake.text(PUB, 'finance-preview/lock.json'), null);
+});
+
+test('withLock without a wait: two takeovers of the same stale lock, one wins through ifMatch', async () => {
   const fake = setup();
   fake.seed(PUB, 'finance-preview/lock.json', '{}', { uploadedAt: Date.now() - 60_000 });
   const cfg = storeConfig();
   let inside = 0;
-  const results = await Promise.allSettled([1, 2].map(() => withLock(cfg, async () => { inside++; return 'ran'; })));
+  const results = await Promise.allSettled([1, 2].map(() => withLock(cfg, async () => { inside++; return 'ran'; }, { waitMs: 0 })));
   assert.equal(inside, 1);
   assert.deepEqual(results.map(r => r.status).sort(), ['fulfilled', 'rejected']);
   assert.equal(results.find(r => r.status === 'rejected').reason.conflict, true);
   assert.ok(fake.calls.some(c => c.fn === 'put' && c.options.ifMatch), 'takeover used ifMatch');
+});
+
+test('withLock waits for a held lock: callers run one at a time and all of them run', async () => {
+  setup({ latency: 3 });
+  const cfg = storeConfig();
+  let inside = 0, most = 0, ran = 0;
+  const results = await Promise.all([1, 2, 3].map(n => withLock(cfg, async () => {
+    inside++; most = Math.max(most, inside);
+    await sleep(60);
+    inside--; ran++;
+    return n;
+  })));
+  assert.deepEqual(results, [1, 2, 3]);
+  assert.equal(ran, 3);
+  assert.equal(most, 1, 'never two at once');
 });
 
 test('withLock releases the lock when fn throws', async () => {
@@ -301,6 +370,54 @@ test('withLock releases the lock when fn throws', async () => {
   await assert.rejects(withLock(cfg, async () => { throw new Error('inside'); }), /inside/);
   assert.equal(fake.text(PUB, 'finance-preview/lock.json'), null);
   assert.equal(await withLock(cfg, async () => 7), 7);
+});
+
+/* ---------- version names ---------- */
+
+test('version pathnames are data-<ms>-<uuid>.json: unguessable on a public store, the same on a private one', async () => {
+  for (const [stores, env, token] of [
+    [{ [PUB]: 'public' }, {}, PUB],
+    [{ [PUB]: 'public', [PRIV]: 'private' }, { PRIVATE_BLOB_READ_WRITE_TOKEN: PRIV }, PRIV],
+  ]) {
+    const fake = setup({ stores, env });
+    const before = Date.now();
+    let base = null;
+    for (let i = 0; i < 3; i++) base = (await put(doc({ baseSavedAt: base, note: `save ${i}` }))).json.savedAt;
+    const names = fake.pathnames(token, 'finance-preview/data-');
+    assert.equal(names.length, 3);
+    for (const p of names) {
+      const m = new RegExp(`^finance-preview/data-(\\d{13})-(${UUID})\\.json$`).exec(p);
+      assert.ok(m, p);
+      assert.ok(Number(m[1]) >= before && Number(m[1]) <= Date.now() + 10, 'the ms is the save time');
+    }
+    assert.equal(new Set(names.map(p => p.split('-').slice(2).join('-'))).size, 3, 'a new UUID each time');
+    // Ordered by the ms, whatever the UUID: history and GET still agree on the newest.
+    const h = await get('?history=1');
+    assert.deepEqual(h.json.versions.map(v => v.note), ['save 2', 'save 1', 'save 0']);
+    const one = await get('?version=' + encodeURIComponent(h.json.versions[1].id));
+    assert.equal(one.status, 200);
+    assert.equal(one.json.note, 'save 1');
+    cleanup(); cleanup = null;
+  }
+});
+
+test('versions sort by the ms in the name for all three shapes: <ms>.json (build B), <ms>-<Vercel suffix>, <ms>-<uuid>', async () => {
+  const fake = setup();
+  const t = Date.now() + 3_600_000; // written by an instance whose clock runs an hour ahead of this one
+  const shapes = [
+    [`finance-preview/data-${t + 3000}.json`, 'B'],
+    [`finance-preview/data-${t + 1000}-Ab3dE5gH7jK9mN1pQ3sT5vW7yZ9bC1.json`, 'old Vercel suffix'],
+    [`finance-preview/data-${t + 2000}-0a1b2c3d-4e5f-4a7b-8c9d-0e1f2a3b4c5d.json`, 'uuid'],
+  ];
+  // uploadedAt deliberately in the opposite order: the name decides.
+  shapes.forEach(([p, note], i) => fake.seed(PUB, p, JSON.stringify(doc({ note, savedAt: new Date(t + i).toISOString() })), { uploadedAt: t + 10_000 - i * 1000 }));
+  const versions = await listVersions(storeConfig());
+  assert.deepEqual(versions.map(v => v.ts), [t + 3000, t + 2000, t + 1000]);
+  assert.equal((await get()).json.note, 'B');
+  // A new save from this (slower) clock still sorts first, and has a uuid name.
+  const p = await writeVersion(storeConfig(), doc({ note: 'new' }), versions[0].ts);
+  assert.match(p, new RegExp(`^finance-preview/data-${t + 3001}-${UUID}\\.json$`));
+  assert.equal((await listVersions(storeConfig()))[0].pathname, p);
 });
 
 /* ---------- preview isolation and seeding ---------- */

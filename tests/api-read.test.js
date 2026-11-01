@@ -2,9 +2,10 @@
 
 import { test, afterEach, mock } from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import Anthropic from '@anthropic-ai/sdk';
 
-import handler, { ROWS_SCHEMA, SYSTEM, MODEL, cleanRows, defaultAnthropicFactory, setAnthropicFactory, torontoDay } from '../api/read.js';
+import handler, { ROWS_SCHEMA, SYSTEM, MODEL, cleanRows, defaultAnthropicFactory, setAnthropicFactory, torontoDay, validRow } from '../api/read.js';
 import { setBlobApi } from '../api/_store.js';
 import { createFakeBlob } from './helpers/api-fake-blob.js';
 import { callApi, useEnv } from './helpers/api-harness.js';
@@ -30,8 +31,8 @@ const message = (over = {}) => ({
   stop_reason: 'end_turn', stop_details: null, usage: { input_tokens: 10, output_tokens: 10 }, ...over,
 });
 
-function setup({ env = {}, stores = { [PUB]: 'public' }, reply = message() } = {}) {
-  const fake = createFakeBlob({ stores });
+function setup({ env = {}, stores = { [PUB]: 'public' }, reply = message(), latency } = {}) {
+  const fake = createFakeBlob({ stores, latency });
   setBlobApi(fake.api);
   const calls = [];
   setAnthropicFactory(() => ({
@@ -49,6 +50,19 @@ const headers = (extra = {}) => ({ 'x-app-key': KEY, origin: `https://${HOST}`, 
 const file = (extra = {}) => ({ name: 'notif.png', type: 'image/png', data: PNG, uploadDate: '2026-10-31', ...extra });
 const post = (body = file(), h = headers()) => callApi(handler, { method: 'POST', url: '/api/read', headers: h, body });
 const counterPaths = fake => fake.pathnames(PUB, 'finance-meta/');
+const readsIn = (fake, day, token = PUB) => fake.pathnames(token, `finance-meta/reads/${day}/`);
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+// Fails instead of hanging when the awaited thing never happens.
+function within(promise, ms, what) {
+  let timer;
+  const late = new Promise((_, fail) => { timer = setTimeout(() => fail(new Error(`${what} did not happen within ${ms} ms`)), ms); });
+  return Promise.race([promise, late]).finally(() => clearTimeout(timer));
+}
+const captureLogs = () => {
+  const logs = [];
+  for (const m of ['log', 'info', 'warn', 'error', 'debug']) mock.method(console, m, (...a) => logs.push(a.map(String).join(' ')));
+  return logs;
+};
 
 /* ---------- gatekeeping ---------- */
 
@@ -139,7 +153,7 @@ test('503 without ANTHROPIC_API_KEY, and no read is used up', async () => {
 
 /* ---------- daily limit ---------- */
 
-test('the 31st read in a Toronto day gets 429; the count lives in a blob per Toronto day', async () => {
+test('the 31st read in a Toronto day gets 429; one blob per read under finance-meta/reads/<Toronto day>/', async () => {
   mock.timers.enable({ apis: ['Date'], now: Date.parse('2026-11-14T15:00:00Z') });
   const { fake, calls } = setup();
   for (let i = 1; i <= 30; i++) {
@@ -150,20 +164,26 @@ test('the 31st read in a Toronto day gets 429; the count lives in a blob per Tor
   assert.equal(blocked.status, 429);
   assert.deepEqual(blocked.json, { error: LIMIT_MSG });
   assert.equal(calls.length, 30, 'Claude is not called for the 31st');
-  assert.deepEqual(fake.json(PUB, 'finance-meta/read-count-2026-11-14.json'), { count: 30 });
+  assert.equal(readsIn(fake, '2026-11-14').length, 30);
+  assert.deepEqual(counterPaths(fake).filter(p => !p.startsWith('finance-meta/reads/2026-11-14/')), []);
+  for (const p of counterPaths(fake)) assert.ok(fake.text(PUB, p).length < 100, 'a tiny blob');
+
+  // Refused reads leave the count where it is.
+  assert.equal((await post()).status, 429);
+  assert.equal(readsIn(fake, '2026-11-14').length, 30);
 
   // 23:30 in Toronto (04:30 UTC the next day) is still Nov 14.
   mock.timers.setTime(Date.parse('2026-11-15T04:30:00Z'));
   assert.equal(torontoDay(), '2026-11-14');
   assert.equal((await post()).status, 429);
 
-  // 00:30 in Toronto: a new day, a new counter.
+  // 00:30 in Toronto: a new day, a new folder.
   mock.timers.setTime(Date.parse('2026-11-15T05:30:00Z'));
   assert.equal(torontoDay(), '2026-11-15');
   assert.equal((await post()).status, 200);
-  assert.deepEqual(fake.json(PUB, 'finance-meta/read-count-2026-11-15.json'), { count: 1 });
-  assert.deepEqual(fake.json(PUB, 'finance-meta/read-count-2026-11-14.json'), { count: 30 });
-  assert.deepEqual(counterPaths(fake), ['finance-meta/read-count-2026-11-14.json', 'finance-meta/read-count-2026-11-15.json']);
+  assert.equal(readsIn(fake, '2026-11-15').length, 1);
+  assert.equal(readsIn(fake, '2026-11-14').length, 30);
+  assert.equal(calls.length, 31);
 });
 
 test('torontoDay follows daylight saving time', () => {
@@ -173,57 +193,138 @@ test('torontoDay follows daylight saving time', () => {
   assert.equal(torontoDay(new Date('2026-01-01T05:00:00Z')), '2026-01-01');
 });
 
-test('the counter goes in the private store when there is one', async () => {
+test('the day folder is the Toronto date, not the UTC one (summer and winter time)', async () => {
+  const cases = [
+    ['2026-07-01T03:30:00Z', '2026-06-30'], // 23:30 EDT
+    ['2026-07-01T04:30:00Z', '2026-07-01'],
+    ['2026-01-01T04:30:00Z', '2025-12-31'], // 23:30 EST
+    ['2026-01-01T05:30:00Z', '2026-01-01'],
+  ];
+  for (const [now, day] of cases) {
+    mock.timers.enable({ apis: ['Date'], now: Date.parse(now) });
+    const { fake } = setup();
+    assert.equal((await post()).status, 200);
+    assert.deepEqual(counterPaths(fake).map(p => p.split('/')[2]), [day], now);
+    cleanup(); cleanup = null;
+    mock.timers.reset();
+  }
+});
+
+test('a day that started with reads from another device: the count comes from the folder, whatever the names', async () => {
+  mock.timers.enable({ apis: ['Date'], now: Date.parse('2026-11-14T15:00:00Z') });
+  const { fake, calls } = setup();
+  for (let i = 0; i < 29; i++) fake.seed(PUB, `finance-meta/reads/2026-11-14/${1_794_000_000_000 + i}-elsewhere${i}.json`, '{}');
+  assert.equal((await post()).status, 200);
+  const r = await post();
+  assert.equal(r.status, 429);
+  assert.deepEqual(r.json, { error: LIMIT_MSG });
+  assert.equal(calls.length, 1);
+  assert.equal(readsIn(fake, '2026-11-14').length, 30);
+});
+
+test('the count is taken with list, never get or head: reads back to back work even when get serves an old CDN copy', async () => {
+  mock.timers.enable({ apis: ['Date'], now: Date.parse('2026-11-14T15:00:00Z') });
+  const { fake, calls } = setup();
+  // A public store answers get() from a CDN copy that can be up to 60 s old: here every pathname keeps its first answer.
+  const cdn = new Map();
+  setBlobApi({
+    ...fake.api,
+    get: async (p, o) => {
+      if (!cdn.has(p)) {
+        const r = await fake.api.get(p, o);
+        cdn.set(p, r && r.stream ? { ...r, text: await new Response(r.stream).text() } : null);
+      }
+      const c = cdn.get(p);
+      return c && { ...c, stream: new Response(c.text).body };
+    },
+  });
+  for (let i = 1; i <= 6; i++) {
+    const r = await post();
+    assert.equal(r.status, 200, `read ${i}: ${JSON.stringify(r.json)}`);
+  }
+  assert.equal(calls.length, 6);
+  assert.equal(readsIn(fake, '2026-11-14').length, 6);
+  const meta = fake.calls.filter(c => (c.pathname || c.prefix || '').startsWith('finance-meta/'));
+  assert.deepEqual([...new Set(meta.map(c => c.fn))].sort(), ['list', 'put']);
+  for (const c of meta.filter(x => x.fn === 'put')) assert.equal(c.options.allowOverwrite, false, 'never overwrites a read');
+});
+
+test('concurrent reads never let more than 30 through (store calls with random latency)', async () => {
+  mock.timers.enable({ apis: ['Date'], now: Date.parse('2026-11-14T15:00:00Z') });
+  const { fake, calls } = setup({ latency: () => Math.floor(Math.random() * 15) });
+  for (let i = 0; i < 10; i++) assert.equal((await post()).status, 200);
+  // 35 more at once, in staggered waves, so some writes land while others are counting.
+  const results = await Promise.all(Array.from({ length: 35 }, (_, i) => sleep((i % 5) * 4).then(() => post())));
+  const statuses = results.map(r => r.status);
+  assert.equal(statuses.filter(s => s === 200).length, 20, String(statuses));
+  assert.equal(statuses.filter(s => s === 429).length, 15, String(statuses));
+  assert.equal(calls.length, 30);
+  assert.equal(readsIn(fake, '2026-11-14').length, 30);
+
+  // A fresh day hit by 40 at once: exactly 30 get through, not fewer.
+  mock.timers.setTime(Date.parse('2026-11-15T15:00:00Z'));
+  const burst = await Promise.all(Array.from({ length: 40 }, () => post()));
+  assert.equal(burst.filter(r => r.status === 200).length, 30);
+  assert.equal(burst.filter(r => r.status === 429).length, 10);
+  assert.equal(calls.length, 60);
+});
+
+test('a read whose write lands late cannot take a 31st place', async () => {
+  mock.timers.enable({ apis: ['Date'], now: Date.parse('2026-11-14T15:00:00Z') });
+  const { fake, calls } = setup();
+  for (let i = 0; i < 29; i++) assert.equal((await post()).status, 200);
+  let first = true;
+  const release = fake.pause(c => c.fn === 'put' && c.pathname.startsWith('finance-meta/reads/') && first && !(first = false));
+  const slow = post(); // counted 29, its write is held on the way to the store
+  await within(fake.paused(), 2000, 'a held write of a read');
+  const fast = await post(); // also counted 29, writes first
+  assert.equal(fast.status, 200);
+  release();
+  const late = await slow;
+  assert.equal(late.status, 429, 'the place it counted on was taken while its write was on the way');
+  assert.equal(calls.length, 30);
+  assert.equal(readsIn(fake, '2026-11-14').length, 30);
+});
+
+test('the reads go in the private store when there is one', async () => {
   mock.timers.enable({ apis: ['Date'], now: Date.parse('2026-11-14T15:00:00Z') });
   const { fake } = setup({ stores: { [PUB]: 'public', [PRIV]: 'private' }, env: { PRIVATE_BLOB_READ_WRITE_TOKEN: PRIV } });
   assert.equal((await post()).status, 200);
-  assert.deepEqual(fake.json(PRIV, 'finance-meta/read-count-2026-11-14.json'), { count: 1 });
+  assert.equal(readsIn(fake, '2026-11-14', PRIV).length, 1);
   assert.deepEqual(fake.pathnames(PUB), []);
+  assert.ok(fake.calls.filter(c => c.fn === 'put').every(c => c.access === 'private'));
 });
 
-test('the counter retries when another read changed it first (already exists and ETag mismatch)', async () => {
+test('reads folders older than 2 days are deleted; the last 2 days, today and other files are kept', async () => {
   mock.timers.enable({ apis: ['Date'], now: Date.parse('2026-11-14T15:00:00Z') });
   const { fake } = setup();
-  const path = 'finance-meta/read-count-2026-11-14.json';
-  let sneak = 2;
-  setBlobApi({
-    ...fake.api,
-    // Right before each of the first two counter writes, another read lands first.
-    put: async (p, body, o) => {
-      if (p === path && sneak > 0) {
-        sneak--;
-        const cur = fake.json(PUB, p);
-        fake.seed(PUB, p, JSON.stringify({ count: (cur ? cur.count : 0) + 5 }));
-      }
-      return fake.api.put(p, body, o);
-    },
-  });
-  const r = await post();
-  assert.equal(r.status, 200);
-  assert.deepEqual(fake.json(PUB, path), { count: 11 });
-  const puts = fake.calls.filter(c => c.fn === 'put' && c.pathname === path);
-  assert.equal(puts.length, 3);
-  assert.equal(puts[0].options.allowOverwrite, false, 'first write of the day never overwrites');
-  assert.ok(puts[1].options.ifMatch && puts[2].options.ifMatch, 'later writes use ifMatch');
+  for (const day of ['2026-10-30', '2026-11-10', '2026-11-11', '2026-11-12', '2026-11-13']) {
+    for (let i = 0; i < 3; i++) fake.seed(PUB, `finance-meta/reads/${day}/${i}.json`, '{}');
+  }
+  const others = ['finance-meta/read-count-2026-11-10.json', 'finance-meta/reads/notes/keep.json', 'finance-meta/other.json', 'finance-preview/data-1-abc.json'];
+  for (const p of others) fake.seed(PUB, p, '{}');
+
+  assert.equal((await post()).status, 200);
+  const days = [...new Set(fake.pathnames(PUB, 'finance-meta/reads/').map(p => p.split('/')[2]))];
+  assert.deepEqual(days, ['2026-11-12', '2026-11-13', '2026-11-14', 'notes']);
+  for (const p of others) assert.equal(fake.text(PUB, p), '{}', p);
+  assert.equal(readsIn(fake, '2026-11-12').length, 3);
+  assert.equal(readsIn(fake, '2026-11-13').length, 3);
 });
 
-test('after the first try and 3 retries all lose the race, the read is refused without calling Claude', async () => {
+test('a cleanup that fails never fails the read', async () => {
   mock.timers.enable({ apis: ['Date'], now: Date.parse('2026-11-14T15:00:00Z') });
   const { fake, calls } = setup();
-  const path = 'finance-meta/read-count-2026-11-14.json';
-  fake.seed(PUB, path, '{"count":3}');
-  setBlobApi({
-    ...fake.api,
-    put: async (p, body, o) => {
-      if (p === path) fake.seed(PUB, p, fake.text(PUB, p)); // a new ETag every time
-      return fake.api.put(p, body, o);
-    },
-  });
-  const r = await post();
-  assert.equal(r.status, 503);
-  assert.equal(calls.length, 0);
-  // Spec 8.4: "retry the increment up to 3 times on precondition failure" = 1 try + 3 retries.
-  assert.equal(fake.calls.filter(c => c.fn === 'put').length, 4);
+  fake.seed(PUB, 'finance-meta/reads/2026-11-01/a.json', '{}');
+  captureLogs();
+  fake.failNext('del', new Error('blob is down'));
+  assert.equal((await post()).status, 200);
+  assert.equal(fake.text(PUB, 'finance-meta/reads/2026-11-01/a.json'), '{}', 'still there, the next day tries again');
+
+  mock.timers.setTime(Date.parse('2026-11-15T15:00:00Z'));
+  setBlobApi({ ...fake.api, list: async o => { if (o.mode === 'folded') throw new Error('blob is down'); return fake.api.list(o); } });
+  assert.equal((await post()).status, 200);
+  assert.equal(calls.length, 2);
 });
 
 /* ---------- the Claude request ---------- */
@@ -376,12 +477,14 @@ test('invalid rows from the model are dropped and counted', async () => {
     { ...OCT31[0], amount: 0 }, { ...OCT31[0], amount: -6.58 }, { ...OCT31[0], amount: '6.58' }, { ...OCT31[0], amount: Infinity },
     { ...OCT31[0], direction: 'up' }, { ...OCT31[0], account: 'amex' }, { ...OCT31[0], account: undefined },
     { ...OCT31[0], merchant: '' }, { ...OCT31[0], merchant: '   ' }, { ...OCT31[0], merchant: 'x'.repeat(121) },
-    { ...OCT31[0], time: '9:41' }, { ...OCT31[0], time: '24:00' }, { ...OCT31[0], time: '' },
+    { ...OCT31[0], time: '24:00' }, { ...OCT31[0], time: '' }, { ...OCT31[0], time: '9:4' }, { ...OCT31[0], time: '9:60' },
+    { ...OCT31[0], time: '941' }, { ...OCT31[0], time: '123:00' }, { ...OCT31[0], time: 941 },
     { ...OCT31[0], raw: 'x'.repeat(301) }, { ...OCT31[0], raw: undefined },
   ];
   const edge = [
     { ...OCT31[0], merchant: '  Nuage Cafe  ', extra: 'dropped field' },
     { ...OCT31[0], merchant: 'm'.repeat(120), raw: 'r'.repeat(300), time: '23:59', account: null, direction: 'in' },
+    { ...OCT31[0], time: '9:41' },
   ];
   const { calls } = setup({ reply: message({ content: [{ type: 'text', text: JSON.stringify({ rows: [...OCT31, ...bad, ...edge] }) }] }) });
   const r = await post();
@@ -392,7 +495,18 @@ test('invalid rows from the model are dropped and counted', async () => {
   assert.deepEqual(r.json.rows.slice(0, 6), OCT31);
   assert.deepEqual(r.json.rows[6], { ...OCT31[0], merchant: 'Nuage Cafe' });
   assert.equal(r.json.rows[7].merchant.length, 120);
+  assert.deepEqual(r.json.rows[8], { ...OCT31[0], time: '09:41' }, 'a time without its leading zero is padded, not dropped');
   assert.equal(r.json.rows[5].time, null, 'a row with its time cut off is kept');
+});
+
+test('a model time like 9:41 is padded to 09:41', () => {
+  const base = OCT31[0];
+  assert.equal(validRow({ ...base, time: '9:41' }).time, '09:41');
+  assert.equal(validRow({ ...base, time: '0:05' }).time, '00:05');
+  assert.equal(validRow({ ...base, time: '09:41' }).time, '09:41');
+  assert.equal(validRow({ ...base, time: '23:59' }).time, '23:59');
+  assert.equal(validRow({ ...base, time: null }).time, null);
+  for (const time of ['9:4', '9:60', '24:00', '29:00', ':41', '9:41 PM', '09:41:00']) assert.equal(validRow({ ...base, time }), null, time);
 });
 
 test('refusal gives 422', async () => {
@@ -431,6 +545,48 @@ test('a failed Claude call gives 502 and logs no file content', async () => {
   assert.equal(counterPaths(fake).length, 1, 'the attempt still counts as a read');
 });
 
+test('a 4xx from the Claude API about the file gives 422 Could not read this file, and the read still counts', async () => {
+  for (const status of [400, 413, 415, 422]) {
+    const { fake } = setup({ reply: () => { throw Object.assign(new Error('Could not process image'), { status }); } });
+    const logs = captureLogs();
+    const r = await post();
+    assert.equal(r.status, 422, String(status));
+    assert.deepEqual(r.json, { error: 'Could not read this file' });
+    assert.equal(r.headers['cache-control'], 'private, no-store');
+    assert.equal(counterPaths(fake).length, 1, 'the attempt still counts as a read');
+    assert.ok(logs.every(l => !l.includes(PNG)));
+    cleanup(); cleanup = null;
+    mock.restoreAll();
+  }
+});
+
+test('through the real SDK: a 400 invalid_request_error answer becomes 422', async () => {
+  const { fake } = setup();
+  captureLogs();
+  setAnthropicFactory(() => new Anthropic({
+    apiKey: 'test-only-not-a-real-key',
+    maxRetries: 0,
+    fetch: async () => new Response(JSON.stringify({ type: 'error', error: { type: 'invalid_request_error', message: 'Could not process image' } }),
+      { status: 400, headers: { 'content-type': 'application/json' } }),
+  }));
+  const r = await post();
+  assert.equal(r.status, 422);
+  assert.deepEqual(r.json, { error: 'Could not read this file' });
+  assert.equal(counterPaths(fake).length, 1);
+});
+
+test('answers that are not about the file (key, permission, model, timeout, rate limit, server) stay 502, try again later', async () => {
+  for (const status of [401, 403, 404, 408, 409, 429, 500, 529, undefined]) {
+    setup({ reply: () => { throw Object.assign(new Error('nope'), { status }); } });
+    captureLogs();
+    const r = await post();
+    assert.equal(r.status, 502, String(status));
+    assert.equal(r.json.error, 'Could not read this file right now. Try again later. CSV files still work.');
+    cleanup(); cleanup = null;
+    mock.restoreAll();
+  }
+});
+
 test('the file is never written to blob storage or logged', async () => {
   const { fake } = setup();
   const logs = [];
@@ -442,7 +598,7 @@ test('the file is never written to blob storage or logged', async () => {
   const puts = fake.calls.filter(c => c.fn === 'put');
   assert.ok(puts.length >= 1);
   for (const c of puts) {
-    assert.match(c.pathname, /^finance-meta\/read-count-\d{4}-\d{2}-\d{2}\.json$/);
+    assert.match(c.pathname, /^finance-meta\/reads\/\d{4}-\d{2}-\d{2}\/[^/]+\.json$/);
     assert.ok(!c.text.includes(big) && !c.text.includes(PDF_B64));
   }
   for (const s of fake.snapshot(PUB)) assert.ok(!s.text.includes(big) && !s.text.includes(PDF_B64));
@@ -462,4 +618,9 @@ test('Cache-Control private, no-store on every response', async () => {
   ];
   assert.deepEqual(responses.map(r => r.status), [200, 401, 403, 415, 400, 405]);
   for (const r of responses) assert.equal(r.headers['cache-control'], 'private, no-store');
+});
+
+test('vercel.json gives api/read.js up to 60 s and sets nothing else', () => {
+  const cfg = JSON.parse(readFileSync(new URL('../vercel.json', import.meta.url), 'utf8'));
+  assert.deepEqual(cfg, { functions: { 'api/read.js': { maxDuration: 60 } } });
 });

@@ -3,7 +3,7 @@
 // api/data.js) with the in memory blob fake, and the real migrate and noteFor. No network, no real key.
 import test, { afterEach } from 'node:test';
 import assert from 'node:assert/strict';
-import { createSync, STATUS_TEXT } from '../lib/sync.js';
+import { createSync, STATUS_TEXT, refusedText } from '../lib/sync.js';
 import { diff, applyOps } from '../lib/diff.js';
 import { canonical, clone } from '../lib/core.js';
 import { migrate as realMigrate, defaults as realDefaults } from '../lib/migrate.js';
@@ -623,4 +623,197 @@ test('real api: an empty store gets this device defaults once, then a version fr
   assert.equal(latest.bills[0].amt, 600);
   assert.equal(latest.settings.payPlan, 1250);
   assert.equal(latest.note, 'Undid "Restored the version from Nov 14, 3:20 p.m."');
+});
+
+/* ---------- a save the server refuses (400, 413) ---------- */
+
+// The seeded fake server, except that PUTs get `status` with `json` (or a plain text body, as Vercel's own 413)
+// while refusing is on. Refused PUTs never reach the server, so server.puts() only lists the ones that did.
+function refusingServer(status, json) {
+  const server = seeded();
+  const refused = [];
+  let refusing = true, gate = null;
+  const fetch = async (url, init = {}) => {
+    if (refusing && String(init.method || 'GET').toUpperCase() === 'PUT') {
+      refused.push(JSON.parse(init.body));
+      if (gate) await gate;
+      return new Response(json === undefined ? 'Request Entity Too Large' : JSON.stringify(json), { status });
+    }
+    return server.fetch(url, init);
+  };
+  return {
+    ...server, fetch, refused,
+    allow() { refusing = false; },
+    hold() { let release; gate = new Promise(r => { release = r; }); return () => { gate = null; release(); }; },
+  };
+}
+const REFUSED_1MB = 'Could not save: That save is over 1 MB. Your changes are kept on this device.';
+const REFUSED_PLAIN = 'Could not save: the server refused this save. Your changes are kept on this device.';
+
+test('a 400 answer to a save is not retried on a timer; the change stays on this device and the next act sends it', async () => {
+  const server = refusingServer(400, { error: 'That save is over 1 MB' });
+  const { engine, timers, storage, statuses } = fakeDevice({ server });
+  await engine.load();
+  engine.act('Changed bill Netflix', d => { netflix(d).amt = 29.99; });
+  timers.tick(700);
+  await engine.idle();
+  assert.equal(server.refused.length, 1);
+  assert.deepEqual(engine.status, { code: 'refused', text: REFUSED_1MB });
+  assert.deepEqual(statuses.at(-1), { text: REFUSED_1MB, code: 'refused' });
+  assert.deepEqual(timers.waiting(), []); // no automatic retry
+  timers.tick(60_000);
+  await engine.idle();
+  assert.equal(server.refused.length, 1);
+  assert.deepEqual(engine.pending.map(a => a.label), ['Changed bill Netflix']);
+  assert.deepEqual(storage.json('finance-pending').map(a => a.label), ['Changed bill Netflix']);
+  assert.equal(netflix(storage.json('finance-cache')).amt, 29.99);
+  assert.equal(netflix(engine.state).amt, 29.99);
+
+  // The next act tries again, with both changes.
+  server.allow();
+  engine.act('Added Metro $12', d => { d.months['2026-11'].tx.push(METRO); });
+  assert.equal(engine.status.code, 'saving');
+  timers.tick(700);
+  await engine.idle();
+  assert.deepEqual(server.puts().map(p => p.status), [200]);
+  assert.equal(server.puts()[0].body.note, 'Changed bill Netflix and Added Metro $12');
+  const latest = server.latest();
+  assert.equal(netflix(latest).amt, 29.99);
+  assert.ok(latest.months['2026-11'].tx.some(t => t.id === METRO.id));
+  assert.deepEqual(engine.pending, []);
+  assert.equal(engine.status.text, 'Synced 3:20 p.m.');
+});
+
+test('a 413 with no JSON body gives the plain text, keeps the change, and a reload tries again', async () => {
+  const server = refusingServer(413);
+  const storage = memoryStorage({ 'finance-key': 'k' });
+  const one = fakeDevice({ server, storage });
+  await one.engine.load();
+  one.engine.act('Changed bill Netflix', d => { netflix(d).amt = 29.99; });
+  await one.engine.push();
+  assert.deepEqual(one.engine.status, { code: 'refused', text: REFUSED_PLAIN });
+  assert.deepEqual(one.timers.waiting(), []);
+  one.engine.stop();
+
+  // A reload while the server still refuses: tried once, then it waits again.
+  const two = fakeDevice({ server, storage });
+  await two.engine.load();
+  await two.engine.idle();
+  assert.equal(server.refused.length, 2);
+  assert.equal(two.engine.status.code, 'refused');
+  assert.deepEqual(two.timers.waiting(), []);
+  assert.equal(netflix(two.engine.state).amt, 29.99);
+  two.engine.stop();
+
+  // A reload once the server takes it: saved, nothing pending.
+  server.allow();
+  const three = fakeDevice({ server, storage });
+  await three.engine.load();
+  await three.engine.idle();
+  assert.equal(netflix(server.latest()).amt, 29.99);
+  assert.deepEqual(three.engine.pending, []);
+  assert.equal(storage.json('finance-pending'), null);
+  assert.equal(three.engine.status.text, 'Synced 3:20 p.m.');
+});
+
+test('an act made while a PUT that is refused is in flight is still sent right after', async () => {
+  const server = refusingServer(400, { error: 'Invalid data' });
+  const { engine, timers } = fakeDevice({ server });
+  await engine.load();
+  const release = server.hold();
+  engine.act('Changed bill Netflix', d => { netflix(d).amt = 29.99; });
+  timers.tick(700); // the PUT is now held
+  engine.act('Added Metro $12', d => { d.months['2026-11'].tx.push(METRO); });
+  timers.tick(700); // its push is asked for during the flight
+  server.allow();
+  release();
+  await engine.idle();
+  assert.equal(server.refused.length, 1);
+  assert.deepEqual(server.puts().map(p => p.status), [200]);
+  assert.equal(server.puts()[0].body.note, 'Changed bill Netflix and Added Metro $12');
+  assert.deepEqual(engine.pending, []);
+  assert.equal(engine.status.text, 'Synced 3:20 p.m.');
+});
+
+test('refused save text: the server message, plain, with no dashes; otherwise the fallback', () => {
+  assert.equal(refusedText('That save is over 1 MB'), REFUSED_1MB);
+  assert.equal(refusedText('That save is over 1 MB.'), REFUSED_1MB);
+  assert.equal(refusedText('Invalid data'), 'Could not save: Invalid data. Your changes are kept on this device.');
+  assert.equal(refusedText('Too big — max 1 MB'), 'Could not save: Too big, max 1 MB. Your changes are kept on this device.');
+  assert.equal(refusedText('Too big - max 1 MB'), 'Could not save: Too big, max 1 MB. Your changes are kept on this device.');
+  for (const bad of [undefined, null, '', '   ', 42, { error: 'x' }, 'x'.repeat(161)]) assert.equal(refusedText(bad), REFUSED_PLAIN);
+  assert.equal(STATUS_TEXT.refused, REFUSED_PLAIN);
+  for (const t of [STATUS_TEXT.refused, refusedText('a – b'), refusedText('a‑b')]) assert.doesNotMatch(t, DASH, t);
+});
+
+/* ---------- a 409 from the server's save lock ---------- */
+
+async function until(check, what) {
+  for (let i = 0; i < 200; i++) { if (check()) return; await new Promise(r => setImmediate(r)); }
+  assert.fail('never happened: ' + what);
+}
+
+// The first `times` PUTs get the answer the real handler gives when another save holds the lock past its wait:
+// 409 with latest = the newest copy, which is still the one this save started from.
+function lockedServer(times) {
+  const server = seeded();
+  const locked = [];
+  const fetch = async (url, init = {}) => {
+    if (String(init.method || 'GET').toUpperCase() === 'PUT' && locked.length < times) {
+      locked.push(JSON.parse(init.body));
+      return new Response(JSON.stringify({ error: 'conflict', latest: server.latest() }), { status: 409 });
+    }
+    return server.fetch(url, init);
+  };
+  return { ...server, fetch, locked };
+}
+
+test('a 409 from the save lock waits about 250 ms before the replay push', async () => {
+  const server = lockedServer(1);
+  const { engine, timers } = fakeDevice({ server });
+  await engine.load();
+  engine.act('Changed bill Netflix', d => { netflix(d).amt = 29.99; });
+  timers.tick(700);
+  await until(() => timers.waiting().includes(250), 'a 250 ms wait after the lock 409');
+  assert.equal(server.locked.length, 1);
+  assert.equal(server.locked[0].baseSavedAt, server.latest().savedAt); // nothing newer was saved: it was the lock
+  assert.deepEqual(server.puts(), []);
+  timers.tick(249);
+  for (let i = 0; i < 20; i++) await new Promise(r => setImmediate(r));
+  assert.deepEqual(server.puts(), [], 'not before 250 ms');
+  timers.tick(1);
+  await engine.idle();
+  assert.deepEqual(server.puts().map(p => p.status), [200]);
+  assert.equal(netflix(server.latest()).amt, 29.99);
+  assert.deepEqual(engine.pending, []);
+  assert.equal(engine.status.text, 'Synced 3:20 p.m.');
+});
+
+test('lock 409s count toward the 3 attempts; a 409 from a newer save replays at once', async () => {
+  const server = lockedServer(3);
+  const { engine, timers } = fakeDevice({ server });
+  await engine.load();
+  engine.act('Changed bill Netflix', d => { netflix(d).amt = 29.99; });
+  timers.tick(700);
+  await until(() => timers.waiting().includes(250), 'first wait');
+  timers.tick(250);
+  await until(() => server.locked.length === 2 && timers.waiting().includes(250), 'second wait');
+  timers.tick(250);
+  await engine.idle();
+  assert.equal(server.locked.length, 3);
+  assert.equal(engine.status.text, 'Could not sync, will retry');
+  assert.deepEqual(timers.waiting(), [5000]);
+  timers.tick(5000);
+  await engine.idle();
+  assert.deepEqual(server.puts().map(p => p.status), [200]);
+
+  // Another device really saved first: the 409 carries a newer copy, so the replay push goes at once (no wait).
+  engine.act('Added Metro $12', d => { d.months['2026-11'].tx.push(METRO); });
+  const other = server.latest();
+  cushion(other).saved = 90;
+  server.seed(other);
+  await engine.push();
+  assert.deepEqual(server.puts().map(p => p.status), [200, 409, 200]);
+  assert.equal(cushion(server.latest()).saved, 90);
+  assert.ok(server.latest().months['2026-11'].tx.some(t => t.id === METRO.id));
 });

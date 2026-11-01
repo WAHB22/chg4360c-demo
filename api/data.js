@@ -25,12 +25,13 @@ async function newestDoc(cfg, versions) {
   return null;
 }
 
-// The version list, after seeding an empty prefix under the lock. If a save holds the lock, use what is there now.
+// The version list, after seeding an empty prefix under the lock. If a save holds the lock, use what is there now
+// (no wait: a GET never queues behind a save).
 async function versionsSeeded(cfg) {
   const versions = await listVersions(cfg);
   if (versions.length) return versions;
   try {
-    if (!await withLock(cfg, () => ensureSeeded(cfg))) return versions;
+    if (!await withLock(cfg, () => ensureSeeded(cfg), { waitMs: 0 })) return versions;
   } catch (e) {
     if (!e || !e.conflict) throw e;
   }
@@ -83,6 +84,10 @@ async function putData(req, res, cfg) {
   if (bodyBytes(req, body) > MAX_BYTES) return send(res, 400, { error: 'That save is over 1 MB' });
 
   const base = body.baseSavedAt ?? body.savedAt ?? null;
+  // A save that finds the lock held waits for it (withLock polls, up to about 3 s), then checks its base against
+  // what the other save just wrote. So two devices saving at once get exactly one 409, and its `latest` already
+  // holds the other device's change: the replay on top of it goes through. Only a lock still held when the wait
+  // runs out (a stuck save) answers 409 with the newest doc there is.
   // The answer is sent only after withLock has released the lock: a client that saves again
   // the moment it hears back (a 409 replay, or actions made during the save) must not meet it.
   let answer;

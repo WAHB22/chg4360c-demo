@@ -297,11 +297,9 @@ test('3. two devices push different changes at the same moment: the newest save 
   for (const r of w.log) assert.equal(r.key, KEY);
 });
 
-// SPEC 7.2 and the brief: "proves one 409 and no lost change". Marked todo (the repo's convention for a known bug in
-// another module) until api/data.js waits for a held lock instead of answering 409 at once with the save it is about to replace.
-test('3. two devices push at the same moment: exactly one PUT gets a 409', {
-  todo: 'api/data.js answers a lock conflict at once with the old save as latest, so the second device gets a second 409',
-}, async () => {
+// SPEC 7.2 and the brief: "proves one 409 and no lost change". api/data.js waits for a held lock, so the loser's
+// single 409 already carries the winner's save.
+test('3. two devices push at the same moment: exactly one PUT gets a 409', async () => {
   const { w } = await race(NETFLIX_UP, ADD_METRO);
   const puts = w.puts().map(p => `${p.who} ${p.status}${p.status === 409 && p.json.latest.savedAt === p.body.baseSavedAt ? ' (latest was still the old save)' : ''}`);
   assert.equal(w.puts().filter(p => p.status === 409).length, 1, 'PUTs in order: ' + puts.join(', '));

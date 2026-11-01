@@ -19,7 +19,6 @@ const MSG = {
   size: 'That file is over 10 MB',
   noKey: 'Reading screenshots is not set up yet. CSV files still work.',
   limit: 'You have used all 30 reads for today. They reset at midnight. CSV files still work.',
-  busy: 'Too many reads at once. Try again in a moment.',
   unreadable: 'Could not read this file',
   upstream: 'Could not read this file right now. Try again later. CSV files still work.',
 };
@@ -82,6 +81,8 @@ export function torontoDay(date = new Date()) {
 }
 
 const TIME = /^([01]\d|2[0-3]):[0-5]\d$/;
+// The model sometimes drops the leading zero of the hour ('9:41'): pad it rather than lose the row.
+const padTime = t => (typeof t === 'string' && /^\d:[0-5]\d$/.test(t) ? '0' + t : t);
 // isISODate alone lets '2026-13-01' or '2026-02-30' roll over into another date: require a round trip.
 const realDate = s => isISODate(s) && isoOf(parseISO(s)) === s;
 // A clean row with only the known fields, or null when anything is off.
@@ -90,14 +91,15 @@ export function validRow(r) {
   const merchant = typeof r.merchant === 'string' ? r.merchant.trim() : '';
   // Dollars and cents only: 6.584999 from the model becomes 6.58, and an amount under half a cent is not a charge.
   const amount = typeof r.amount === 'number' && Number.isFinite(r.amount) ? round2(r.amount) : NaN;
+  const time = padTime(r.time);
   const ok = realDate(r.date)
     && amount > 0
     && (r.direction === 'in' || r.direction === 'out')
     && (r.account === 'visa' || r.account === 'chequing' || r.account === null)
     && merchant.length > 0 && merchant.length <= 120
-    && (r.time === null || (typeof r.time === 'string' && TIME.test(r.time)))
+    && (time === null || (typeof time === 'string' && TIME.test(time)))
     && typeof r.raw === 'string' && r.raw.length <= 300;
-  return ok ? { date: r.date, time: r.time, merchant, amount, direction: r.direction, account: r.account, raw: r.raw } : null;
+  return ok ? { date: r.date, time, merchant, amount, direction: r.direction, account: r.account, raw: r.raw } : null;
 }
 
 export function cleanRows(list) {
@@ -116,6 +118,12 @@ function base64Of(data) {
   const s = data.replace(/^data:[^,]*;base64,/, '').replace(/\s+/g, '');
   return s && /^[A-Za-z0-9+/]+={0,2}$/.test(s) ? s : null;
 }
+
+// A 4xx from the Claude API is about this file (an image or PDF it cannot process, a request too large): trying
+// again will not help, so it is answered like a file Claude could not read. These 4xx are about our key, model or
+// rate, not the file, and stay "try again later": 401, 403, 404, 408, 409, 429.
+const NOT_THE_FILE = new Set([401, 403, 404, 408, 409, 429]);
+const fileProblem = e => Number.isInteger(e && e.status) && e.status >= 400 && e.status < 500 && !NOT_THE_FILE.has(e.status);
 
 const fileBlock = (type, data) => (type === PDF
   ? { type: 'document', source: { type: 'base64', media_type: PDF, data } }
@@ -144,7 +152,6 @@ export default async function handler(req, res) {
     // Checked before counting, so a missing key never uses up a read.
     if (!process.env.ANTHROPIC_API_KEY) return send(res, 503, { error: MSG.noKey });
     const counted = await incrementReadCount(storeConfig(), torontoDay(), DAILY_READS);
-    if (counted.busy) return send(res, 503, { error: MSG.busy });
     if (!counted.ok) return send(res, 429, { error: MSG.limit });
 
     let msg;
@@ -166,6 +173,8 @@ export default async function handler(req, res) {
       });
     } catch (e) {
       console.error('api/read Claude call failed:', e && e.name, e && e.status);
+      // The read was counted before the call, and stays counted either way.
+      if (fileProblem(e)) return send(res, 422, { error: MSG.unreadable });
       return send(res, 502, { error: MSG.upstream });
     }
 

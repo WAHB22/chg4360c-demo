@@ -418,11 +418,65 @@ test('points are one per calendar day across the clock changes, in Montreal time
 });
 
 test('a bill due every 2 weeks on the 1st of a winter month stays in the forecast in Montreal time', {
-  todo: 'lib/core.js billOccurrences compares noon timestamps across a clock change and drops this Dec 1 charge',
+  // was a todo for the core.js clock change bug, fixed
 }, () => {
   const s = clone(fsample);
   s.bills = [{ id: 'b-x', name: 'Gym', amt: 31.58, freq: 'biweekly', anchor: '2026-10-20', note: '' }]; // Oct 20, Nov 3, Nov 17, Dec 1
   s.settings.chequing = { bal: 1000, asOf: '2026-11-28' };
   const r = forecastIn('America/Toronto', s, '2026-11-28', { date: '2026-12-04', estimate: true });
   assert.ok(at(r, '2026-12-01').events.some(e => e.type === 'bill' && e.amt === -31.58));
+});
+
+/* ---------- SPEC 11: a raise is not suggested again for the same top ups ---------- */
+
+test('after a raise is accepted the same months never suggest it again; three new months of top ups can', () => {
+  const s = clone(sample);
+  getMonth(s, '2026-09').moves.push(move('m9', '2026-09-24', 'i-cloth', 'i-groc', 70));
+  getMonth(s, '2026-10').moves.push(move('m10a', '2026-10-12', 'i-cloth', 'i-groc', 50), move('m10b', '2026-10-27', 'i-kylie', 'i-groc', 30));
+  getMonth(s, NOV).moves.push(move('m11', TODAY, 'i-cloth', 'i-groc', 75));
+  const sug = raiseSuggestion(s, NOV, 'i-groc');
+  assert.deepEqual(sug, { itemId: 'i-groc', months: ['2026-09', '2026-10', '2026-11'], newLimit: 480 });
+
+  const item = applyRaise(s, sug);
+  assert.equal(item.limit, 480);
+  assert.equal(item.raisedAt, '2026-11');
+  const stored = s.budget[0].items[0];
+  assert.deepEqual(Object.keys(stored).sort(), [...Object.keys(sample.budget[0].items[0]), 'raisedAt'].sort()); // one extra field, nothing else
+
+  // The next render (and every one after it) for the same months: no new card offering $560.
+  for (let i = 0; i < 3; i++) assert.equal(raiseSuggestion(s, NOV, 'i-groc'), null);
+  assert.equal(raiseSuggestion(clone(s), NOV, 'i-groc'), null, 'raisedAt survives a save and reload');
+
+  // New top ups in Dec and Jan: the 3 months ending in Dec or Jan still include Nov, which was already used.
+  getMonth(s, '2026-12').moves.push(move('m12', '2026-12-10', 'i-cloth', 'i-groc', 40));
+  getMonth(s, '2027-01').moves.push(move('m1', '2027-01-10', 'i-cloth', 'i-groc', 40));
+  assert.equal(raiseSuggestion(s, '2026-12', 'i-groc'), null);
+  assert.equal(raiseSuggestion(s, '2027-01', 'i-groc'), null);
+  // A third new month: Dec, Jan and Feb are all after the raise. 480 + 40 = 520.
+  getMonth(s, '2027-02').moves.push(move('m2', '2027-02-10', 'i-cloth', 'i-groc', 40));
+  const again = raiseSuggestion(s, '2027-02', 'i-groc');
+  assert.deepEqual(again, { itemId: 'i-groc', months: ['2026-12', '2027-01', '2027-02'], newLimit: 520 });
+  applyRaise(s, again);
+  assert.equal(stored.raisedAt, '2027-02');
+  assert.equal(raiseSuggestion(s, '2027-02', 'i-groc'), null);
+});
+
+test('raisedAt: older months stay quiet, it never moves back, and a value that is not a month is ignored', () => {
+  const s = clone(sample);
+  for (const k of ['2026-08', '2026-09', '2026-10', NOV]) getMonth(s, k).moves.push(move('m' + k, k + '-10', 'i-cloth', 'i-groc', 40));
+  applyRaise(s, raiseSuggestion(s, NOV, 'i-groc'));
+  const groc = s.budget[0].items[0];
+  assert.equal(groc.raisedAt, NOV);
+  assert.equal(raiseSuggestion(s, '2026-10', 'i-groc'), null); // Aug, Sep, Oct: before the raise
+  // A stale suggestion for an earlier month sets the limit but keeps the later raisedAt.
+  applyRaise(s, { itemId: 'i-groc', months: ['2026-08', '2026-09', '2026-10'], newLimit: 450 });
+  assert.equal(groc.limit, 450);
+  assert.equal(groc.raisedAt, NOV);
+  // A suggestion built by hand with no months only sets the limit.
+  const gas = applyRaise(s, { itemId: 'i-gas', newLimit: 70 });
+  assert.equal(gas.limit, 70);
+  assert.equal('raisedAt' in gas, false);
+  // Data from elsewhere with a raisedAt that is not 'YYYY-MM' does not block suggestions.
+  groc.raisedAt = 'soon';
+  assert.equal(raiseSuggestion(s, NOV, 'i-groc').newLimit, 490); // 450 + 40
 });

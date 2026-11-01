@@ -1,9 +1,9 @@
 # UI contract (build A)
 
 Read docs/SPEC.md first. This file fixes how the page is split so feature modules can be written in parallel.
-The look is decided: follow docs/STYLE.md ("Ink on paper", Greek mythology inspired) for every colour, font, ornament, component and motion.
+The look is decided: follow docs/STYLE_GUIDE.md (his style guide, the only source for the look) and match docs/style-guide-preview.html (the target look with sample numbers; its SVG wordmark, motifs and engraved temple are original and can be reused).
 Phone first at 390 px wide, light and dark mode via prefers-color-scheme, tap targets at least 44 px, visible focus, no layout shift,
-`prefers-reduced-motion: reduce` turns motion off. `ui/motifs.js` (owned by core) holds the SVG ornaments; feature modules import from it.
+`prefers-reduced-motion: reduce` turns motion off. `ui/motifs.js` (owned by core) holds the SVG wordmark and motifs; feature modules import from it. Home band order: hero (paper) → spending limits (sand) → bills (paper) → tuition jars (sage) → forecast (scroll), at most two torn paper edges per page, never a stack of white bordered cards.
 
 ## Files and ownership
 | file | owner | contents |

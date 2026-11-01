@@ -124,7 +124,7 @@ test('Oct 31 applied, then the same rows from a screenshot and a statement: all 
   assert.ok(expenses.every(r => r.status === 'dup' && r.ticked === false));
   assert.deepEqual(expenses.slice(0, 4).map(r => r.dup.type), ['tx', 'tx', 'tx', 'tx']);
   assert.deepEqual(expenses.slice(4).map(r => r.dup.type), ['row', 'row', 'row', 'row']);
-  assert.deepEqual(applyImport(state, rows), { expenses: 0, pays: 0, bills: 0, total: 0 });
+  assert.deepEqual(applyImport(state, rows), { expenses: 0, pays: 0, bills: 0, total: 0, skipped: 0 });
 });
 
 test('a bill charged in a screenshot and on the statement ticks the bill once', () => {
@@ -134,7 +134,7 @@ test('a bill charged in a screenshot and on the statement ticks the bill once', 
     batch('stmt', [row('NETFLIX.COM', 27.11, { date: '2026-11-16' })], 'statement'));
   assert.deepEqual(kinds(rows), [['bill', true], ['dup', false]]);
   assert.equal(rows[1].dup.type, 'row');
-  assert.deepEqual(applyImport(state, rows), { expenses: 0, pays: 0, bills: 1, total: 0 });
+  assert.deepEqual(applyImport(state, rows), { expenses: 0, pays: 0, bills: 1, total: 0, skipped: 0 });
   assert.equal(state.months['2026-11'].paid['b-netflix@2026-11-16'], true);
 });
 
@@ -206,7 +206,7 @@ test('a category pick on a pay row is his override: it becomes a refund in that 
   assert.equal(rows[0].kind, 'income');
   const next = setCategory(state, rows, rows[0].key, 'i-errors');
   assert.deepEqual([next[0].kind, next[0].status, next[0].ticked, next[0].itemId], ['refund', 'refund', true, 'i-errors']);
-  assert.deepEqual(applyImport(state, next), { expenses: 1, pays: 0, bills: 0, total: -80 });
+  assert.deepEqual(applyImport(state, next), { expenses: 1, pays: 0, bills: 0, total: -80, skipped: 0 });
 });
 
 test('setCategory never changes the rows it was given', () => {
@@ -235,11 +235,11 @@ test('applyImport money: refunds are negative, the total is exact in cents', () 
   assert.throws(() => applyImport(state, rows), err => err.count === 1);
   rows = setCategory(state, rows, rows[4].key, 'i-cloth');
   const res = applyImport(state, rows);
-  assert.deepEqual(res, { expenses: 5, pays: 0, bills: 0, total: 137.66 });
+  assert.deepEqual(res, { expenses: 5, pays: 0, bills: 0, total: 137.66, skipped: 0 });
   assert.deepEqual(state.months['2026-12'].tx.map(t => t.amt), [0.1, 0.2, 182.4, -25.05, -19.99]);
 });
 
-test('applyImport writes exactly the spec fields for a tx and a pay', () => {
+test('applyImport writes exactly the spec fields for a tx, and for a pay the spec fields plus kind', () => {
   const state = freshState();
   const rows = review(state, batch('stmt', [
     row('SQ *NUAGE CAFE #12 MONTREAL QC', 6.58, { date: '2026-11-25' }),
@@ -253,7 +253,7 @@ test('applyImport writes exactly the spec fields for a tx and a pay', () => {
     fp: '658|nuage cafe', merchant: 'SQ *NUAGE CAFE #12 MONTREAL QC', account: 'visa',
   });
   const pay = state.months['2026-11'].pays.at(-1);
-  assert.deepEqual({ ...pay, id: 'x' }, { id: 'x', date: '2026-11-25', amt: 40, hours: null, note: 'Interac e-Transfer from Kylie' });
+  assert.deepEqual({ ...pay, id: 'x' }, { id: 'x', date: '2026-11-25', amt: 40, hours: null, note: 'Interac e-Transfer from Kylie', kind: 'income' });
 });
 
 test('applyImport refuses a ticked row whose category was deleted, before changing anything', () => {
@@ -287,7 +287,7 @@ test('v1 shapes: months with missing lists, tx with no merchant, src or fp, and 
     ['expense', 'dup', 'a'], ['expense', 'new', null], ['pay', 'dup', 'p'], ['bill', 'bill', null],
   ]);
   const res = applyImport(state, rows);
-  assert.deepEqual(res, { expenses: 1, pays: 0, bills: 1, total: 6.58 });
+  assert.deepEqual(res, { expenses: 1, pays: 0, bills: 1, total: 6.58, skipped: 0 });
   assert.deepEqual(state.buildB, { keep: true });
   assert.deepEqual(state.months['2026-11'].fromB, { x: 1 });
   assert.equal(state.months['2026-11'].tx[0].keepMe, 1);
@@ -356,4 +356,106 @@ test('CSV quoted fields: doubled quotes at the end and quoted amounts', () => {
 test('CSV amounts are exact cents', () => {
   const amounts = parseCSV(['0.1', '0.2', '182.40', '1,234.56', '89.43'].map(a => `2026-11-01,A,"${a}",`).join('\n')).rows.map(r => r.amount);
   assert.deepEqual(amounts, [0.1, 0.2, 182.4, 1234.56, 89.43]);
+});
+
+/* ---------- dates that are not real dates ---------- */
+
+test('applyImport leaves out and counts ticked rows whose date is not a real date', () => {
+  const state = freshState();
+  const rows = review(state, batch('shot', [
+    row('NUAGE CAFE', 6.58, { date: '2026-11-20' }),
+    row('NUAGE CAFE', 4.10, { date: '2026-02-30' }),
+    row('TIM HORTONS', 3.45, { date: '2026-13-01' }),
+    row('TIM HORTONS', 2.15, { date: '2026-11-5' }),
+    row('BOUTIQUE XYZ', 25, { date: '' }), // no category either: it is left out, so it does not block the import
+    cheq('BOBINO PAYROLL', 1300, { direction: 'in', date: '2026-11-31' }),
+    cheq('E-TRANSFER RECEIVED Kylie', 40, { direction: 'in', date: null }),
+    row('Payment', 100, { date: 'Nov 31', direction: 'in' }), // not spending: never applied, never counted
+  ]));
+  assert.ok(rows.slice(0, 7).every(r => r.ticked), 'all ticked in the review');
+  const before = clone(state);
+  const res = applyImport(state, rows);
+  assert.deepEqual(res, { expenses: 1, pays: 0, bills: 0, total: 6.58, skipped: 6 });
+  assert.deepEqual(Object.keys(state.months).sort(), ['2026-10', '2026-11'], 'no month made from a bad date');
+  assert.deepEqual(state.months['2026-11'].pays, before.months['2026-11'].pays);
+  const added = state.months['2026-11'].tx.slice(before.months['2026-11'].tx.length);
+  assert.deepEqual(added.map(t => [t.date, t.amt]), [['2026-11-20', 6.58]]);
+  for (const m of Object.values(state.months)) for (const t of [...m.tx, ...m.pays]) assert.ok(isISODate(t.date), t.date);
+  // A ticked row with a real date and no category still blocks the import.
+  const blocked = review(freshState(), batch('shot', [row('BOUTIQUE XYZ', 25, { date: '2026-11-20' }), row('BOUTIQUE XYZ', 25, { date: '2026-11-31' })]));
+  assert.throws(() => applyImport(freshState(), blocked), { message: '1 row needs a category' });
+});
+
+/* ---------- pays say whether they are a paycheque ---------- */
+
+test('imported pays carry kind: pay for a Bobino paycheque, income for any other money in', () => {
+  const state = freshState();
+  const rows = review(state, batch('stmt', [
+    cheq('BOBINO PAYROLL', 1300, { direction: 'in', date: '2026-11-20' }),
+    cheq('E-TRANSFER RECEIVED Kylie', 40, { direction: 'in', date: '2026-11-21' }),
+    cheq('Internet Banking E-TRANSFER 105372806372 Kylie', 25, { direction: 'in', date: '2026-11-22' }),
+    cheq('GST CREDIT CANADA', 80, { direction: 'in', date: '2026-11-23' }),
+    cheq('Electronic Funds Transfer PAY BOBINO INC', 1300, { direction: 'in', date: '2026-12-04' }),
+  ], 'statement'));
+  assert.deepEqual(rows.map(r => r.kind), ['pay', 'income', 'income', 'income', 'pay']);
+  assert.equal(applyImport(state, rows).pays, 5);
+  const pays = [...state.months['2026-11'].pays, ...state.months['2026-12'].pays];
+  assert.deepEqual(pays.map(p => [p.date, p.amt, p.note, p.kind]), [
+    ['2026-11-06', 1300, '', undefined], // logged by hand before: left exactly as it was
+    ['2026-11-20', 1300, 'Bobino pay', 'pay'],
+    ['2026-11-21', 40, 'Interac e-Transfer from Kylie', 'income'],
+    ['2026-11-22', 25, 'Interac e-Transfer from Kylie', 'income'],
+    ['2026-11-23', 80, 'Gst Credit Canada', 'income'],
+    ['2026-12-04', 1300, 'Bobino pay', 'pay'],
+  ]);
+  assert.equal('kind' in pays[0], false);
+});
+
+/* ---------- a CIBC chequing statement end to end ---------- */
+
+test('a CIBC chequing statement: notes without bank text, refunds stay refunds, transfers stay not spending', () => {
+  const state = freshState();
+  state.months['2026-11'].paid = {};
+  const csv = [
+    '2026-11-24,Point of Sale - Interac RETAIL PURCHASE 000001234567 TIM HORTONS #1,4.25,',
+    '2026-11-24,Point of Sale - Visa Debit RETAIL PURCHASE 000007654321 SQ *NUAGE CAFE,6.58,',
+    '2026-11-25,Point of Sale - Interac RETAIL REFUND 000001234567 COSTCO WHOLESAL,,20.00',
+    '2026-11-25,Point of Sale - Interac RETAIL REFUND 000001234567 BOUTIQUE XYZ,,15.00',
+    '2026-11-26,Internet Banking INTERNET BILL PAY 000000156789 CIBC VISA,500.00,',
+    '2026-11-26,Internet Banking INTERNET TRANSFER 000000123456,200.00,',
+    '2026-11-27,Internet Banking E-TRANSFER 105372806372 Kylie,,40.00',
+    '2026-11-18,Electronic Funds Transfer PREAUTHORIZED DEBIT BELL CANADA,90.83,',
+  ].join('\r\n');
+  const parsed = parseCSV(csv);
+  assert.deepEqual(parsed.skipped, []);
+  assert.ok(parsed.rows.every(r => r.account === 'chequing'));
+  let rows = review(state, batch('cheq.csv', parsed.rows, 'statement'));
+  assert.deepEqual(rows.map(r => [r.kind, r.status, r.ticked]), [
+    ['expense', 'new', true], ['expense', 'new', true], ['refund', 'refund', true], ['refund', 'refund', true],
+    ['notspending', 'notspending', false], ['notspending', 'notspending', false], ['income', 'income', true], ['bill', 'bill', true],
+  ]);
+  assert.deepEqual(rows.map(r => r.note), ['Tim Hortons', 'Nuage Cafe', 'Costco Wholesal', 'Boutique Xyz', 'Cibc Visa',
+    'Internet Transfer 000000123456', 'Interac e-Transfer from Kylie', 'Bell Canada']);
+  assert.equal(rows[7].statusText, 'Ticks Phone + Crave/Disney (Bell) paid');
+  for (const r of rows) assert.equal(hasDash(r.note) || hasDash(r.statusText), false, r.merchant);
+
+  rows = setCategory(state, rows, rows[3].key, 'i-cloth');
+  const res = applyImport(state, rows);
+  assert.deepEqual(res, { expenses: 4, pays: 1, bills: 1, total: -24.17, skipped: 0 });
+  const tx = state.months['2026-11'].tx.slice(-4);
+  assert.deepEqual(tx.map(t => [t.note, t.amt, t.item, t.fp, t.account]), [
+    ['Tim Hortons', 4.25, 'i-coffee', '425|tim hortons', 'chequing'],
+    ['Nuage Cafe', 6.58, 'i-coffee', '658|nuage cafe', 'chequing'],
+    ['Costco Wholesal', -20, 'i-groc', '2000|costco wholesal', 'chequing'],
+    ['Boutique Xyz', -15, 'i-cloth', '1500|boutique xyz', 'chequing'],
+  ]);
+  assert.equal(tx[0].merchant, 'Point of Sale - Interac RETAIL PURCHASE 000001234567 TIM HORTONS #1', 'the raw text is kept as read');
+  assert.deepEqual(state.months['2026-11'].pays.at(-1).kind, 'income');
+  assert.equal(state.months['2026-11'].paid['b-phone@2026-11-18'], true);
+  assert.deepEqual(state.merchantMap, { 'boutique xyz': 'i-cloth' });
+
+  // The same statement again: the purchases and refunds are duplicates of what was just saved.
+  const again = review(state, batch('cheq2.csv', parseCSV(csv).rows, 'statement'));
+  assert.deepEqual(again.slice(0, 4).map(r => r.status), ['dup', 'dup', 'dup', 'dup']);
+  assert.equal(again[0].statusText, 'Possible duplicate of Tim Hortons $4.25 on Nov 24');
 });

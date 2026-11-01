@@ -8,7 +8,7 @@ Vercel serves the repo root as static files and `api/*.js` as Node functions (fi
 - **Never break what works.** Every current feature keeps working: month switcher and totals; bills with paid ticks, "soon" (due in 3 days or less) and "late"; limit bars (green under 75%, orange 75 to 100% inclusive, red over 100%; limit 0 shows "no limit" in grey); + Expense; paycheques with a planned amount; accounts (Chequing, Savings, Visa owing); three tuition jars; tap anything to edit; add bill, category, group; download and restore a backup.
 - **Real data must load unchanged.** Never rename fields. New fields get defaults. Unknown fields are kept untouched (another build, B, shares the same data).
 - **Money rules** (section 5) are the only way numbers are computed. Every computed number has a node:test with fixed sample data.
-- **UI text rules:** no dashes of any kind in UI prose (no em dash, en dash, or spaced hyphen; a minus sign on a negative amount is fine). Plain words. Nothing that reads as AI written. Label every estimate with the word "estimate". Transfers between his own accounts and Visa payments are never spending. Rewards only for real progress (bill paid on time, a limit held to month end, money moved to a jar), never for taps.
+- **UI text rules:** no dashes of any kind in UI prose (no em dash, en dash, or spaced hyphen; a minus sign on a negative amount is fine). Plain words, and no hyphens in labels either (write "one tap", not "one-tap"; use a middle dot · or a new line). Nothing that reads as AI written. Label every estimate with the word "estimate". Transfers between his own accounts and Visa payments are never spending. Rewards only for real progress (bill paid on time, a limit held to month end, money moved to a jar), never for taps.
 - **Never PUT test data to production.** Tests use in memory fakes. Fixtures are synthetic; his real backup never goes in the repo.
 - Pure logic lives in `lib/` (no DOM, no Node APIs, works in both). UI lives in `ui/`. Server code lives in `api/`.
 - Dates are local `'YYYY-MM-DD'` strings, months are `'YYYY-MM'` keys. Use the helpers in `lib/core.js` (already written and tested; read it first; do not change existing exports, you may add new ones only if your task says so).
@@ -118,27 +118,33 @@ export function monthTotals(state, monthKey) // {earned, billsTotal, paid, spent
 ```
 earned = sum of pays in the month; billsTotal = sum of all bill occurrences in the month (including ones with no date, as the original did); paid = sum of ticked occurrences; spent = sum of tx amounts in the month; left = earned − billsTotal − spent. Use `sum` from core (cents exact).
 
-### 5.2 Next pay and pay period — lib/money.js
+### 5.2 Next pay and pay period — lib/money.js (UPDATED: follows the pay period, never the calendar month)
 ```
-export function nextPay(state, today)  // {date, estimate: boolean, lastPay: 'YYYY-MM-DD'|null} or null when no pay was ever logged
-export function payPeriod(state, today) // {start: today, end: day before next pay, days: daysBetween(today, nextPay.date), nextPay} or null
+export function nextPay(state, today)   // {date, estimate: boolean, lastPay: 'YYYY-MM-DD'|null} or null when no paycheque was ever logged
+export function payPeriod(state, today) // {start: last paycheque on or before today, end: day before next pay, days: daysBetween(today, nextPay.date), nextPay} or null
 ```
-- All logged pays across all months. If any pay is dated after today, the earliest such is the next pay, `estimate: false`.
-- Otherwise last = latest pay dated on or before today; next = last + 14 days, stepping by 14 until it is after today; `estimate: true`.
-- No pays at all: null (the UI asks him to log his last paycheque; never invent a date).
-- days = days from today to the day before next pay, today included = daysBetween(today, next).
+- Paycheques = logged pays without `kind: 'income'` (see section 11). Income pays never define the period.
+- If any paycheque is dated after today, the earliest such is the next pay, `estimate: false`. Otherwise next = last paycheque + 14 days, stepping by 14 until after today, `estimate: true`. No paycheque on or before today: null (the UI asks him to log his last paycheque; never invent a date).
+- Pay period = from the last paycheque dated on or before today to the day before the next pay. Days left = today to the day before the next pay, today included = daysBetween(today, next).
 
-### 5.3 Safe to spend today — lib/money.js
+### 5.3 Safe to spend today — lib/money.js (UPDATED)
 ```
-export function safeToSpend(state, today) // {perDay, pool, days, nextPay, parts:{income, spending, billsPaid, billsDue:[{billId, name, date, amt}]}} or {missing:'pay'}
+export function safeToSpend(state, today)
+// -> {perDay, pool, days, period:{start, end}, nextPay,
+//     parts:{ pays:[{id,date,amt,note}], income, spending, billsInPeriod:[{billId,name,date,amt,paid}], billsTotal,
+//             olderUnpaid:[{billId,name,date,amt}], olderTotal }}
+// -> {missing:'pay'} when payPeriod is null
 ```
-- M = month of today.
-- income = pays in M dated on or before today (money not yet received does not count).
-- spending = all tx in M (purchases count on their purchase date, Visa or chequing; Visa payments and transfers are never tx).
-- billsPaid = ticked bill occurrences in M.
-- billsDue = unpaid dated bill occurrences from the first of M up to the day before next pay (this can cross into the next month: use billOccurrencesBetween and check paid in each occurrence's own month). Bills with no date set are left out.
-- pool = income − spending − billsPaid − sum(billsDue). perDay = floor(max(0, pool) / days). Never negative.
-- Acceptance sample (must be a test, fixture in tests/fixtures/sample-nov.js): today Nov 14 2026; pay $1,300 logged Nov 6; tx totalling $647 in November; ticked: Rent 587.50 (Nov 1), Parking 90 (Nov 1), iCloud 4.59 (Nov 3), Claude Max 100 (Nov 4), Spotify 14.44 (Nov 6), Gym 31.58 (Nov 12) = $828.11; unpaid Netflix 27.11 (Nov 16), Phone + Crave 90.83 (Nov 18); bills as in the original defaults. Expect perDay 0, days 6, next pay Nov 20 estimate. Then log a second $1,300 pay dated Nov 20 and set today = Nov 20: billsDue = Netflix 27.11 + Phone 90.83 + Internet 89.43 (Nov 22) + Gym 31.58 (Nov 26) + Rent 587.50 + Parking 90 (Dec 1) + iCloud 4.59 (Dec 3) = 921.04; pool = 2600 − 647 − 828.11 − 921.04 = 203.85; days 14 (next pay Dec 4, estimate); perDay = 14.
+- pool = income − spending − billsTotal − olderTotal; perDay = floor(max(0, pool) / days). Never negative. Whole dollars.
+- income = every pay (paycheques and kind 'income') dated from period start to today.
+- spending = every tx dated from period start to the period end (Visa or chequing; purchases count on their date).
+- billsInPeriod = every dated bill occurrence from period start to period end, **paid or not** (billOccurrencesBetween across months). Bills with no date set are left out.
+- olderUnpaid = unpaid dated bill occurrences before period start, but not before the earliest logged paycheque and not more than 62 days before period start (bills from before he started tracking are not owed by this page).
+- The 1st of a month alone never changes the money left.
+- Acceptance (tests, with bills as in his data and the gym every 2 weeks from Nov 12):
+  1. Nov 14, pay $1,300 logged Nov 6, spending since Nov 6 $647. Bills due Nov 6 to 19: Spotify 14.44 (Nov 6), Gym 31.58 (Nov 12), Netflix 27.11 (Nov 16), Phone + Crave 90.83 (Nov 18) = 163.96. (1300 − 647 − 163.96) / 6 = 81.50 → perDay 81, "$81 today · payday in 6 days".
+  2. Same day with spending since Nov 6 of $1,200 → perDay 0, "$0 today · payday in 6 days".
+  3. Pay $1,300 logged Nov 20, all earlier bills paid, spending since Nov 20 $300, nothing spent or paid on Dec 1. Bills due Nov 20 to Dec 3 = 803.10 (Internet 89.43 Nov 22, Gym 31.58 Nov 26, Rent 587.50 Dec 1, Parking 90 Dec 1, iCloud 4.59 Dec 3). Pool 196.90 on both Nov 30 and Dec 1: perDay 49 on Nov 30 (4 days), 65 on Dec 1 (3 days).
 
 ### 5.4 Budget — lib/budget.js
 ```
@@ -203,7 +209,7 @@ CIBC exports, no header row (skip a header row if one is present). Columns: date
 Order matters, first match wins. Matching is on the normalized merchant (and direction/account where stated). Item names resolve with `findItemByName` (if the item does not exist, itemId is null so the chip says "Pick a category").
 1. not spending: Visa payments and transfers between his own accounts: normalized merchant is exactly 'payment' or 'paiement', or contains 'payment thank you', 'paiement merci', 'pmt recu', 'cibc visa', 'visa payment', 'internet transfer', 'transfer to', 'transfer from', 'virement entre comptes', 'own account'. (Interac e-Transfers are NOT own account transfers.)
 2. pay: direction 'in' and contains 'bobino' or 'payroll' or 'paie' or 'direct deposit' or 'depot direct' -> Paycheques.
-3. income: direction 'in' and contains 'interac' or 'e transfer' or 'etransfer' or 'virement interac' -> income with note 'Interac e-Transfer' + sender if visible. (This note is data, not UI prose; keep the brand spelling.)
+3. income: direction 'in' and contains 'interac' or 'e transfer' or 'etransfer' or 'virement interac' -> income with note 'Interac transfer' + ' from <sender>' if visible (no hyphen: notes are shown in the UI).
 4. bills (tick the bill instead of adding an expense): 'bell', 'netflix', 'spotify', 'apple' (iCloud), 'anthropic' or 'claude' (Claude Max), 'abc 3843' or 'abc fitness' (Gym (ABC)). Resolve the bill with matchBill.
 5. Takeout and delivery: 'uber eats', 'ubereats', 'doordash', 'skip the dishes'.
 6. Lyft: 'lyft'. Uber: 'uber' (after Uber Eats).
@@ -316,3 +322,17 @@ export async function withLock(cfg, fn)            // optimistic lock on `${pref
 
 - Opening `/?key=XYZ` saves XYZ to localStorage 'finance-key' and removes it from the address bar with history.replaceState.
 - Without a key (or on 401) the page shows only: "This device is not set up" and one plain line: "Open your private setup link on this device once." No data, no cached data.
+
+
+## 11. Decisions made during the build (these override the sections above where they differ)
+
+- **Pays kinds.** Imported money in that is not a paycheque is saved in `pays` with an extra field `kind: 'income'` (Interac and other money in); Bobino payroll gets `kind: 'pay'`; manual pays have no kind (a paycheque). `nextPay` ignores `kind: 'income'`; income totals count every pay.
+- **Safe to spend** follows the pay period (5.2, 5.3 updated from his revised brief). The month based version and its billsPaidEarly workaround are gone.
+- **Raise suggestion.** `applyRaise` stores `raisedAt: '<YYYY-MM>'` on the item; only top ups after that month count toward the next suggestion.
+- **Bills from merchants.** Only distinctive keywords tick bills ('bell canada', 'netflix', 'spotify', 'apple.com/bill', 'anthropic' or 'claude.ai', 'abc 3843'); 'Taco Bell', 'Apple Store', 'St Claude' never do. A keyword match more than 5% off still ticks the bill, and the status shows both amounts.
+- **CIBC boilerplate** ('Point of Sale - Interac RETAIL PURCHASE 0000…', 'INTERNET BILL PAY 0000…', 'Electronic Funds Transfer …') is stripped from merchants, so notes read 'Tim Hortons'.
+- **createSync** takes injected `migrate`, `noteFor`, `defaults` (from lib/migrate.js and lib/labels.js) plus optional `debounceMs`, `retryMs`, `setTimer`, `clearTimer`. On 401 the engine sets state to null and reports status code 'not-set-up' (onState is not called): the page must hide all data. A 400/413 answer stops automatic retries with status code 'refused'. `engine.restore(doc, label)` keeps the current savedAt as the sync base (it never adopts the old version's savedAt). `engine.undo` restores content exactly; savedAt and note follow the current state.
+- **Concurrent saves.** The server waits briefly for a save in progress, so two devices saving at once give exactly one 409 whose `latest` already holds the other device's change.
+- **Read limit counter.** One tiny blob per read under `finance-meta/reads/<Toronto date>/`, counted with list (no CDN cache), shared by preview and production (30 a day in total).
+- **Request size.** Vercel refuses request bodies over 4.5 MB before our code runs (its 413 has no JSON body). The page shrinks screenshots before upload; PDFs over about 3 MB get a plain message suggesting the CSV export.
+- **Public store.** Until a private store is connected (`PRIVATE_BLOB_READ_WRITE_TOKEN`), versions stay in the existing public store with unguessable names (`data-<ms>-<uuid>.json`); every read and write of /api/data needs the device key.
