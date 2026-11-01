@@ -1,43 +1,124 @@
-import { put, list, del } from '@vercel/blob';
+// GET / PUT the finance data, its history and old versions (spec section 8.3).
 
-const PREFIX = 'finance/data-';
+import { bodyBytes, checkKey, readJson, send } from './_auth.js';
+import { ensureSeeded, listVersions, prune, readVersion, storeConfig, withLock, writeVersion } from './_store.js';
 
-async function newest() {
-  const { blobs } = await list({ prefix: PREFIX, limit: 1000 });
-  blobs.sort((a, b) => new Date(b.uploadedAt) - new Date(a.uploadedAt));
-  return blobs;
+const MAX_BYTES = 1024 * 1024;
+const KEEP = 10;
+const isObj = v => v !== null && typeof v === 'object' && !Array.isArray(v);
+const escapeRe = s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+function queryOf(req) {
+  if (isObj(req.query)) return req.query;
+  return Object.fromEntries(new URL(req.url || '/', 'http://localhost').searchParams);
+}
+const one = v => (Array.isArray(v) ? v[0] : v);
+
+// Newest readable version doc, or null. A blob deleted or damaged between list and read is skipped.
+async function newestDoc(cfg, versions) {
+  for (const v of versions || await listVersions(cfg)) {
+    try {
+      const doc = await readVersion(cfg, v.pathname);
+      if (isObj(doc)) return doc;
+    } catch { /* try the next one */ }
+  }
+  return null;
+}
+
+// The version list, after seeding an empty prefix under the lock. If a save holds the lock, use what is there now.
+async function versionsSeeded(cfg) {
+  const versions = await listVersions(cfg);
+  if (versions.length) return versions;
+  try {
+    if (!await withLock(cfg, () => ensureSeeded(cfg))) return versions;
+  } catch (e) {
+    if (!e || !e.conflict) throw e;
+  }
+  return listVersions(cfg);
+}
+
+async function getData(req, res, cfg) {
+  const versions = await versionsSeeded(cfg);
+  const q = queryOf(req);
+
+  if (one(q.history) === '1') {
+    const list = versions.slice(0, KEEP);
+    const docs = await Promise.all(list.map(v => readVersion(cfg, v.pathname).catch(() => null)));
+    const history = list.map((v, i) => ({
+      id: v.pathname,
+      savedAt: (docs[i] && docs[i].savedAt) || v.uploadedAt,
+      note: (docs[i] && typeof docs[i].note === 'string') ? docs[i].note : '',
+    }));
+    return send(res, 200, { versions: history });
+  }
+
+  const version = one(q.version);
+  if (version !== undefined) {
+    // Only names this prefix writes: no other prefix, no '..', no nested paths.
+    const ok = new RegExp('^' + escapeRe(cfg.prefix) + 'data-[A-Za-z0-9-]+\\.json$').test(String(version));
+    if (!ok) return send(res, 400, { error: 'Unknown version' });
+    const doc = await readVersion(cfg, String(version));
+    return doc ? send(res, 200, doc) : send(res, 404, { error: 'That version is no longer kept' });
+  }
+
+  const doc = await newestDoc(cfg, versions);
+  return send(res, 200, doc || { empty: true });
+}
+
+// Never goes backwards and never repeats the newest savedAt, even within one millisecond.
+function nextSavedAt(newest) {
+  const prev = newest ? Date.parse(newest.savedAt) : NaN;
+  const now = Date.now();
+  return new Date(Number.isFinite(prev) && prev >= now ? prev + 1 : now).toISOString();
+}
+
+async function putData(req, res, cfg) {
+  let body;
+  try {
+    body = readJson(req);
+  } catch {
+    return send(res, 400, { error: 'Invalid data' });
+  }
+  if (!isObj(body) || !Array.isArray(body.bills)) return send(res, 400, { error: 'Invalid data' });
+  if (bodyBytes(req, body) > MAX_BYTES) return send(res, 400, { error: 'That save is over 1 MB' });
+
+  const base = body.baseSavedAt ?? body.savedAt ?? null;
+  // The answer is sent only after withLock has released the lock: a client that saves again
+  // the moment it hears back (a 409 replay, or actions made during the save) must not meet it.
+  let answer;
+  try {
+    answer = await withLock(cfg, async () => {
+      let versions = await listVersions(cfg);
+      if (!versions.length && await ensureSeeded(cfg)) versions = await listVersions(cfg);
+      const newest = await newestDoc(cfg, versions);
+      if (newest && newest.savedAt !== base) return [409, { error: 'conflict', latest: newest }];
+
+      delete body.baseSavedAt;
+      body.savedAt = nextSavedAt(newest);
+      body.note = String(body.note || 'Saved').slice(0, 200);
+      await writeVersion(cfg, body, versions.length ? versions[0].ts : undefined);
+      try { await prune(cfg, KEEP); } catch { /* the next save prunes again */ }
+      return [200, { ok: true, savedAt: body.savedAt }];
+    });
+  } catch (e) {
+    if (!e || !e.conflict) throw e;
+    answer = [409, { error: 'conflict', latest: await newestDoc(cfg).catch(() => null) }];
+  }
+  return send(res, ...answer);
 }
 
 export default async function handler(req, res) {
-  res.setHeader('Cache-Control', 'no-store');
+  res.setHeader('Cache-Control', 'private, no-store');
   try {
-    if (req.method === 'GET') {
-      const blobs = await newest();
-      if (!blobs.length) return res.status(200).json({ empty: true });
-      const r = await fetch(blobs[0].url, { cache: 'no-store' });
-      const data = await r.json();
-      return res.status(200).json(data);
-    }
-    if (req.method === 'PUT' || req.method === 'POST') {
-      let body = req.body;
-      if (typeof body === 'string') body = JSON.parse(body);
-      if (!body || typeof body !== 'object' || !body.bills) {
-        return res.status(400).json({ error: 'Invalid data' });
-      }
-      body.savedAt = new Date().toISOString();
-      const blob = await put(PREFIX + Date.now() + '.json', JSON.stringify(body), {
-        access: 'public',
-        addRandomSuffix: true,
-        contentType: 'application/json',
-      });
-      const blobs = await newest();
-      const old = blobs.filter(b => b.url !== blob.url).slice(9).map(b => b.url);
-      if (old.length) await del(old);
-      return res.status(200).json({ ok: true, savedAt: body.savedAt });
-    }
+    if (!checkKey(req)) return send(res, 401, { error: 'This device is not set up' });
+    const cfg = storeConfig();
+    if (req.method === 'GET') return await getData(req, res, cfg);
+    if (req.method === 'PUT') return await putData(req, res, cfg);
     res.setHeader('Allow', 'GET, PUT');
-    return res.status(405).json({ error: 'Method not allowed' });
+    return send(res, 405, { error: 'Method not allowed' });
   } catch (e) {
-    return res.status(500).json({ error: String(e && e.message || e) });
+    // Error name and message only: never the request body.
+    console.error('api/data failed:', e && e.name, e && e.message);
+    return send(res, 500, { error: 'Something went wrong on the server. Try again.' });
   }
 }
