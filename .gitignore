@@ -1,0 +1,20 @@
+# Money data must never reach GitHub
+backup-*.json
+*.csv
+*.pdf
+*.ofx
+*.qfx
+# Screenshots and images (bank screenshots, Playwright output)
+*.png
+*.jpg
+*.jpeg
+*.heic
+*.webp
+screenshots/
+test-results/
+playwright-report/
+# Local and secrets
+node_modules/
+.env
+.env.*
+.vercel
