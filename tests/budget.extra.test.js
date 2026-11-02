@@ -66,8 +66,11 @@ function randomMonth(r) {
   return { key, state: { version: 1, settings: { payPlan: 1300 }, bills: [], budget, accounts: [], months: { [key]: month } } };
 }
 
-const softCapOf = i => Math.max(0, Math.floor((3 * cents(i.limit) - 4 * cents(i.spent)) / 400));
-const fullCapOf = i => Math.max(0, Math.floor((cents(i.limit) - cents(i.spent)) / 100));
+// A month where refunds outweigh spending counts as $0 spent for what a source can give (it never ends below $0).
+const spentPosOf = i => Math.max(0, cents(i.spent));
+const softCapOf = i => Math.max(0, Math.floor((3 * cents(i.limit) - 4 * spentPosOf(i)) / 400));
+const fullCapOf = i => Math.max(0, Math.floor((cents(i.limit) - spentPosOf(i)) / 100));
+const roomOf = i => cents(i.limit) - spentPosOf(i);
 
 /* ---------- Cover it: source order ---------- */
 
@@ -128,10 +131,10 @@ test('cover: no source left out has more room than one picked, over many random 
       const cap = top3(softCapOf) >= sug.needed ? softCapOf : fullCapOf;
       const picked = sug.from.map(f => others.find(i => i.id === f.itemId));
       assert.ok(picked.every(Boolean), msg);
-      for (let k = 1; k < picked.length; k++) assert.ok(cents(picked[k - 1].room) >= cents(picked[k].room), msg + ' not most room first');
+      for (let k = 1; k < picked.length; k++) assert.ok(roomOf(picked[k - 1]) >= roomOf(picked[k]), msg + ' not most room first');
       const total = picked.reduce((s, i) => s + cap(i), 0);
       for (const c of picked) for (const u of others) {
-        if (picked.includes(u) || cents(u.room) <= cents(c.room) || cap(u) <= 0) continue;
+        if (picked.includes(u) || roomOf(u) <= roomOf(c) || cap(u) <= 0) continue;
         if (sug.partial) assert.fail(`${msg}: partial left out ${u.id} with more room than ${c.id}`);
         assert.ok(total - cap(c) + cap(u) < sug.needed, `${msg}: ${u.id} has more room than ${c.id} and would also cover it`);
       }
@@ -478,5 +481,5 @@ test('raisedAt: older months stay quiet, it never moves back, and a value that i
   assert.equal('raisedAt' in gas, false);
   // Data from elsewhere with a raisedAt that is not 'YYYY-MM' does not block suggestions.
   groc.raisedAt = 'soon';
-  assert.equal(raiseSuggestion(s, NOV, 'i-groc').newLimit, 490); // 450 + 40
+  assert.equal(raiseSuggestion(s, '2026-10', 'i-groc').newLimit, 490); // Aug, Sep, Oct: 450 + 40 (the Nov top up went into the raise)
 });

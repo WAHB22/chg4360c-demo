@@ -88,7 +88,7 @@ test('an action saves to this device at once and pushes once, debounced 700 ms',
   assert.equal(a1.label, 'Ticked Netflix paid');
   assert.deepEqual(Object.keys(a1).sort(), ['after', 'at', 'before', 'id', 'label', 'ops']);
   assert.equal(storage.json('finance-cache').months['2026-11'].paid['b-netflix@2026-11-16'], true);
-  assert.deepEqual(storage.json('finance-pending'), [{ id: a1.id, label: a1.label, ops: JSON.parse(JSON.stringify(a1.ops)) }]);
+  assert.deepEqual(storage.json('finance-pending'), [{ id: a1.id, label: a1.label, ops: JSON.parse(JSON.stringify(a1.ops)), at: Number(a1.at) }]);
   assert.equal(engine.status.text, 'Saving…');
   assert.equal(states.at(-1), engine.state);
   assert.equal(server.puts().length, 0);
@@ -258,7 +258,7 @@ test('an offline action is kept on this device, survives a reload, then syncs', 
   await one.engine.idle();
   assert.equal(one.engine.status.text, 'Not synced yet, saved on this device. Will retry.');
   assert.deepEqual(one.timers.waiting(), [5000]);
-  assert.deepEqual(storage.json('finance-pending'), [{ id: a.id, label: 'Added Metro $12', ops: JSON.parse(JSON.stringify(a.ops)) }]);
+  assert.deepEqual(storage.json('finance-pending'), [{ id: a.id, label: 'Added Metro $12', ops: JSON.parse(JSON.stringify(a.ops)), at: Number(a.at) }]);
   const cache = storage.json('finance-cache');
   assert.ok(cache.months['2026-11'].tx.some(t => t.id === METRO.id));
   one.engine.stop(); // the page is closed

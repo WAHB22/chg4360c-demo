@@ -139,7 +139,8 @@ function countTo(app, el, to) {
   if (from === to || reduced() || document.hidden) { show(to); return; }
   const t0 = performance.now();
   const tick = now => {
-    const p = Math.min(1, (now - t0) / COUNT_MS);
+    // A frame's timestamp can be a little earlier than t0: clamped, so the first frame never runs past `from`.
+    const p = Math.max(0, Math.min(1, (now - t0) / COUNT_MS));
     show(p < 1 ? Math.round(from + (to - from) * ease(p)) : to);
     raf = p < 1 ? requestAnimationFrame(tick) : 0;
   };

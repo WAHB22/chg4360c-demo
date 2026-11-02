@@ -104,7 +104,7 @@
 /* ---------- motion ---------- */
 @media (prefers-reduced-motion: reduce) {
   .safe-hit, .safe-hit:active { transform: none; transition: none; }
-  .safe-more .owl { transition: none; transform: none; }
+  .safe-more .owl, .safe-hit:hover .safe-more .owl { transition: none; transform: none; }
 }
 
 /* ---------- small phones ---------- */

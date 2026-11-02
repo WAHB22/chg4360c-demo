@@ -269,10 +269,12 @@ export default async function ({ page, base, shot, step, assert, freshPage, open
     const item = (await state()).budget.flatMap(g => g.items).find(i => i.id === 'i-groc');
     assert.equal(item.limit, 480);
     assert.equal(item.raisedAt, '2026-11');
-    assert.equal((await barOf('i-groc')).limit, 510, 'base 480 plus the $30 moved in this month');
+    // The raise (+80) takes the place of this month's $30 top up: never 480 + 30 = $510 counted twice.
+    assert.equal((await barOf('i-groc')).limit, 480, 'the new base, the $30 top up folded into it');
+    assert.equal(await slot('i-groc').locator('.cover-note').count(), 0, 'no "moved in" note left');
     assert.equal(await total(), totalBefore + 80, 'a raise is the one change that adds to the total');
     assert.equal(await slot('i-groc').locator('.cover-raise').count(), 0, 'the same top ups never ask twice');
-    assert.equal(clean(await page.locator('.bar-hit[data-item="i-groc"] .amt').textContent()), '$428.65 of $510');
+    assert.equal(clean(await page.locator('.bar-hit[data-item="i-groc"] .amt').textContent()), '$428.65 of $480');
     const focused = await page.evaluate(() => document.activeElement?.closest('.bar-row')?.querySelector('.cover-slot')?.dataset.item);
     assert.equal(focused, 'i-groc', 'focus stays on the Groceries row');
 

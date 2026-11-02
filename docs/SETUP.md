@@ -20,7 +20,7 @@ Until this exists, screenshot and PDF reading says "Reading screenshots is not s
 ## 4. Device key (2 min)
 1. Make a long random key. On the laptop terminal: `openssl rand -base64 32 | tr -d '/+=' | cut -c1-40`
 2. Vercel > Environment Variables > add `APP_KEY` = that key, type Sensitive, Production and Preview.
-3. Your private link is `https://wahb-finance.vercel.app/?key=<the key>`. Open it once on the phone and once on the laptop. Keep it like a password (a notes app is fine, not a shared chat).
+3. Your private link is `https://wahb-finance.vercel.app/#key=<the key>` (the part after `#` never leaves the browser, so the key is not in any server log). Open it once on the phone and once on the laptop. Keep it like a password (a notes app is fine, not a shared chat).
 Without the key a browser sees only "This device is not set up". This changes who can look at the page: today anyone with the plain link sees everything. If you would rather keep viewing open, say so and only writes will need the key.
 
 ## 5. Private Blob store (5 min)

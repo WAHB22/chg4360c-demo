@@ -3,3 +3,4 @@ docs
 scripts
 *.md
 backup-*.json
+*backup*.json

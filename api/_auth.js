@@ -11,14 +11,19 @@ export function header(req, name) {
   return Array.isArray(v) ? v[0] : v;
 }
 
-// Fails closed: without APP_KEY on the server no request is ever accepted.
-// APP_KEY_A is an optional second key, set on Preview only, so build A's previews can be opened with their own key
-// while build B's preview key stays as it is. Production uses APP_KEY alone (do not set APP_KEY_A there).
+// Fails closed: without APP_KEY on the server no request is ever accepted (SPEC 8.1), whatever else is set.
+// APP_KEY_A is an optional second key for build A's previews, so they can be opened with their own key while
+// build B's preview key stays as it is. It is never accepted when VERCEL_ENV is exactly 'production', even if it
+// is set there by mistake: production answers to APP_KEY alone.
 // Both sides are hashed first so the comparison is constant time and length safe.
 export function checkKey(req) {
   const got = header(req, 'x-app-key');
   if (typeof got !== 'string' || !got) return false;
-  const keys = [process.env.APP_KEY, process.env.APP_KEY_A].filter(k => typeof k === 'string' && k.length > 0);
+  const main = process.env.APP_KEY;
+  if (typeof main !== 'string' || !main) return false;
+  const keys = [main];
+  const second = process.env.APP_KEY_A;
+  if (process.env.VERCEL_ENV !== 'production' && typeof second === 'string' && second) keys.push(second);
   let ok = false;
   for (const want of keys) ok = timingSafeEqual(sha256(want), sha256(got)) || ok; // check every key, no early exit
   return ok;

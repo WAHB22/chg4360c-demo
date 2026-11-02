@@ -287,8 +287,10 @@ test('cover invariants over many random months', () => {
 
       // Enough room, fewest sources, partial
       const others = before.filter(i => i.id !== target.id && i.limit > 0 && i.room > 0);
-      const soft = minSources(others.map(i => Math.floor((3 * cents(i.limit) - 4 * cents(i.spent)) / 400)), sug.needed);
-      const full = minSources(others.map(i => Math.floor((cents(i.limit) - cents(i.spent)) / 100)), sug.needed);
+      // Refunds that outweigh spending count as $0 spent: a source gives at most its own limit.
+      const sp = i => Math.max(0, cents(i.spent));
+      const soft = minSources(others.map(i => Math.floor((3 * cents(i.limit) - 4 * sp(i)) / 400)), sug.needed);
+      const full = minSources(others.map(i => Math.floor((cents(i.limit) - sp(i)) / 100)), sug.needed);
       if (full.enough) {
         assert.equal(sug.partial, false, msg);
         assert.equal(sug.total, sug.needed, msg);
@@ -312,6 +314,7 @@ test('cover invariants over many random months', () => {
         if (cents(was.limit) >= cents(was.spent)) assert.ok(cents(it.limit) >= cents(it.spent), msg + ' ' + it.id + ' went below spent');
         if (sug.from.some(f => f.itemId === it.id)) {
           assert.ok(cents(it.limit) >= cents(it.spent), msg + ' source below spent');
+          assert.ok(cents(it.limit) >= 0, msg + ' source below $0');
           if (soft.enough) assert.ok(it.pct < 75, msg + ' source pushed over 75%');
         }
       }
@@ -372,13 +375,16 @@ test('raise across the new year', () => {
   assert.deepEqual(raiseSuggestion(s, '2027-01', 'i-gas'), { itemId: 'i-gas', months: ['2026-11', '2026-12', '2027-01'], newLimit: 80 });
 });
 
-test('applyRaise sets the base limit only', () => {
+test('applyRaise sets the base limit, and the raise takes the place of this month\'s top up', () => {
   const s = toppedUp();
+  const clothBefore = effectiveLimit(s, NOV, 'i-cloth');
   const item = applyRaise(s, raiseSuggestion(s, NOV, 'i-groc'));
   assert.equal(item.limit, 480);
   assert.equal(s.budget[0].items[0].limit, 480);
   assert.equal(bar(s, NOV, 'i-groc').baseLimit, 480);
-  assert.equal(effectiveLimit(s, NOV, 'i-groc'), 555); // 480 + the 75 moved in this month
+  // The raise added 80; the 75 moved in this month is folded into it (never 480 + 75 = 555).
+  assert.equal(effectiveLimit(s, NOV, 'i-groc'), 480);
+  assert.equal(effectiveLimit(s, NOV, 'i-cloth'), clothBefore + 75, 'the source gets its room back');
   assert.equal(bar(s, NOV, 'i-cloth').baseLimit, 150);
   assert.equal(applyRaise(s, { itemId: 'nope', newLimit: 5 }), null);
   assert.equal(applyRaise(s, null), null);

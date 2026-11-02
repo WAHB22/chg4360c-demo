@@ -113,6 +113,8 @@
 html { -webkit-text-size-adjust: 100%;
   /* Keyboard focus scrolls a control clear of the floating buttons (and the undo bar) instead of under them. */
   scroll-padding-bottom: calc(100px + env(safe-area-inset-bottom)); }
+/* While the undo bar shows, the floating buttons sit above it: focus clears both. --undo-h is set by showUndo. */
+html:has(body.has-undo) { scroll-padding-bottom: calc(110px + var(--undo-h, 56px) + env(safe-area-inset-bottom)); }
 body {
   margin: 0;
   min-height: 100vh;
@@ -273,6 +275,8 @@ button.row:active, .row-main:active { background: var(--press); }
 .dot { display: inline-block; width: 10px; height: 10px; border-radius: 1px; background: var(--olive); }
 .dot.orange { background: var(--ochre); }
 .dot.red { background: var(--terracotta); }
+/* The swatches sit on a paper ring, like the bars on their paper tracks, so each keeps 3:1 against what is around it. */
+.legend .dot { box-shadow: 0 0 0 2px var(--track); }
 .group { margin-top: 18px; }
 .group-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; padding-bottom: 2px; border-bottom: 1.5px solid var(--ink); }
 .group-head .caps { color: var(--ink); }
@@ -361,6 +365,8 @@ dialog.sheet[open] { display: flex; flex-direction: column; }
 dialog.sheet.is-open { transform: none; }
 dialog.sheet.is-closing { transition-duration: 260ms; transition-timing-function: var(--ease-out); }
 dialog.sheet::backdrop { background: var(--backdrop); animation: fade-in var(--dur) var(--ease-out); }
+/* A closing sheet stays in place a moment (it swallows the second tap of a double tap): its backdrop fades with it. */
+dialog.sheet.is-closing::backdrop { animation: fade-out var(--dur) var(--ease-out) forwards; }
 .sheet-grip { flex: none; width: 40px; height: 4px; margin: 8px auto 0; border-radius: 2px; background: var(--line-strong); }
 .sheet-head { flex: none; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 8px 4px 20px; }
 .sheet-head h2 { font: 600 var(--fs-title)/1.15 var(--font-display); color: var(--ink); }
@@ -443,7 +449,7 @@ fieldset.field { border: 0; padding: 0; min-width: 0; }
   .first-paint .fill, .jar-fill.rise, .col-btn.just-paid .col-fill { animation: none; }
   .win-wreath .d { animation: none; stroke-dashoffset: 0; }
   .win-wreath { animation: fade-in 150ms ease both, fade-out 150ms ease 1500ms forwards; }
-  dialog.sheet::backdrop { animation-duration: 150ms; }
+  dialog.sheet::backdrop, dialog.sheet.is-closing::backdrop { animation-duration: 150ms; }
   .btn:active, .btn-primary:active, .btn-quiet:active, .btn-danger:active,
   .icon-btn:active, .col-btn:active, .jar:active, .fab:active, .undo-btn:active { transform: none; }
   .fabs { transition: none; }

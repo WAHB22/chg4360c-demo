@@ -145,7 +145,7 @@ export default async function ({ page, shot, step, assert, freshPage, allowError
   await step('one tap switches the Biodome row to Dates with Kylie', async () => {
     const row = rowsOf().filter({ hasText: 'Espace Vego Biodome' });
     const sw = row.locator('[role=switch]');
-    assert.equal(await text(sw), 'Date with Kylie');
+    assert.equal(await text(sw), 'Dates with Kylie', 'the switch names the category exactly');
     await sw.click();
     await page.waitForFunction(() => {
       const li = [...document.querySelectorAll('dialog.imp-sheet[open] .imp-row')].find(x => x.textContent.includes('Biodome'));
@@ -277,7 +277,7 @@ export default async function ({ page, shot, step, assert, freshPage, allowError
     const rows = await info();
     const by = Object.fromEntries(rows.map(r => [r.merchant, r]));
     assert.equal(by['Tim Hortons'].chip, 'Coffee and snacks');
-    assert.equal(by['Tim Hortons'].when, 'Nov 12 · time not shown · Visa');
+    assert.equal(by['Tim Hortons'].when, 'Nov 12 · Visa', 'a statement has no time column: nothing is cut off');
     assert.equal(by['Payment Thank You/Paiement Merci'].status, 'Not spending');
     assert.equal(by['Netflix.com'].status, 'Ticks Netflix paid');
     assert.equal(by['Netflix.com'].chip, 'Count as spending');
@@ -287,7 +287,7 @@ export default async function ({ page, shot, step, assert, freshPage, allowError
     const kylie = rows.find(r => /Kylie/.test(r.merchant));
     assert.equal(kylie.status, 'Income');
     assert.equal(kylie.note, 'Saved as Interac transfer from Kylie');
-    assert.equal(kylie.when, 'Nov 13 · time not shown · Chequing');
+    assert.equal(kylie.when, 'Nov 13 · Chequing');
     assert.equal(await saveText(), 'Pick a category for 1 row');
     assert.ok(await page.locator('#impSave').isDisabled());
 

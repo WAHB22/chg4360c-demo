@@ -108,10 +108,10 @@ test('pay and Interac income need money in', () => {
 
   const etr = classify(s, 'E-TRANSFER RECEIVED Kylie', 40, { direction: 'in', account: 'chequing' });
   assert.equal(etr.kind, 'income');
-  assert.equal(etr.note, 'Interac e-Transfer from Kylie');
+  assert.equal(etr.note, 'Interac transfer from Kylie');
   assert.equal(etr.itemId, null);
-  assert.equal(interacNote('VIREMENT INTERAC DE KYLIE SMITH'), 'Interac e-Transfer from Kylie Smith');
-  assert.equal(interacNote('INTERAC E-TRANSFER 000123456'), 'Interac e-Transfer');
+  assert.equal(interacNote('VIREMENT INTERAC DE KYLIE SMITH'), 'Interac transfer from Kylie Smith');
+  assert.equal(interacNote('INTERAC E-TRANSFER 000123456'), 'Interac transfer');
 });
 
 test('CIBC chequing descriptions', () => {
@@ -124,7 +124,7 @@ test('CIBC chequing descriptions', () => {
   assert.equal(itemName(s, refund.itemId), 'Groceries');
   const etr = cheq('Internet Banking E-TRANSFER 105372806372 Kylie', 'in', 40);
   assert.equal(etr.kind, 'income');
-  assert.equal(etr.note, 'Interac e-Transfer from Kylie');
+  assert.equal(etr.note, 'Interac transfer from Kylie');
   assert.equal(cheq('Internet Banking INTERNET TRANSFER 000000123456').kind, 'notspending');
   assert.equal(cheq('Electronic Funds Transfer PAY BOBINO INC', 'in', 1300).kind, 'pay');
   assert.equal(cheq('Electronic Funds Transfer PREAUTHORIZED DEBIT BELL CANADA', 'out', 89.43).billMatch.billId, 'b-net');
@@ -334,7 +334,7 @@ test('CIBC chequing lines after the bank text is dropped: same decisions as befo
   assert.equal(cheq('Internet Banking INTERNET TRANSFER 000000123456', 'in').kind, 'notspending');
   assert.equal(cheq('Internet Banking INTERNET BILL PAY 000000156789 CIBC VISA', 'out', 500).kind, 'notspending');
   const etr = cheq('Internet Banking E-TRANSFER 105372806372 Kylie', 'in', 40);
-  assert.deepEqual([etr.kind, etr.note], ['income', 'Interac e-Transfer from Kylie']);
+  assert.deepEqual([etr.kind, etr.note], ['income', 'Interac transfer from Kylie']);
   assert.equal(cheq('Internet Banking E-TRANSFER 105372806372 Kylie', 'out', 40).kind, 'expense');
   assert.equal(cheq('Electronic Funds Transfer PAY BOBINO INC', 'in', 1300).kind, 'pay');
   const bell = cheq('Electronic Funds Transfer PREAUTHORIZED DEBIT BELL CANADA', 'out', 90.83, { date: '2026-11-18' });

@@ -1,5 +1,6 @@
 # Money data must never reach GitHub
 backup-*.json
+*backup*.json
 *.csv
 *.pdf
 *.ofx
