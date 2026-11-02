@@ -12,12 +12,16 @@ export function header(req, name) {
 }
 
 // Fails closed: without APP_KEY on the server no request is ever accepted.
+// APP_KEY_A is an optional second key, set on Preview only, so build A's previews can be opened with their own key
+// while build B's preview key stays as it is. Production uses APP_KEY alone (do not set APP_KEY_A there).
 // Both sides are hashed first so the comparison is constant time and length safe.
 export function checkKey(req) {
-  const want = process.env.APP_KEY;
   const got = header(req, 'x-app-key');
-  if (!want || typeof got !== 'string' || !got) return false;
-  return timingSafeEqual(sha256(want), sha256(got));
+  if (typeof got !== 'string' || !got) return false;
+  const keys = [process.env.APP_KEY, process.env.APP_KEY_A].filter(k => typeof k === 'string' && k.length > 0);
+  let ok = false;
+  for (const want of keys) ok = timingSafeEqual(sha256(want), sha256(got)) || ok; // check every key, no early exit
+  return ok;
 }
 
 export function sameOrigin(req) {

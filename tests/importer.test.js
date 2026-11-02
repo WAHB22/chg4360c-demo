@@ -349,7 +349,7 @@ test('pays, Interac income and Visa refunds are applied with the right notes and
   const nov = state.months['2026-11'];
   assert.deepEqual(nov.pays.slice(1).map(p => [p.date, p.amt, p.hours, p.note, p.kind]), [
     ['2026-11-20', 1300, null, 'Bobino pay', 'pay'],
-    ['2026-11-21', 40, null, 'Interac e-Transfer from Kylie', 'income'],
+    ['2026-11-21', 40, null, 'Interac transfer from Kylie', 'income'],
   ]);
   const refund = nov.tx.at(-1);
   assert.deepEqual([refund.amt, refund.item, refund.src, refund.fp, refund.account], [-25, 'i-groc', 'statement', '2500|costco wholesale w1234', 'visa']);
