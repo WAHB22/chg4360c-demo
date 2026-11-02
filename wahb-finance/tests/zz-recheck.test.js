@@ -11,12 +11,12 @@ import { createFakeBlob } from './helpers/api-fake-blob.js';
 import { callApi, useEnv } from './helpers/api-harness.js';
 import { createWorld, settle } from './helpers/integration-world.js';
 import { hasDash } from './helpers/import-helpers.js';
-import { canonical, clone, findItem, peekMonth } from '../lib/core.js';
+import { canonical, clone, findItem, getMonth, peekMonth } from '../lib/core.js';
 import { migrate } from '../lib/migrate.js';
 import { label } from '../lib/labels.js';
 import { classifyMerchant, fingerprint, normalizeMerchant, prettyMerchant } from '../lib/merchants.js';
 import { parseCSV } from '../lib/csv.js';
-import { applyImport, buildReview, setCategory } from '../lib/importer.js';
+import { applyImport, buildReview, incomeNote, setCategory } from '../lib/importer.js';
 import { monthTotals, nextPay, safeToSpend } from '../lib/money.js';
 import { forecast } from '../lib/forecast.js';
 import sample, { expect as NOV } from './fixtures/sample-nov.js';
@@ -238,7 +238,11 @@ test('recheck: CIBC bank text variants (case, en and em dash, no dash, no spaces
   assert.deepEqual(Object.values(decide(s, 'Electronic Funds Transfer PAY BOBINO INC', 'in')).slice(2, 4), ['pay', null]);
   assert.equal(decide(s, 'Electronic Funds Transfer PAY BOBINO INC', 'in').saved, 'Bobino pay');
   const kylie = decide(s, 'Internet Banking E-TRANSFER 105372806372 Kylie', 'in');
-  assert.deepEqual([kylie.kind, kylie.saved], ['income', 'Interac e-Transfer from Kylie']);
+  assert.equal(kylie.kind, 'income');
+  // The note shown in the review and saved on the pay says 'Interac transfer', never 'e-Transfer' (no hyphen in the UI).
+  const [kylieRow] = buildReview(s, [{ fileId: 'k', src: 'statement', rows: [{ date: '2026-11-14', time: null,
+    merchant: 'Internet Banking E-TRANSFER 105372806372 Kylie', amount: 12.34, direction: 'in', account: 'chequing', raw: 'x' }] }]);
+  assert.equal(kylieRow.note, 'Interac transfer from Kylie');
   assert.deepEqual([decide(s, 'Point of Sale - Interac RETAIL REFUND 000001234567 COSTCO WHOLESALE', 'in').kind,
     decide(s, 'Point of Sale - Interac RETAIL REFUND 000001234567 COSTCO WHOLESALE', 'in').item], ['refund', 'Groceries']);
   assert.deepEqual([decide(s, 'Point of Sale - Visa Debit VISA DEBIT REFUND 000001234567 UNKNOWN SHOP', 'in').kind,
@@ -366,17 +370,21 @@ const importCsv = (s, csv, today) => {
 };
 
 test('recheck: the Nov 14 and Nov 20 safe to spend acceptance is exact, by hand and with the second pay imported from a CIBC CSV', () => {
-  // As specified: by hand, on the v1 sample and on migrated data.
+  // As specified (SPEC 5.3 check 1), on the v1 sample and on migrated data:
+  // (1300 - 647 - 163.96 - 0) / 6 = 81.50 -> $81 today, payday in 6 days.
   for (const [name, s] of [['v1', clone(sample)], ['v2', migrate(clone(sample))]]) {
     const r = safeToSpend(s, NOV.today);
-    assert.deepEqual([r.perDay, r.days, r.pool, r.parts.income, r.parts.spending, r.parts.billsPaid], [0, 6, -293.05, 1300, 647, 828.11], name);
+    assert.deepEqual([r.perDay, r.days, r.pool, r.parts.income, r.parts.spending, r.parts.billsTotal, r.parts.olderTotal],
+      [81, 6, 489.04, 1300, 647, 163.96, 0], name);
+    assert.deepEqual([r.perDay, r.days, r.pool], [NOV.perDay, NOV.days, NOV.pool], name);
+    assert.deepEqual(r.period, { start: '2026-11-06', end: '2026-11-19' }, name);
     assert.deepEqual(r.nextPay, { date: '2026-11-20', estimate: true, lastPay: '2026-11-06' }, name);
-    assert.deepEqual(r.parts.billsPaidEarly, [], name);
+    // The second pay by hand on Nov 20: period Nov 20 to Dec 3, 14 days.
+    // 1300 - 0 - 803.10 (Internet, Gym, Rent, Parking, iCloud) - 117.94 (Netflix and Phone, still unpaid) = 378.96 -> 27
     const two = clone(s);
     two.months['2026-11'].pays.push({ id: 'p-nov20', date: '2026-11-20', amt: 1300, hours: null, note: '' });
     const a = safeToSpend(two, '2026-11-20');
-    assert.deepEqual([a.perDay, a.days, a.pool, a.parts.income], [14, 14, 203.85, 2600], name);
-    assert.equal(a.parts.billsDue.reduce((c, b) => c + Math.round(b.amt * 100), 0) / 100, 921.04, name);
+    assert.deepEqual([a.perDay, a.days, a.pool, a.parts.income, a.parts.billsTotal, a.parts.olderTotal], [27, 14, 378.96, 1300, 803.10, 117.94], name);
     assert.deepEqual(a.nextPay, { date: '2026-12-04', estimate: true, lastPay: '2026-11-20' }, name);
   }
 
@@ -385,28 +393,35 @@ test('recheck: the Nov 14 and Nov 20 safe to spend acceptance is exact, by hand 
   assert.equal(importCsv(s, '2026-11-20,Electronic Funds Transfer PAY BOBINO INC,,1300.00', '2026-11-20').pays, 1);
   assert.deepEqual(peekMonth(s, '2026-11').pays.at(-1), { ...peekMonth(s, '2026-11').pays.at(-1), date: '2026-11-20', amt: 1300, note: 'Bobino pay', kind: 'pay' });
   const a = safeToSpend(s, '2026-11-20');
-  assert.deepEqual([a.perDay, a.days, a.pool, a.parts.income], [14, 14, 203.85, 2600]);
+  assert.deepEqual([a.perDay, a.days, a.pool, a.parts.income], [27, 14, 378.96, 1300]);
   assert.deepEqual(a.nextPay, { date: '2026-12-04', estimate: true, lastPay: '2026-11-20' });
-  assert.deepEqual(a.parts.billsDue.map(b => b.name), ['Netflix', 'Phone + Crave/Disney (Bell)', 'Internet (Bell)', 'Gym (ABC)', 'Rent (my half)', 'Parking (my half)', 'iCloud']);
+  assert.deepEqual(a.parts.billsInPeriod.map(b => b.name), ['Internet (Bell)', 'Gym (ABC)', 'Rent (my half)', 'Parking (my half)', 'iCloud']);
+  assert.deepEqual(a.parts.olderUnpaid.map(b => b.name), ['Netflix', 'Phone + Crave/Disney (Bell)']);
+  // The 1st of December alone changes nothing: same pool, one day less each day.
+  const nov30 = safeToSpend(s, '2026-11-30'), dec1 = safeToSpend(s, '2026-12-01');
+  assert.deepEqual([nov30.pool, nov30.days, nov30.perDay, dec1.pool, dec1.days, dec1.perDay], [378.96, 4, 94, 378.96, 3, 126]);
 });
 
-test('recheck: an Interac e-Transfer imported from a CSV adds income but never moves the payday', () => {
+test('recheck: an Interac transfer imported from a CSV adds income but never moves the payday', () => {
   const s = migrate(clone(sample));
   assert.equal(importCsv(s, '2026-11-10,Internet Banking E-TRANSFER 105372806372 Kylie,,50.00', '2026-11-14').pays, 1);
   const pay = peekMonth(s, '2026-11').pays.at(-1);
-  assert.deepEqual([pay.date, pay.amt, pay.note, pay.kind], ['2026-11-10', 50, 'Interac e-Transfer from Kylie', 'income']);
+  assert.deepEqual([pay.date, pay.amt, pay.note, pay.kind], ['2026-11-10', 50, 'Interac transfer from Kylie', 'income']);
+  assert.ok(!hasDash(pay.note) && !pay.note.includes('-'), 'no hyphen in the note');
   // migrate keeps the kind field.
   assert.equal(peekMonth(migrate(s), '2026-11').pays.at(-1).kind, 'income');
 
+  // Nov 14: 1300 + 50 = 1350 in; 1350 - 647 - 163.96 = 539.04; / 6 = 89.84 -> 89. The period still starts Nov 6.
   const r = safeToSpend(s, '2026-11-14');
-  assert.deepEqual([r.perDay, r.days, r.pool, r.parts.income], [0, 6, -243.05, 1350]);
+  assert.deepEqual([r.perDay, r.days, r.pool, r.parts.income], [89, 6, 539.04, 1350]);
+  assert.deepEqual(r.period, { start: '2026-11-06', end: '2026-11-19' });
   assert.deepEqual(r.nextPay, { date: '2026-11-20', estimate: true, lastPay: '2026-11-06' });
-  assert.equal(monthTotals(s, '2026-11').earned, 2650 - 1300);
+  assert.equal(monthTotals(s, '2026-11').earned, 1350);
 
-  // Then the paycheque on Nov 20, also from the CSV.
+  // Then the paycheque on Nov 20, also from the CSV. The Nov 10 money belongs to the period before.
   importCsv(s, '2026-11-20,Electronic Funds Transfer PAY BOBINO INC,,1300.00', '2026-11-20');
   const a = safeToSpend(s, '2026-11-20');
-  assert.deepEqual([a.perDay, a.days, a.pool, a.parts.income], [18, 14, 253.85, 2650]);
+  assert.deepEqual([a.perDay, a.days, a.pool, a.parts.income], [27, 14, 378.96, 1300]);
   assert.deepEqual(a.nextPay, { date: '2026-12-04', estimate: true, lastPay: '2026-11-20' });
 
   // A refund on chequing is a negative expense, never a pay.
@@ -415,6 +430,36 @@ test('recheck: an Interac e-Transfer imported from a CSV adds income but never m
   assert.equal(peekMonth(s, '2026-11').pays.length, pays);
   assert.deepEqual(peekMonth(s, '2026-11').tx.at(-1).amt, -20);
   assert.deepEqual(nextPay(s, '2026-11-14'), { date: '2026-11-20', estimate: false, lastPay: '2026-11-06' });
+  // It is dated Nov 12, inside the Nov 6 period: 539.04 + 20 = 559.04 on Nov 14
+  assert.equal(safeToSpend(s, '2026-11-14').pool, 559.04);
+});
+
+test('recheck: Interac notes read "Interac transfer" (plus "from <sender>" when visible) everywhere the import writes or shows them', () => {
+  const s = migrate(clone(sample));
+  const cheqIn = (merchant, amount, date) => ({ date, time: null, merchant, amount, direction: 'in', account: 'chequing', raw: merchant });
+  const rows = buildReview(s, [{ fileId: 'c', src: 'statement', rows: [
+    cheqIn('INTERAC E-TRANSFER 000123456', 15, '2026-11-11'),          // no sender visible
+    cheqIn('VIREMENT INTERAC DE KYLIE SMITH', 30, '2026-11-12'),
+    cheqIn('GST CREDIT CANADA', 80, '2026-11-13'),                     // other money in keeps its own note
+  ] }]);
+  assert.deepEqual(rows.map(r => [r.kind, r.note]), [['income', 'Interac transfer'], ['income', 'Interac transfer from Kylie Smith'], ['income', 'Gst Credit Canada']]);
+  // A row from a review built before this change still saves the new wording.
+  const old = { ...rows[0], key: 'old', note: 'Interac e-Transfer from Kylie' };
+  applyImport(s, [...rows, old]);
+  assert.deepEqual(peekMonth(s, '2026-11').pays.slice(-4).map(p => [p.note, p.kind]), [
+    ['Interac transfer', 'income'], ['Interac transfer from Kylie Smith', 'income'], ['Gst Credit Canada', 'income'], ['Interac transfer from Kylie', 'income'],
+  ]);
+  // A pay saved earlier with the old wording is shown with the new one when a statement line repeats it.
+  getMonth(s, '2026-11').pays.push({ id: 'p-old', date: '2026-11-21', amt: 40, hours: null, note: 'Interac e-Transfer from Kylie', kind: 'income' });
+  const [dup] = buildReview(s, [{ fileId: 'd', src: 'statement', rows: [cheqIn('E-TRANSFER RECEIVED Kylie', 40, '2026-11-22')] }]);
+  assert.equal(dup.status, 'dup');
+  assert.equal(dup.statusText, 'Possible duplicate of Interac transfer from Kylie $40 on Nov 21');
+  assert.equal(s.months['2026-11'].pays.at(-1).note, 'Interac e-Transfer from Kylie', 'saved data is never renamed');
+  for (const t of [...rows.map(r => r.note), dup.statusText, ...peekMonth(s, '2026-11').pays.slice(-5, -1).map(p => p.note)]) {
+    assert.ok(!/e-?transfer/i.test(t) && !hasDash(t), t);
+  }
+  assert.deepEqual(['Interac e-Transfer', 'INTERAC E-TRANSFER from Sam', 'Interactive Toys', '', null].map(incomeNote),
+    ['Interac transfer', 'Interac transfer from Sam', 'Interactive Toys', '', '']);
 });
 
 /* ---------- forecast and pay kinds ---------- */
@@ -427,12 +472,12 @@ test('recheck: forecast keeps the estimated paycheque when money in that is not 
   const base = run(s);
   assert.deepEqual(payEvents(base, '2026-11-20'), [['Pay estimate', 1300, true]]);
 
-  // An Interac e-Transfer (kind 'income') dated Nov 20: nextPay ignores it, so the forecast must too.
+  // An Interac transfer (kind 'income') dated Nov 20: nextPay ignores it, so the forecast must too.
   const withIncome = clone(s);
-  withIncome.months['2026-11'].pays.push({ id: 'p-int', date: '2026-11-20', amt: 50, hours: null, note: 'Interac e-Transfer from Kylie', kind: 'income' });
+  withIncome.months['2026-11'].pays.push({ id: 'p-int', date: '2026-11-20', amt: 50, hours: null, note: 'Interac transfer from Kylie', kind: 'income' });
   assert.deepEqual(nextPay(withIncome, '2026-11-14'), nextPay(s, '2026-11-14'));
   const r = run(withIncome);
-  assert.deepEqual(payEvents(r, '2026-11-20'), [['Interac e-Transfer from Kylie', 50, false], ['Pay estimate', 1300, true]]);
+  assert.deepEqual(payEvents(r, '2026-11-20'), [['Interac transfer from Kylie', 50, false], ['Pay estimate', 1300, true]]);
   assert.equal(r.points.at(-1).bal, Math.round((base.points.at(-1).bal + 50) * 100) / 100);
 
   // A real paycheque logged on that day (no kind, or kind 'pay') still replaces the estimate.

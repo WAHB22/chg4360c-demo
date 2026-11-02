@@ -253,7 +253,7 @@ test('applyImport writes exactly the spec fields for a tx, and for a pay the spe
     fp: '658|nuage cafe', merchant: 'SQ *NUAGE CAFE #12 MONTREAL QC', account: 'visa',
   });
   const pay = state.months['2026-11'].pays.at(-1);
-  assert.deepEqual({ ...pay, id: 'x' }, { id: 'x', date: '2026-11-25', amt: 40, hours: null, note: 'Interac e-Transfer from Kylie', kind: 'income' });
+  assert.deepEqual({ ...pay, id: 'x' }, { id: 'x', date: '2026-11-25', amt: 40, hours: null, note: 'Interac transfer from Kylie', kind: 'income' });
 });
 
 test('applyImport refuses a ticked row whose category was deleted, before changing anything', () => {
@@ -403,8 +403,8 @@ test('imported pays carry kind: pay for a Bobino paycheque, income for any other
   assert.deepEqual(pays.map(p => [p.date, p.amt, p.note, p.kind]), [
     ['2026-11-06', 1300, '', undefined], // logged by hand before: left exactly as it was
     ['2026-11-20', 1300, 'Bobino pay', 'pay'],
-    ['2026-11-21', 40, 'Interac e-Transfer from Kylie', 'income'],
-    ['2026-11-22', 25, 'Interac e-Transfer from Kylie', 'income'],
+    ['2026-11-21', 40, 'Interac transfer from Kylie', 'income'],
+    ['2026-11-22', 25, 'Interac transfer from Kylie', 'income'],
     ['2026-11-23', 80, 'Gst Credit Canada', 'income'],
     ['2026-12-04', 1300, 'Bobino pay', 'pay'],
   ]);
@@ -435,7 +435,7 @@ test('a CIBC chequing statement: notes without bank text, refunds stay refunds, 
     ['notspending', 'notspending', false], ['notspending', 'notspending', false], ['income', 'income', true], ['bill', 'bill', true],
   ]);
   assert.deepEqual(rows.map(r => r.note), ['Tim Hortons', 'Nuage Cafe', 'Costco Wholesal', 'Boutique Xyz', 'Cibc Visa',
-    'Internet Transfer 000000123456', 'Interac e-Transfer from Kylie', 'Bell Canada']);
+    'Internet Transfer 000000123456', 'Interac transfer from Kylie', 'Bell Canada']);
   assert.equal(rows[7].statusText, 'Ticks Phone + Crave/Disney (Bell) paid');
   for (const r of rows) assert.equal(hasDash(r.note) || hasDash(r.statusText), false, r.merchant);
 

@@ -1,0 +1,81 @@
+/* History (Stage 2): the footer button and the sheet with the last 10 saves.
+   A ruled ledger on the white sheet, like the hero summary: date label in ink capitals, the note in body text,
+   a quiet ink "Restore this version" on every row but the newest, which carries a four point star and "Current".
+   Tokens and the .btn, .caps, .empty classes come from ui/app.css. */
+
+/* The button sits in the footer row next to Download backup and Restore backup. */
+#history-slot { display: contents; }
+
+.hist-intro { margin: 0 0 6px; font-size: 14px; line-height: 1.5; color: var(--text-2); max-width: 34em; }
+
+.hist-msg {
+  margin: 12px 0 4px; padding: 10px 12px;
+  border-left: 2px solid var(--ink); background: var(--hover);
+  font-size: 14px; font-weight: 500; color: var(--text);
+  animation: fade-in var(--dur) var(--ease-out);
+}
+
+/* ---------- the list ---------- */
+.hist-list { list-style: none; margin: 10px 0 0; padding: 0; border-top: 1.5px solid var(--ink); }
+.hist-row {
+  display: grid; grid-template-columns: minmax(0, 1fr); align-items: center; gap: 2px 16px;
+  padding: 12px 0 8px; border-top: 1px solid var(--line);
+}
+.hist-row:first-child { border-top: 0; }
+.hist-row.is-current { padding-bottom: 14px; }
+.hist-text { min-width: 0; }
+.hist-top { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 0; }
+.hist-when { font: 600 11.5px/1.4 var(--font-body); letter-spacing: .14em; text-transform: uppercase; color: var(--ink); }
+.hist-current {
+  flex: none; display: inline-flex; align-items: center; gap: 5px;
+  font: 600 11px/1 var(--font-body); letter-spacing: .15em; text-transform: uppercase; color: var(--ink);
+}
+.hist-current .motif { width: 14px; height: 14px; flex: none; }
+.hist-note { margin: 3px 0 0; font-size: 15px; line-height: 1.45; color: var(--text); overflow-wrap: anywhere; }
+.hist-row.is-current .hist-note { font-weight: 500; }
+
+.hist-restore {
+  justify-self: start; display: inline-flex; align-items: center; gap: 7px;
+  min-height: var(--tap); margin: 2px 0 0 -6px; padding: 0 10px 0 6px;
+  background: none; border: 0; border-radius: var(--radius);
+  font: 600 14px/1.2 var(--font-body); letter-spacing: .01em; color: var(--ink); text-align: left;
+  transition: transform var(--dur-press) var(--ease-out), background-color var(--dur) var(--ease-out);
+}
+.hist-restore .hist-icon { flex: none; width: 18px; height: 18px; }
+.hist-restore:active { transform: scale(.97); background: var(--press); }
+.hist-restore:disabled { cursor: default; color: var(--text-3); }
+.hist-restore[aria-busy="true"] { color: var(--ink); }
+.hist-restore[aria-busy="true"] .hist-icon { opacity: .45; }
+
+/* ---------- loading and problems ---------- */
+.hist-loading { margin-top: 12px; }
+.hist-loading .caps { color: var(--text-2); }
+.hist-ghost { display: block; padding: 14px 0 12px; border-top: 1px solid var(--line); animation: hist-pulse 900ms ease-in-out infinite alternate; }
+.hist-loading .caps + .hist-ghost { margin-top: 8px; border-top: 1.5px solid var(--line-strong); }
+.hist-ghost i { display: block; height: 9px; width: 38%; border-radius: 2px; background: var(--line); }
+.hist-ghost i + i { height: 12px; width: 72%; margin-top: 9px; }
+@keyframes hist-pulse { from { opacity: 1; } to { opacity: .45; } }
+
+.hist-problem { margin-top: 8px; }
+.hist-problem .empty { color: var(--text); }
+.hist-retry { margin-top: 4px; }
+
+/* ---------- hover (pointer devices only) ---------- */
+@media (hover: hover) {
+  .hist-restore:not(:disabled):hover { background: var(--hover); }
+  .hist-restore:not(:disabled):hover span { text-decoration: underline; text-underline-offset: 3px; }
+}
+
+/* ---------- wider: the restore button moves to the right of the note ---------- */
+@media (min-width: 520px) {
+  .hist-row { grid-template-columns: minmax(0, 1fr) auto; padding: 12px 0; }
+  .hist-row.is-current { grid-template-columns: minmax(0, 1fr); }
+  .hist-restore { justify-self: end; margin: 0 -6px 0 0; padding: 0 6px 0 10px; }
+}
+
+/* ---------- reduced motion: no pulse, no press movement ---------- */
+@media (prefers-reduced-motion: reduce) {
+  .hist-ghost { animation: none; }
+  .hist-restore:active { transform: none; }
+  .hist-msg { animation: fade-in 150ms ease; }
+}

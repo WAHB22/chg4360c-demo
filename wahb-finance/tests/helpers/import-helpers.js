@@ -1,7 +1,7 @@
 // Shared helpers for the import tests (merchants, csv, importer). Synthetic data only.
 import { clone, findItem, getMonth } from '../../lib/core.js';
 import { fingerprint } from '../../lib/merchants.js';
-import sample from '../fixtures/sample-nov.js';
+import sample from '../fixtures/sample-nov-import.js'; // sample-nov.js with Costco (t1) still on Nov 2
 
 // A fresh copy of the November sample (v1 shape: tx have no merchant, fp or src).
 export const freshState = () => clone(sample);
