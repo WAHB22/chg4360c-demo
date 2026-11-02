@@ -1,0 +1,73 @@
+/* Cover it and raise suggestions (Stage 4). The slot under each limit bar on the sand band, and the sheet with
+   two amphorae pouring. One ink; tokens, .btn, .btn-quiet, .bar-top, .track and .fill come from ui/app.css.
+   Motion: transform and opacity only. The pour plays once when the sheet opens, 500 ms in all. */
+
+/* ---------- the slot under a bar ---------- */
+.cover-note {
+  margin: 0 0 6px; font-size: var(--fs-fine); line-height: 1.4; color: var(--text-2);
+  font-variant-numeric: tabular-nums;
+}
+.cover-slot > :last-child { margin-bottom: 0; }
+
+/* Outline button, as in the preview: ink on the band, 44 px tall, wraps for a long category name */
+.cover-btn {
+  display: inline-flex; align-items: center; max-width: 100%; min-height: var(--tap); margin: 0; padding: 8px 14px;
+  background: transparent; color: var(--ink); border: 1.5px solid var(--ink); border-radius: var(--radius); /* the same edge as every outline button */
+  font: 600 var(--fs-note)/1.3 var(--font-body); letter-spacing: .01em; text-align: left; overflow-wrap: anywhere;
+  transition: transform var(--dur-press) var(--ease-out);
+}
+.cover-btn:active { transform: scale(.97); }
+.cover-btn:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+
+/* "Groceries topped up Sep, Oct and Nov. Make it $480?" */
+.cover-raise { margin: 0 0 8px; padding-top: 8px; border-top: 1px solid var(--rule); }
+.cover-note + .cover-raise { border-top: 0; padding-top: 0; }
+.cover-raise p { margin: 0 0 6px; font-size: var(--fs-note); line-height: 1.45; color: var(--text); text-wrap: pretty; }
+.cover-raise-do { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 16px; }
+.cover-raise-do .btn { min-height: var(--tap); padding: 8px 14px; font-size: var(--fs-note); line-height: 1.3; }
+.cover-raise-do .btn-quiet { margin: 0; min-width: var(--tap); padding: 0 6px; font-size: var(--fs-note); font-weight: 500; color: var(--text-2); }
+
+/* ---------- the sheet ---------- */
+.cover-art { display: flex; justify-content: center; margin: 0 0 4px; color: var(--ink); }
+.cover-art .pour { display: block; width: min(100%, 272px); height: auto; overflow: visible; }
+
+.cover-lines { list-style: none; margin: 0; padding: 0; }
+.cover-lines li { padding: 10px 0; border-top: 1px solid var(--line); }
+.cover-line { margin: 0; font-size: var(--fs-body); line-height: 1.4; color: var(--text); overflow-wrap: anywhere; }
+.cover-line b { font-weight: 600; color: var(--ink); font-variant-numeric: tabular-nums; }
+.cover-left { margin: 2px 0 0; font-size: var(--fs-fine); line-height: 1.4; color: var(--text-2); overflow-wrap: anywhere; }
+
+.cover-result {
+  margin: 0; padding-top: 12px; border-top: 1.5px solid var(--ink);
+  font: 600 var(--fs-title)/1.15 var(--font-display); color: var(--ink); font-variant-numeric: lining-nums;
+}
+.cover-num { font: 600 var(--fs-sum)/1 var(--font-body); font-variant-numeric: tabular-nums; letter-spacing: -.01em; }
+.cover-after { margin-top: 12px; }
+.cover-after .bar-top { margin: 0; }
+.cover-after .bar-top .nm { display: inline; color: var(--text); }
+.cover-after .bar-top .amt { color: var(--text-2); font-size: var(--fs-note); }
+.cover-after .bar-top .amt b { color: var(--text); font-weight: 600; }
+.cover-month { margin: 14px 0 0; font-size: var(--fs-fine); line-height: 1.45; color: var(--text-2); }
+.cover-raise.in-sheet { margin: 16px 0 0; padding-top: 12px; border-top: 1px solid var(--line); }
+
+/* ---------- the pour: the source tips over from upright, a thread of ink appears, the levels move ---------- */
+.pour .pour-tilt { transform-box: view-box; transform-origin: 40px 58px; animation: cover-tilt 280ms var(--ease-out) both; }
+.pour .pour-stream { animation: cover-show 200ms var(--ease-out) 180ms both; }
+.pour .pour-src-ink { animation: cover-lower 260ms var(--ease-out) 240ms both; }
+.pour .pour-dst-ink { animation: cover-rise 260ms var(--ease-out) 240ms both; }
+@keyframes cover-tilt { from { transform: rotate(-36deg); } }
+@keyframes cover-show { from { opacity: 0; } }
+@keyframes cover-lower { from { transform: translateY(-8px); } }
+@keyframes cover-rise { from { transform: translateY(12px); } }
+
+/* ---------- hover (pointer devices only) ---------- */
+@media (hover: hover) {
+  .cover-btn:hover { background: var(--hover); }
+  .cover-raise-do .btn-quiet:hover { color: var(--ink); }
+}
+
+/* ---------- reduced motion: no pour, no press movement; the drawing shows its end state ---------- */
+@media (prefers-reduced-motion: reduce) {
+  .pour .pour-tilt, .pour .pour-stream, .pour .pour-src-ink, .pour .pour-dst-ink { animation: none; }
+  .cover-btn, .cover-btn:active { transition: none; transform: none; }
+}

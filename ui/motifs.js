@@ -47,8 +47,10 @@ const levelY = pct => 52 - 38 * Math.max(0, Math.min(1, Number(pct) || 0));
 export function amphora(pct, { id = uid('jar'), from = null, w = 52, h = 56 } = {}) {
   const y = levelY(pct);
   const rise = from != null && from < pct ? ` style="--rise:${(levelY(from) - y).toFixed(2)}px"` : '';
+  // The clip sits on a group that never moves: a clip on the rising rect itself would travel with its transform
+  // and let the ink show below the jar while it rises.
   const fill = pct > 0
-    ? `<rect class="jar-fill${rise ? ' rise' : ''}"${rise} clip-path="url(#${id})" x="0" y="${y.toFixed(2)}" width="60" height="${(60 - y).toFixed(2)}" fill="currentColor" stroke="none"/>`
+    ? `<g clip-path="url(#${id})"><rect class="jar-fill${rise ? ' rise' : ''}"${rise} x="0" y="${y.toFixed(2)}" width="60" height="${(60 - y).toFixed(2)}" fill="currentColor" stroke="none"/></g>`
     : '';
   // A thin decorated band on the shoulder, like a prize amphora, kept inside the body.
   const band = `<g clip-path="url(#${id})" stroke-width="1">${P('M6 27h48M6 32h48')}${P('M6 29.5h48', ' stroke-dasharray="1.2 2.6"')}</g>`;

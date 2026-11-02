@@ -6,12 +6,12 @@
 /* The button sits in the footer row next to Download backup and Restore backup. */
 #history-slot { display: contents; }
 
-.hist-intro { margin: 0 0 6px; font-size: 14px; line-height: 1.5; color: var(--text-2); max-width: 34em; }
+.hist-intro { margin: 0 0 6px; font-size: var(--fs-note); line-height: 1.5; color: var(--text-2); max-width: 34em; }
 
 .hist-msg {
   margin: 12px 0 4px; padding: 10px 12px;
   border-left: 2px solid var(--ink); background: var(--hover);
-  font-size: 14px; font-weight: 500; color: var(--text);
+  font-size: var(--fs-note); font-weight: 500; color: var(--text);
   animation: fade-in var(--dur) var(--ease-out);
 }
 
@@ -25,21 +25,21 @@
 .hist-row.is-current { padding-bottom: 14px; }
 .hist-text { min-width: 0; }
 .hist-top { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 0; }
-.hist-when { font: 600 11.5px/1.4 var(--font-body); letter-spacing: .14em; text-transform: uppercase; color: var(--ink); }
+.hist-when { font: 600 var(--fs-label)/1.4 var(--font-body); letter-spacing: .14em; text-transform: uppercase; color: var(--ink); }
 .hist-current {
   flex: none; display: inline-flex; align-items: center; gap: 5px;
-  font: 600 11px/1 var(--font-body); letter-spacing: .15em; text-transform: uppercase; color: var(--ink);
+  font: 600 var(--fs-label-sm)/1 var(--font-body); letter-spacing: .15em; text-transform: uppercase; color: var(--ink);
 }
 .hist-current .motif { width: 14px; height: 14px; flex: none; }
-.hist-note { margin: 3px 0 0; font-size: 15px; line-height: 1.45; color: var(--text); overflow-wrap: anywhere; }
+.hist-note { margin: 3px 0 0; font-size: var(--fs-body); line-height: 1.45; color: var(--text); overflow-wrap: anywhere; }
 .hist-row.is-current .hist-note { font-weight: 500; }
 
 .hist-restore {
   justify-self: start; display: inline-flex; align-items: center; gap: 7px;
   min-height: var(--tap); margin: 2px 0 0 -6px; padding: 0 10px 0 6px;
   background: none; border: 0; border-radius: var(--radius);
-  font: 600 14px/1.2 var(--font-body); letter-spacing: .01em; color: var(--ink); text-align: left;
-  transition: transform var(--dur-press) var(--ease-out), background-color var(--dur) var(--ease-out);
+  font: 600 var(--fs-note)/1.2 var(--font-body); letter-spacing: .01em; color: var(--ink); text-align: left;
+  transition: transform var(--dur-press) var(--ease-out);
 }
 .hist-restore .hist-icon { flex: none; width: 18px; height: 18px; }
 .hist-restore:active { transform: scale(.97); background: var(--press); }
