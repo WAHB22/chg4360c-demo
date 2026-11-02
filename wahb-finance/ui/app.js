@@ -52,13 +52,19 @@ const store = {
 /* ---------- address bar: device key and ?today= ---------- */
 const params = new URLSearchParams(location.search);
 const isLocal = ['localhost', '127.0.0.1', '[::1]'].includes(location.hostname);
+// The setup link is /#key=XYZ (a fragment never reaches the server, so the key is in no request or log);
+// the older /?key=XYZ still works. Either way the key is stored and taken out of the address bar.
 (function takeKey() {
-  const k = params.get('key');
+  const hash = new URLSearchParams(location.hash.replace(/^#/, ''));
+  const fromHash = hash.get('key');
+  const k = fromHash ?? params.get('key');
   if (k == null) return;
   if (k.trim()) store.set(KEY, k.trim());
   params.delete('key');
+  hash.delete('key');
   const q = params.toString();
-  history.replaceState(history.state, '', location.pathname + (q ? '?' + q : '') + location.hash);
+  const h = fromHash != null ? (hash.toString() ? '#' + hash.toString() : '') : location.hash; // any other fragment stays as it was
+  history.replaceState(history.state, '', location.pathname + (q ? '?' + q : '') + h);
 })();
 const todayOverride = isLocal && isISODate(params.get('today')) ? params.get('today') : null;
 const today = () => todayOverride || todayISO();
@@ -84,11 +90,12 @@ const asNumberOrNull = v => { const n = num(v); return n == null || !Number.isFi
 /* ---------- sync engine ---------- */
 let viewMonth = monthOf(today());
 let win = null; // a real win to celebrate on the next render: {type:'bill', key} or {type:'jar', id, from}
+let ready = false; // the page draws once every feature module is mounted, so nothing shifts in after the first draw
 
 const engine = syncLib.createSync({
   storage,
   getKey: () => store.get(KEY),
-  onState: () => render(),
+  onState: () => { if (ready) render(); },
   onStatus: (text, code) => onSyncStatus(text, code),
   migrate: migrateLib.migrate,
   noteFor: labels.noteFor,
@@ -176,6 +183,8 @@ async function api(path, init = {}) {
   const res = await fetch(path, { cache: 'no-store', ...init, headers, body });
   let json = null;
   try { json = await res.json(); } catch { /* not JSON */ }
+  // The key no longer works (changed on the server): the engine's own GET gets the same 401 and hides every number.
+  if (res.status === 401 && engine.state) engine.refresh().catch(() => {});
   return { ok: res.ok, status: res.status, json };
 }
 
@@ -207,8 +216,9 @@ function showNotSetUp() {
   $('status').hidden = true;
   document.querySelector('.skip').hidden = true;
   $('notsetup').hidden = false;
-  // No data and no cached numbers anywhere in the DOM.
+  // No data and no cached numbers anywhere in the DOM, the screen reader region and the hidden labels included.
   for (const id of ['summary', 'budget', 'bills', 'tx', 'pays', 'goals', 'accounts', 'safe', 'forecast']) { const el = $(id); if (el) el.innerHTML = ''; }
+  for (const id of ['announce', 'undoText', 'payPlan', 'txCount', 'limitsDay', 'monthLabel']) { const el = $(id); if (el) el.textContent = ''; }
 }
 
 /* ---------- render ---------- */
@@ -220,6 +230,9 @@ function render() {
   const s = engine.state;
   if (!s) return;
   showApp();
+  // The sections are redrawn from scratch: the focused control (a bill column ticked with the keyboard, say)
+  // gets focus back on its new copy, so the next Tab goes on from there.
+  const focusKey = focusKeyOf(document.activeElement);
   const M = viewMonth, t = today();
   $('monthLabel').textContent = monthName(M);
   section('the month summary', () => renderSummary(s, M));
@@ -231,6 +244,8 @@ function render() {
   section('accounts', () => renderAccounts(s, t));
   win = null;
   emit('render', app);
+  const a = document.activeElement;
+  if (focusKey && (!a || a === document.body || !a.isConnected)) document.querySelector(focusKey)?.focus({ preventScroll: true });
 }
 
 function renderSummary(s, M) {
@@ -332,12 +347,15 @@ function renderJars(s) {
   $('goals').innerHTML = (s.goals || []).map((g, i) => {
     const target = Number(g.target) || 0, saved = Number(g.saved) || 0;
     const pct = target > 0 ? Math.max(0, Math.min(saved / target, 1)) : 0;
+    // Whole percent rounded down, in cents, so 100% shows only once the jar is really full ($10,000 of $10,043 is 99%).
+    const tC = core.cents(target), sC = Math.max(0, Math.min(core.cents(saved), tC));
+    const pctText = tC > 0 ? Math.floor(sC * 100 / tC) : 0;
     const from = win && win.type === 'jar' && win.id === g.id ? win.from : null;
     return `
       <button class="jar" type="button" data-goal="${esc(g.id)}" aria-label="${esc(g.name)}: ${fmtShort(saved)} of ${fmtShort(target)}. Add savings">
         ${motifs.amphora(pct, { id: 'jarclip' + i, from, w: 64, h: 73 })}
         <b>${fmtShort(saved)}</b>
-        <small>of ${fmtShort(target)} · ${Math.round(pct * 100)}%</small>
+        <small>of ${fmtShort(target)} · ${pctText}%</small>
         <small data-user>${esc(g.name)}</small>
       </button>`;
   }).join('');
@@ -365,6 +383,7 @@ function renderAccounts(s, t) {
 }
 
 /* ---------- sheet ---------- */
+const CLOSE_MS = 350; // longer than a double tap's gap
 const CLOSE_ICON = '<svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" focusable="false"><path d="M6 6l12 12M18 6L6 18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>';
 const FOCUS_ATTRS = ['data-tx', 'data-pay', 'data-bill', 'data-key', 'data-item', 'data-goal', 'data-acc'];
 // A selector that finds the same control again after a re-render replaced it.
@@ -395,6 +414,7 @@ function sheet({ title = '', body = '', onMount, actions = [], wide = false, onC
     el: dlg,
     body: bodyEl,
     close,
+    get closed() { return closed; },
     setBody(content) {
       bodyEl.replaceChildren();
       if (content instanceof Node) bodyEl.append(content);
@@ -424,16 +444,24 @@ function sheet({ title = '', body = '', onMount, actions = [], wide = false, onC
       if (dlg.open) dlg.close();
       dlg.remove();
       const back = opener && opener.isConnected ? opener : openerKey ? document.querySelector(openerKey) : null;
-      if (back && typeof back.focus === 'function' && !document.querySelector('dialog.sheet[open]')) back.focus({ preventScroll: true });
+      const last = !document.querySelector('dialog.sheet[open]');
+      if (last && back && typeof back.focus === 'function') back.focus({ preventScroll: true });
       try { onClose && onClose(); } catch (e) { console.error(e); }
+      // The control it opened from left with the change (a deleted row) and onClose placed nothing either.
+      if (last && !back) focusAfterGone(openerKey);
     };
     dlg.classList.remove('is-open');
     dlg.classList.add('is-closing');
-    if (reducedMotion()) setTimeout(done, 150); else setTimeout(done, 260);
+    // The slide (260 ms) or fade (150 ms) ends first; the sheet stays, invisible, until CLOSE_MS so the second
+    // tap of a double tap lands on it (and is swallowed) instead of on Undo or whatever is under it.
+    setTimeout(done, CLOSE_MS);
   }
 
   handle.setBody(body);
   handle.setActions(actions);
+  // A closing sheet takes no second tap, click or Enter while it slides away (a double tap must not save twice).
+  // It stays hit testable on purpose: the second tap is swallowed here instead of landing on the page under it.
+  dlg.addEventListener('click', e => { if (closed) { e.preventDefault(); e.stopImmediatePropagation(); } }, true);
   document.body.append(dlg);
   dlg.addEventListener('cancel', e => { e.preventDefault(); close(); });
   dlg.addEventListener('close', () => { if (!closed) { closed = true; dlg.remove(); } });
@@ -456,6 +484,25 @@ function sheet({ title = '', body = '', onMount, actions = [], wide = false, onC
     try { onMount(handle); } catch (e) { console.error('Sheet onMount failed:', e); }
   }
   return handle;
+}
+
+// After a delete the control a sheet opened from is gone: the keyboard goes to Undo while the bar offers it
+// (Undo then brings it back to the restored row), otherwise to the top of the page content.
+function focusAfterGone(openerKey) {
+  const a = document.activeElement;
+  if (a && a !== document.body && a.isConnected) return;
+  const btn = $('undoBtn');
+  if (undoAction && !btn.hidden && $('undo').classList.contains('is-shown')) {
+    undoReturn = openerKey;
+    btn.focus({ preventScroll: true });
+    return;
+  }
+  focusMain();
+}
+function focusMain() {
+  const main = $('main');
+  if (!main.hasAttribute('tabindex')) main.setAttribute('tabindex', '-1');
+  main.focus({ preventScroll: true });
 }
 
 /* ---------- form (the original dialog form on a sheet) ---------- */
@@ -504,7 +551,7 @@ function form({ title, fields = [], submit = 'Save', onSave, onDelete, deleteLab
   const body = `<form id="${fid}" class="form-grid" novalidate>${list.map(f => fieldHtml(fid, f)).join('')}<p class="form-error" role="alert" hidden></p></form>`;
   let handle;
   const actions = [
-    onDelete ? { label: deleteLabel, danger: true, onClick: () => { handle.close(); onDelete(); } } : null,
+    onDelete ? { label: deleteLabel, danger: true, onClick: () => { if (handle.closed) return; handle.close(); onDelete(); } } : null,
     { label: 'Cancel', onClick: () => handle.close() },
     { label: submit, primary: true, submit: fid },
   ];
@@ -526,6 +573,7 @@ function form({ title, fields = [], submit = 'Save', onSave, onDelete, deleteLab
       sync();
       f.addEventListener('submit', e => {
         e.preventDefault();
+        if (h.closed) return; // a double tap or a second Enter: saved once already
         err.hidden = true;
         if (!f.checkValidity()) { f.reportValidity(); return; }
         const values = Object.fromEntries(new FormData(f));
@@ -545,7 +593,12 @@ function form({ title, fields = [], submit = 'Save', onSave, onDelete, deleteLab
 
 /* ---------- undo bar and toast ---------- */
 let undoTimer = null, undoAction = null, undoMs = 0;
+let undoReturn = null; // where the keyboard goes after Undo: the control the change was made from
 function showUndo(text, action, ms = 8000) {
+  if (action) {
+    const a = document.activeElement;
+    undoReturn = a && !a.closest('#undo, dialog') ? focusKeyOf(a) : null;
+  }
   const bar = $('undo');
   undoAction = action || null;
   $('undoBtn').hidden = !undoAction;
@@ -558,7 +611,8 @@ function showUndo(text, action, ms = 8000) {
   void bar.offsetHeight;
   bar.classList.add('is-shown');
   document.body.classList.add('has-undo');
-  document.body.style.setProperty('--undo-h', bar.offsetHeight + 'px');
+  // On the root, so the page's scroll padding (html) and the floating buttons (body) both read it.
+  document.documentElement.style.setProperty('--undo-h', bar.offsetHeight + 'px');
   undoMs = ms;
   clearTimeout(undoTimer);
   undoTimer = setTimeout(() => hideUndo(), ms);
@@ -575,10 +629,17 @@ function hideUndo(now = false) {
 function toast(text) { showUndo(String(text ?? ''), null, 4000); }
 function doUndo() {
   const a = undoAction;
+  const back = undoReturn;
+  const fromBar = $('undo').contains(document.activeElement);
   hideUndo();
   if (!a || !engine.state) return;
   const u = engine.undo(a);
   toast(u.label);
+  // The Undo button hides with the toast: the keyboard goes back to the row the undo restored (or the page).
+  if (fromBar) {
+    const el = back ? document.querySelector(back) : null;
+    if (el) el.focus({ preventScroll: true }); else focusMain();
+  }
 }
 
 /* ---------- forms for the core sections ---------- */
@@ -803,7 +864,8 @@ function openAccount(accountId) {
           d.settings.visaDueDay = due;
           if (balChanged) { if (bal == null) delete acc.asOf; else acc.asOf = t; }
         }
-        if (cheqChanged) d.settings.chequing = bal == null ? { bal: null, asOf: null } : { bal, asOf: t };
+        // Fields another build stored on settings.chequing are kept (SPEC 0: unknown fields stay untouched).
+        if (cheqChanged) d.settings.chequing = { ...(d.settings.chequing || {}), bal, asOf: bal == null ? null : t };
       });
     },
   });
@@ -960,15 +1022,20 @@ function drawStatic() {
   for (const slot of document.querySelectorAll('.torn-slot')) slot.outerHTML = motifs.torn(Number(slot.dataset.seed) || 1);
 }
 
-async function mountFeatures() {
-  for (const name of FEATURES) {
+// Every module is fetched at once (they load while the data does); they are mounted in the fixed order.
+function loadFeatures() {
+  return FEATURES.map(name => import(`./${name}.js`).catch(e => { console.error(`ui/${name}.js could not load:`, e); return null; }));
+}
+async function mountFeatures(loading) {
+  const mods = await Promise.all(loading);
+  mods.forEach((mod, i) => {
+    if (!mod) return;
     try {
-      const mod = await import(`./${name}.js`);
       if (typeof mod.mount === 'function') mod.mount(app);
     } catch (e) {
-      console.error(`ui/${name}.js could not start:`, e);
+      console.error(`ui/${FEATURES[i]}.js could not start:`, e);
     }
-  }
+  });
 }
 
 async function boot() {
@@ -977,6 +1044,7 @@ async function boot() {
   wire();
   setStatus('Loading', 'loading');
   document.body.classList.add('first-paint');
+  const features = loadFeatures();
   let res = null;
   try {
     res = await engine.load();
@@ -984,7 +1052,9 @@ async function boot() {
     console.error('Loading failed:', e);
   }
   if (!res || res.status === 'not-set-up' || !engine.state) { showNotSetUp(); return; }
-  await mountFeatures();
+  await mountFeatures(features);
+  if (!engine.state) { showNotSetUp(); return; } // a save answered 401 while the modules mounted
+  ready = true;
   render();
   setTimeout(() => document.body.classList.remove('first-paint'), 900);
 }

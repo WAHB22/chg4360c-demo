@@ -485,7 +485,7 @@ test('recheck: forecast keeps the estimated paycheque when money in that is not 
     const logged = clone(s);
     logged.months['2026-11'].pays.push({ id: 'p-20', date: '2026-11-20', amt: 1300, hours: null, note: '', ...(kind ? { kind } : {}) });
     const l = run(logged);
-    assert.deepEqual(payEvents(l, '2026-11-20'), [['Pay', 1300, false]], String(kind));
+    assert.deepEqual(payEvents(l, '2026-11-20'), [['Bobino pay', 1300, false]], String(kind));
     assert.equal(l.points.at(-1).bal, base.points.at(-1).bal, String(kind));
   }
 });

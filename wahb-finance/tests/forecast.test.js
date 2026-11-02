@@ -176,7 +176,7 @@ test('a pay logged on the next pay date is not an estimate and is not doubled', 
   getMonth(s, '2026-11').pays.push({ id: 'p-nov20', date: '2026-11-20', amt: 1312.40, hours: 70, note: '' });
   const r = run(s, today, { date: '2026-11-20', estimate: false });
   const ev = at(r, '2026-11-20').events.filter(e => e.type === 'pay');
-  assert.deepEqual(ev.map(e => [e.label, e.amt, e.estimate]), [['Pay', 1312.40, false]]);
+  assert.deepEqual(ev.map(e => [e.label, e.amt, e.estimate]), [['Bobino pay', 1312.40, false]]);
   assert.equal(at(r, '2026-11-20').estimate, true); // still uses dailySpend that day
 });
 

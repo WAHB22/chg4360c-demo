@@ -4,8 +4,8 @@ import { checkKey } from '../api/_auth.js';
 
 const req = key => ({ headers: key == null ? {} : { 'x-app-key': key } });
 function withEnv(env, fn) {
-  const old = { APP_KEY: process.env.APP_KEY, APP_KEY_A: process.env.APP_KEY_A };
-  for (const [k, v] of Object.entries(env)) v == null ? delete process.env[k] : (process.env[k] = v);
+  const old = { APP_KEY: process.env.APP_KEY, APP_KEY_A: process.env.APP_KEY_A, VERCEL_ENV: process.env.VERCEL_ENV };
+  for (const [k, v] of Object.entries({ VERCEL_ENV: 'preview', ...env })) v == null ? delete process.env[k] : (process.env[k] = v);
   try { fn(); } finally { for (const [k, v] of Object.entries(old)) v == null ? delete process.env[k] : (process.env[k] = v); }
 }
 
@@ -19,14 +19,30 @@ test('APP_KEY alone works as before and fails closed', () => {
   withEnv({ APP_KEY: null, APP_KEY_A: null }, () => assert.equal(checkKey(req('anything')), false));
 });
 
-test('APP_KEY_A is accepted as a second key, and either key alone is enough', () => {
+test('APP_KEY_A is accepted as a second key on preview, and either key alone is enough', () => {
   withEnv({ APP_KEY: 'b-key', APP_KEY_A: 'a-key' }, () => {
     assert.equal(checkKey(req('b-key')), true);
     assert.equal(checkKey(req('a-key')), true);
     assert.equal(checkKey(req('c-key')), false);
   });
-  withEnv({ APP_KEY: null, APP_KEY_A: 'a-key' }, () => {
-    assert.equal(checkKey(req('a-key')), true);
-    assert.equal(checkKey(req('')), false);
+  for (const env of ['preview', 'development', undefined]) {
+    withEnv({ APP_KEY: 'b-key', APP_KEY_A: 'a-key', VERCEL_ENV: env }, () => assert.equal(checkKey(req('a-key')), true, String(env)));
+  }
+});
+
+test('without APP_KEY nothing is accepted, not even APP_KEY_A (SPEC 8.1: fail closed)', () => {
+  for (const env of ['preview', 'production', undefined]) {
+    withEnv({ APP_KEY: null, APP_KEY_A: 'a-key', VERCEL_ENV: env }, () => {
+      assert.equal(checkKey(req('a-key')), false, String(env));
+      assert.equal(checkKey(req('')), false);
+    });
+    withEnv({ APP_KEY: '', APP_KEY_A: 'a-key', VERCEL_ENV: env }, () => assert.equal(checkKey(req('a-key')), false));
+  }
+});
+
+test('production answers to APP_KEY alone: APP_KEY_A is refused there even when it is set', () => {
+  withEnv({ APP_KEY: 'live-key', APP_KEY_A: 'a-key', VERCEL_ENV: 'production' }, () => {
+    assert.equal(checkKey(req('a-key')), false);
+    assert.equal(checkKey(req('live-key')), true);
   });
 });

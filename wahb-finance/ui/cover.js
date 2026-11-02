@@ -204,9 +204,11 @@ function openCover(app, itemId) {
     </div>`;
 
   let handle;
+  let moved = false; // one shot: a second tap while the sheet slides away must not move the room again
   const move = () => {
     const now = app.state;
-    if (!now) return;
+    if (moved || !now) return;
+    moved = true;
     // Dry run on a copy: the label names what will really move (applyCover clamps to each source's room today).
     const made = budget.applyCover(clone(now), M, sug, app.today());
     handle.close();

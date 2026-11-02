@@ -78,9 +78,10 @@ export default async function ({ page, shot, step, assert, freshPage, open, wait
     assert.deepEqual((await lib()).r, { missing: 'chequing' });
     assert.equal(await fc().isHidden(), false, 'the forecast band shows');
     assert.equal(await txt('#forecast h2'), 'Chequing forecast');
-    assert.equal(await txt('#forecast .fc-ask'), 'Enter your chequing balance to see the forecast');
+    // The sample is a v1 save whose Chequing account already shows $420: he confirms it, he does not retype it.
+    assert.equal(await txt('#forecast .fc-ask'), 'Confirm your chequing balance of $420 to see the forecast');
     assert.equal(await fc().locator('svg[role="img"]').count(), 0, 'no chart without a balance');
-    assert.equal(await txt('#fcEnterCheq'), 'Enter chequing balance');
+    assert.equal(await txt('#fcEnterCheq'), 'Confirm chequing balance');
     for (const s of await sizes()) assert.ok(s.w >= 44 && s.h >= 44, `${s.id} is ${s.w}x${s.h}`);
     const bg = await fc().evaluate(el => getComputedStyle(el).backgroundColor);
     assert.equal(bg, 'rgb(225, 199, 184)', 'scroll band #E1C7B8');
@@ -131,8 +132,8 @@ export default async function ({ page, shot, step, assert, freshPage, open, wait
     assert.equal(await fc().locator('.fc-red, .fc-neg-line').count(), 0, 'nothing below $0');
     const label = await fc().locator('svg[role="img"]').getAttribute('aria-label');
     assert.equal(label, 'Chequing forecast from Nov 14 to Nov 30, an estimate after today. Today, Nov 14: $420. '
-      + 'Before payday, Nov 19: $194.21. Month end, Nov 30: $1,135.93. Payday Nov 20 (estimate). '
-      + 'Lowest: $194.21 on Nov 19, the day after Phone + Crave.');
+      + 'Before payday, Nov 19: $194.21 (estimate). Month end, Nov 30: $1,135.93 (estimate). Payday Nov 20 (estimate). '
+      + 'Lowest: $194.21 on Nov 19, the day after Phone + Crave (estimate).');
     assert.equal(await txt('#forecast .fc-story'), 'Lachesis measured the thread. This one measures your month.');
     await toForecast();
     await shot('chart');
@@ -223,7 +224,7 @@ export default async function ({ page, shot, step, assert, freshPage, open, wait
     await fc().locator('.fc-red .fc-thread').first().waitFor();
     const L = await lib();
     assert.deepEqual(L.r.negative, { firstDate: '2026-11-16', need: 170, text: 'Move $170 from savings before Nov 16' });
-    assert.equal(await txt('#forecast .fc-neg-line'), 'Move $170 from savings before Nov 16');
+    assert.equal(await txt('#forecast .fc-neg-line'), 'Move $170 from savings before Nov 16 (estimate)');
     assert.equal(await txt('#forecast .fc-low'), 'Lowest: -$165.79 on Nov 19, the day after Phone + Crave (estimate)');
     assert.equal(await txt('.fc-key[data-key="before-pay"] b'), '-$165.79');
     assert.equal(await page.locator('.fc-key[data-key="before-pay"] b').getAttribute('class'), 'amt neg');
@@ -249,7 +250,7 @@ export default async function ({ page, shot, step, assert, freshPage, open, wait
     assert.equal(geo.ink, 'rgb(27, 51, 178)', 'ink #1B33B2 above $0');
     assert.ok(geo.hatch, 'line screen under $0');
     assert.equal(geo.redDots, 2, 'Netflix and Phone + Crave are under $0');
-    assert.match(await fc().locator('svg[role="img"]').getAttribute('aria-label'), /Below \$0 from Nov 16\. Move \$170 from savings before Nov 16\.$/);
+    assert.match(await fc().locator('svg[role="img"]').getAttribute('aria-label'), /Below \$0 from Nov 16\. Move \$170 from savings before Nov 16 \(estimate\)\.$/);
     await toForecast();
     await shot('negative');
   });

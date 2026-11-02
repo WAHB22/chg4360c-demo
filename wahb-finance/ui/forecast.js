@@ -92,20 +92,27 @@ function keepFocus(root, fn) {
 }
 
 /* ---------- no chequing balance yet ---------- */
+// When the Chequing account already shows a balance (an older save has no forecast balance yet), he is asked to
+// confirm that number, not to enter one the page already shows.
 function drawMissing(app, root, { cheq, story }) {
-  const key = 'missing|' + (cheq ? cheq.id : '') + '|' + story;
+  const { esc, fmtShort } = app.lib.core;
+  const shown = cheq && cheq.bal != null && cheq.bal !== '' && Number.isFinite(Number(cheq.bal)) ? Number(cheq.bal) : null;
+  const key = 'missing|' + (cheq ? cheq.id : '') + '|' + shown + '|' + story;
   if (sig === key && root.querySelector('.fc-missing')) return;
   sig = key;
   current = null;
-  const { esc } = app.lib.core;
+  const ask = shown != null
+    ? `Confirm your chequing balance of ${esc(fmtShort(shown))} to see the forecast`
+    : 'Enter your chequing balance to see the forecast';
+  const btn = shown != null ? 'Confirm chequing balance' : 'Enter chequing balance';
   keepFocus(root, () => {
     root.innerHTML = `
       ${head('')}
       <div class="fc-missing">
         <div class="fc-missing-art">${app.motifs.thread({ w: 64, h: 64 })}</div>
-        <p class="fc-ask" id="fcAsk">Enter your chequing balance to see the forecast</p>
+        <p class="fc-ask" id="fcAsk">${ask}</p>
         <p class="fc-ask-sub">It counts your bills, paydays and average spending from today.</p>
-        ${cheq ? `<button class="btn-primary fc-ask-btn" type="button" id="fcEnterCheq" data-fc-account="${esc(cheq.id)}" aria-describedby="fcAsk">Enter chequing balance</button>` : ''}
+        ${cheq ? `<button class="btn-primary fc-ask-btn" type="button" id="fcEnterCheq" data-fc-account="${esc(cheq.id)}" aria-describedby="fcAsk">${btn}</button>` : ''}
       </div>
       ${storyHtml(esc, story)}`;
   });
@@ -155,7 +162,9 @@ function drawChart(app, root, ctx) {
   const lowWhen = low.date === t ? 'today' : 'on ' + shortDate(low.date);
   const lowText = `Lowest: ${fmtShort(low.bal)} ${lowWhen}`;
 
-  const summary = summaryText(app, { r, np, t, keys, anyEst, lowText, low });
+  // The advice under $0 comes from estimated balances when either day it uses is an estimate.
+  const negEst = !!(r.negative && ((pointOn(r.negative.firstDate) || {}).estimate || lowPoint.estimate));
+  const summary = summaryText(app, { r, np, t, keys, anyEst, lowText, low, lowEst: !!lowPoint.estimate, negEst });
   const data = {
     today: t, 'today-bal': pointOn(t).bal,
     'month-end': mEnd, 'month-end-bal': at.has(mEnd) ? pointOn(mEnd).bal : '',
@@ -189,14 +198,16 @@ function drawChart(app, root, ctx) {
 
     const notes = [];
     notes.push(`<p class="fc-note fc-low${low.bal < 0 ? ' is-neg' : ''}">${ringGlyph}<span><span class="fc-low-text">${esc(lowText)}${low.note ? `, <span data-user>${esc(low.note)}</span>` : ''}</span>${lowPoint.estimate ? ' <span class="est">(estimate)</span>' : ''}</span></p>`);
-    if (r.negative) notes.push(`<p class="fc-note fc-neg-line">${hatchGlyph}<span>${esc(r.negative.text)}</span></p>`);
+    if (r.negative) notes.push(`<p class="fc-note fc-neg-line">${hatchGlyph}<span>${esc(r.negative.text)}${negEst ? ' <span class="est">(estimate)</span>' : ''}</span></p>`);
     if (anyEst) {
       notes.push(`<p class="fc-note fc-est-line">${dotsGlyph}<span>${r.dailySpend > 0
         ? `Dotted: estimate from your average spending of ${esc(fmtShort(r.dailySpend))} a day`
         : 'Dotted: estimate'}</span></p>`);
     }
     if (r.visaMarker && visa) {
-      notes.push(`<div class="fc-row fc-visa"><p>${esc(r.visaMarker.text)}</p><button class="btn" type="button" id="fcVisaDue" data-fc-account="${esc(visa.id)}">Set due day</button></div>`);
+      // Two markers: no due day yet ("Set its due date to include it"), or the due date falls after this range.
+      const due = app.state?.settings?.visaDueDay;
+      notes.push(`<div class="fc-row fc-visa"><p>${esc(r.visaMarker.text)}</p><button class="btn" type="button" id="fcVisaDue" data-fc-account="${esc(visa.id)}">${due ? 'Change due day' : 'Set due day'}</button></div>`);
     }
     if (cheq) {
       const when = r.start.date === t ? 'today' : 'on ' + shortDate(r.start.date);
@@ -404,13 +415,13 @@ function layoutTicks(axis, W) {
 }
 
 /* ---------- words for screen readers ---------- */
-function summaryText(app, { r, np, t, keys, anyEst, lowText, low }) {
+function summaryText(app, { r, np, t, keys, anyEst, lowText, low, lowEst, negEst }) {
   const { fmtShort, shortDate } = app.lib.core;
   const parts = [`Chequing forecast from ${shortDate(t)} to ${shortDate(r.end)}${anyEst ? ', an estimate after today' : ''}.`];
-  for (const k of keys) parts.push(`${k.cap}, ${shortDate(k.date)}: ${fmtShort(k.p.bal)}.`);
+  for (const k of keys) parts.push(`${k.cap}, ${shortDate(k.date)}: ${fmtShort(k.p.bal)}${k.p.estimate ? ' (estimate)' : ''}.`);
   if (np) parts.push(`Payday ${shortDate(np.date)}${np.estimate ? ' (estimate)' : ''}.`);
-  parts.push(lowText + (low.note ? ', ' + low.note : '') + '.');
-  if (r.negative) parts.push(`Below $0 from ${shortDate(r.negative.firstDate)}. ${r.negative.text}.`);
+  parts.push(lowText + (low.note ? ', ' + low.note : '') + (lowEst ? ' (estimate)' : '') + '.');
+  if (r.negative) parts.push(`Below $0 from ${shortDate(r.negative.firstDate)}. ${r.negative.text}${negEst ? ' (estimate)' : ''}.`);
   return parts.join(' ');
 }
 

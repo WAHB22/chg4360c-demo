@@ -320,7 +320,7 @@ export async function withLock(cfg, fn)            // optimistic lock on `${pref
 
 ## 10. Device key
 
-- Opening `/?key=XYZ` saves XYZ to localStorage 'finance-key' and removes it from the address bar with history.replaceState.
+- Opening `/#key=XYZ` (or the older `/?key=XYZ`) saves XYZ to localStorage 'finance-key' and removes it from the address bar with history.replaceState.
 - Without a key (or on 401) the page shows only: "This device is not set up" and one plain line: "Open your private setup link on this device once." No data, no cached data.
 
 
@@ -335,4 +335,11 @@ export async function withLock(cfg, fn)            // optimistic lock on `${pref
 - **Concurrent saves.** The server waits briefly for a save in progress, so two devices saving at once give exactly one 409 whose `latest` already holds the other device's change.
 - **Read limit counter.** One tiny blob per read under `finance-meta/reads/<Toronto date>/`, counted with list (no CDN cache), shared by preview and production (30 a day in total).
 - **Request size.** Vercel refuses request bodies over 4.5 MB before our code runs (its 413 has no JSON body). The page shrinks screenshots before upload; PDFs over about 3 MB get a plain message suggesting the CSV export.
+- **Second key.** `APP_KEY_A` (build A's preview key) is accepted only next to `APP_KEY` and never when `VERCEL_ENV` is exactly `production`. Without `APP_KEY` nothing is accepted (8.1 fails closed).
+- **Device key link.** The setup link is `/#key=XYZ` (a fragment never reaches the server or its logs); `/?key=XYZ` still works. The page sets `<meta name="referrer" content="no-referrer">`. A 401 heard anywhere (sync, History, Import) hides the page; with nothing unsaved on the device, a 401 from the server also removes 'finance-cache' (a device with no key keeps it).
+- **Two tabs.** 'finance-pending' holds every tab's unsaved actions ({id, label, ops, at}): a tab never overwrites the actions another tab stored, and 'finance-cache' includes them. Replaying an action twice gives the same result.
+- **Forecast details.** The Visa due date is searched from the day after the balance date (like every other event). When a due day is set but its date falls after the range: `visaMarker = {amt, text: 'Visa payment of $X is due <date>, after this forecast.'}`. A logged pay with no note is labelled 'Bobino pay'. No 'Spending estimate' events when dailySpend is 0. The advice under $0 ("Move $X from savings…", "Short $X on…") shows "(estimate)" when it comes from estimated days (section 0 wins over the 5.5 sample text).
+- **Cover it with refunds.** A source's spent counts as at least $0 for what it can give, so no limit ever goes below $0.
+- **Raise.** In the month the raise is accepted, that month's moves into the item shrink by what the raise added (newest first), so the month never counts the top up twice: 400 raised to 470 with $85 moved in reads $485, December $470.
+- **Old saves with a Chequing balance.** settings.chequing stays {bal: null, asOf: null} after migration (section 3), and the forecast asks him to confirm the balance the Accounts row already shows ("Confirm your chequing balance of $420 to see the forecast").
 - **Public store.** Until a private store is connected (`PRIVATE_BLOB_READ_WRITE_TOKEN`), versions stay in the existing public store with unguessable names (`data-<ms>-<uuid>.json`); every read and write of /api/data needs the device key.

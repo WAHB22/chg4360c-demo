@@ -5,7 +5,7 @@
 // long edge as JPEG 0.9 and sent to /api/read (src 'screenshot'); PDF sent as is while its base64 stays under
 // 4.3 MB (src 'statement'). Files are only held in memory while they are read: nothing is stored.
 // Review: rows from lib/importer.js buildReview; ticks, categories (setCategory) and the Activities to
-// "Date with Kylie" switch; save is one undoable app.act with applyImport.
+// "Dates with Kylie" switch (named after the category itself); save is one undoable app.act with applyImport.
 // Merchant names and file names come from screenshots and file systems: every one goes through esc().
 
 const MAX_FILE = 10 * 1024 * 1024;   // the API refuses decoded files over 10 MB
@@ -285,6 +285,7 @@ function openImport(app, files) {
   let memory;             // remembered picks, from the last setCategory
   let results = [];       // one per file: {name, state, error, rows, src, skipped, dropped}
   let offRender = () => {};
+  let saved = false;      // one shot: a second tap while the sheet slides away must not add the rows again
   const opened = Date.now();
 
   const root = document.createElement('div');
@@ -393,7 +394,9 @@ function openImport(app, files) {
     const st = app.state;
     const ns = r.status === 'notspending';
     const needsCat = CATEGORY_KINDS.has(r.kind);
-    const when = [isISODate(r.date) ? shortDate(r.date) : esc(r.date), timeText(r.time), ACCOUNT[r.account]].filter(Boolean).join(' · ');
+    // Statements (CSV, PDF) have no time column: nothing is cut off, so only screenshot rows say "time not shown".
+    const time = r.time || r.src !== 'statement' ? timeText(r.time) : '';
+    const when = [isISODate(r.date) ? shortDate(r.date) : esc(r.date), time, ACCOUNT[r.account]].filter(Boolean).join(' · ');
 
     let chip = '';
     if (!ns && needsCat) {
@@ -408,7 +411,7 @@ function openImport(app, files) {
     if (!ns && needsCat && r.altItemId != null) {
       const on = !!kylie() && r.itemId === kylie().id;
       sw = `<button class="imp-switch" type="button" role="switch" aria-checked="${on}" id="imp-sw-${k}" data-switch="${k}" aria-describedby="imp-m-${k}">`
-        + '<span class="imp-track" aria-hidden="true"><span class="imp-knob"></span></span><span>Date with Kylie</span></button>';
+        + `<span class="imp-track" aria-hidden="true"><span class="imp-knob"></span></span><span data-user>${esc(kylie()?.name || 'Dates with Kylie')}</span></button>`;
     }
     const icon = r.status === 'bill' ? motifs.column(true, { w: 12, h: 16 }) : ''; // the column it will fill
     const status = r.statusText ? `<p class="imp-status s-${esc(r.status)}">${icon}<span>${esc(r.statusText)}</span></p>` : '';
@@ -478,7 +481,7 @@ function openImport(app, files) {
     if (!btn) return;
     const p = plan();
     btn.textContent = p.text;
-    btn.disabled = p.disabled;
+    btn.disabled = p.disabled || saved;
   }
 
   function setError(text) {
@@ -606,16 +609,20 @@ function openImport(app, files) {
   }
 
   function save() {
-    if (!rows || !app.state) return;
+    if (saved || closed || !rows || !app.state) return;
     setError('');
     const p = plan();
     if (p.missing) { setError(needText(p.missing)); updateFooter(); return; }
     if (p.disabled || !p.counts) return;
     const months = monthsOf(rows);
     const chosen = rows, mem = memory;
+    saved = true;
+    const btn = handle.el.querySelector('#impSave');
+    if (btn) btn.disabled = true;
     try {
       app.act(label('import', p.counts), d => { applyImport(d, chosen, mem); });
     } catch (e) {
+      saved = false;
       if (e && e.count) setError(needText(e.count));
       else { console.error('Import could not be saved:', e); setError(TEXT.saveFailed); }
       updateFooter();
