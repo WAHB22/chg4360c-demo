@@ -1,0 +1,221 @@
+/* Import (Stage 1): the Import button, the drop overlay, and the review sheet on the scroll colour.
+   The review is a scroll: a roller on top, ruled rows, and a bottom roller that unrolls them (transform only).
+   Text on scroll (#E1C7B8, light): text 10.6:1, text-2 5.5:1, ink 6.0:1. text-3, ochre text and terracotta are
+   under 4.5:1 there, so warnings and errors use the darker local tokens below (checked: 5.2:1 and 5.1:1).
+   Tokens and the .btn, .caps, .fab, .empty, .form-error classes come from ui/app.css. */
+
+.imp-sheet, .imp-drop, .imp-picker {
+  --imp-warn: #6A4605;
+  --imp-error: #8A3222;
+  --imp-drop-bg: rgba(243, 240, 228, .94);
+  --unroll: 480ms;
+}
+@media (prefers-color-scheme: dark) {
+  .imp-sheet, .imp-drop, .imp-picker {
+    --imp-warn: var(--ochre-text);     /* 7.3:1 on the dark scroll */
+    --imp-error: var(--terracotta-text); /* 5.4:1 */
+    --imp-drop-bg: rgba(16, 22, 58, .94);
+  }
+}
+
+/* ---------- the Import button (left of + Expense) ---------- */
+.imp-fab { display: inline-flex; align-items: center; gap: 8px; padding: 0 16px 0 13px; }
+.imp-fab .motif { flex: none; width: 20px; height: 20px; }
+
+/* ---------- drop overlay (laptop) ---------- */
+.imp-drop {
+  position: fixed; inset: 0; z-index: 40;
+  display: grid; place-items: center; padding: 16px;
+  background: var(--imp-drop-bg);
+  opacity: 0; transition: opacity var(--dur) var(--ease-out);
+}
+.imp-drop.is-on { opacity: 1; }
+.imp-drop-in {
+  pointer-events: none;
+  width: 100%; height: 100%; max-width: 980px;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px;
+  border: 2px dashed var(--ink); border-radius: 6px; color: var(--ink); text-align: center; padding: 24px;
+}
+.imp-drop-in * { pointer-events: none; }
+.imp-drop-in .motif { width: 64px; height: 64px; }
+.imp-drop-text { margin: 4px 0 0; font: 600 var(--fs-band)/1.15 var(--font-display); color: var(--ink); max-width: 14em; text-wrap: balance; }
+.imp-drop-in .caps { color: var(--text-2); }
+
+/* ---------- the sheet on the scroll colour ---------- */
+dialog.sheet.imp-sheet { background: var(--scroll) var(--noise); }
+.imp-sheet .sheet-foot { background: transparent; border-top-color: var(--line-strong); }
+.imp-sheet .sheet-foot { flex-wrap: nowrap; }
+.imp-sheet .sheet-foot .btn-primary { flex: 1 1 12em; min-width: 0; white-space: normal; text-align: center; line-height: 1.25; padding: 8px 14px; }
+.imp-sheet .sheet-foot .btn { flex: none; }
+/* A disabled save says what is missing ("Pick a category for 1 row"), so it stays readable: dashed, like the chip. */
+.imp-sheet .sheet-foot .btn-primary:disabled { opacity: 1; background: transparent; color: var(--ink); border-style: dashed; }
+
+.imp-count { margin: 0 0 4px; color: var(--ink); min-height: 1.4em; }
+.imp-hint { margin: 2px 0 14px; font-size: var(--fs-fine); line-height: 1.45; color: var(--text-2); text-wrap: pretty; }
+
+/* ---------- reading ---------- */
+.imp-reading { display: flex; gap: 14px; align-items: flex-start; padding: 10px 0 6px; }
+.imp-reading-art { flex: none; width: 48px; height: 48px; color: var(--ink); }
+.imp-reading-art .motif { width: 48px; height: 48px; display: block; }
+.imp-files { list-style: none; margin: 0; padding: 0; flex: 1; min-width: 0; border-top: 1.5px solid var(--ink); }
+.imp-file { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--line); font-size: var(--fs-note); }
+.imp-file-name { min-width: 0; overflow-wrap: anywhere; color: var(--text); font-weight: 500; }
+.imp-file-state { flex: none; max-width: 60%; text-align: right; color: var(--text-2); font-size: var(--fs-fine); }
+.imp-file.is-reading .imp-file-state { color: var(--ink); font-weight: 600; animation: imp-pulse 900ms ease-in-out infinite alternate; }
+.imp-file.is-error .imp-file-state { color: var(--imp-error); font-weight: 500; flex: 1 1 auto; }
+.imp-file.is-done .imp-file-state { color: var(--text); }
+
+/* ---------- problems and notes ---------- */
+.imp-problems { list-style: none; margin: 4px 0 12px; padding: 0; }
+.imp-problems li {
+  display: flex; flex-direction: column; gap: 1px;
+  margin-top: 8px; padding: 6px 0 6px 12px; border-left: 2px solid var(--imp-error);
+  font-size: var(--fs-note); line-height: 1.4;
+}
+.imp-problems b { font-weight: 600; color: var(--text); overflow-wrap: anywhere; }
+.imp-problems span { color: var(--imp-error); font-weight: 500; }
+.imp-notes { margin: 0 0 10px; font-size: var(--fs-fine); color: var(--text-2); }
+.imp-notes p { margin: 4px 0 0; }
+.imp-skipped summary { min-height: var(--tap); display: flex; align-items: center; cursor: pointer; color: var(--ink); font-weight: 600; }
+.imp-skipped ul { margin: 0 0 6px; padding-left: 18px; }
+.imp-empty { padding-top: 18px; }
+
+/* ---------- the rollers ---------- */
+/* The rod runs past the text into the sheet padding, like the roller of a real scroll. Opaque, so the bottom one
+   covers the rows it rolls over. */
+.imp-roll { position: relative; z-index: 1; display: flex; align-items: center; height: 24px; margin: 0 -12px; color: var(--ink); }
+.imp-roll-end { position: relative; z-index: 1; flex: none; width: 24px; height: 24px; }
+.imp-roll-end circle { fill: var(--scroll); }
+.imp-roll-end.r { transform: scaleX(-1); }
+.imp-roll-bar {
+  position: relative; flex: 1; align-self: stretch; margin: 1.8px -12px; background: var(--scroll);
+  border-top: 1.6px solid currentColor; border-bottom: 1.6px solid currentColor;
+}
+/* Engraved shading: a line screen on the lower, shadowed side of the roller. */
+.imp-roll-bar::after {
+  content: ''; position: absolute; left: 12px; right: 12px; bottom: 1.5px; height: 7px;
+  background: currentColor; opacity: .55;
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='3' height='6'%3E%3Cpath d='M1 0V6' stroke='%23000' stroke-width='1'/%3E%3C/svg%3E") repeat-x left bottom / 3px 6px;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='3' height='6'%3E%3Cpath d='M1 0V6' stroke='%23000' stroke-width='1'/%3E%3C/svg%3E") repeat-x left bottom / 3px 6px;
+}
+.imp-roll.bottom { margin-top: 4px; }
+
+/* ---------- unroll (transform only) ---------- */
+.imp-reveal { position: relative; }
+/* Clips above and below only: the rollers reach 12 px past the sides. */
+.imp-reveal.unrolling { clip-path: inset(0 -24px); animation: imp-unroll var(--unroll, 480ms) var(--ease-sheet) var(--unroll-delay, 0ms) both; }
+.imp-reveal.unrolling > .imp-reveal-in { animation: imp-unroll-in var(--unroll, 480ms) var(--ease-sheet) var(--unroll-delay, 0ms) both; }
+@keyframes imp-unroll { from { transform: translateY(calc(-1 * var(--unroll-h, 0px))); } }
+@keyframes imp-unroll-in { from { transform: translateY(var(--unroll-h, 0px)); } }
+@keyframes imp-fade { from { opacity: 0; } }
+@keyframes imp-pulse { from { opacity: 1; } to { opacity: .5; } }
+
+/* ---------- rows ---------- */
+.imp-file-head { margin: 14px 0 0; padding-bottom: 4px; border-bottom: 1.5px solid var(--ink); color: var(--ink); overflow-wrap: anywhere; }
+.imp-list { list-style: none; margin: 0; padding: 2px 2px 4px; }
+.imp-row { display: grid; grid-template-columns: 36px minmax(0, 1fr); column-gap: 6px; padding: 12px 0 10px; border-top: 1px solid var(--line); }
+.imp-list > .imp-row:first-child { border-top: 0; }
+.imp-tickwrap { position: relative; width: var(--tap); height: var(--tap); margin: -11px 0 0 -9px; display: grid; place-items: center; cursor: pointer; }
+.imp-tickwrap.is-off { cursor: default; }
+.imp-tick { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; opacity: 0; cursor: pointer; }
+.imp-box {
+  width: 22px; height: 22px; display: grid; place-items: center;
+  border: 1.6px solid var(--ink); border-radius: 3px; color: var(--on-ink);
+  transition: transform var(--dur-press) var(--ease-out);
+}
+.imp-box .imp-check { opacity: 0; transition: opacity var(--dur) var(--ease-out); }
+.imp-tick:checked + .imp-box { background: var(--ink); }
+.imp-tick:checked + .imp-box .imp-check { opacity: 1; }
+.imp-tick:focus-visible + .imp-box { outline: 2px solid var(--ink); outline-offset: 3px; }
+.imp-tickwrap:active .imp-box { transform: scale(.97); }
+
+.imp-main { min-width: 0; }
+.imp-top { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; margin: 0; }
+.imp-merchant { min-width: 0; font-weight: 500; font-size: var(--fs-body); line-height: 1.35; color: var(--text); overflow-wrap: anywhere; }
+.imp-amt { flex: none; font-weight: 600; font-size: var(--fs-body); color: var(--text); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.imp-row:not(.is-ticked) .imp-merchant, .imp-row:not(.is-ticked) .imp-amt { color: var(--text-2); }
+.imp-row:not(.is-ticked) .imp-amt { font-weight: 500; }
+.imp-when { margin: 2px 0 0; font-size: var(--fs-fine); line-height: 1.4; color: var(--text-2); }
+.imp-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 0 14px; margin: 2px 0 -4px; }
+
+.imp-chip {
+  display: inline-flex; align-items: center; min-height: var(--tap); max-width: 100%; margin: 0 0 0 -1px; padding: 0;
+  background: none; border: 0; color: var(--ink); font: inherit; text-align: left;
+}
+.imp-chip-in {
+  display: inline-flex; align-items: center; gap: 7px; min-width: 0;
+  padding: 5px 10px 5px 11px; border: 1.5px solid currentColor; border-radius: 3px;
+  font: 600 var(--fs-note)/1.25 var(--font-body); letter-spacing: .01em;
+  transition: transform var(--dur-press) var(--ease-out);
+}
+.imp-chip-in > span { overflow-wrap: anywhere; }
+.imp-chip .imp-chev { flex: none; }
+.imp-chip.is-empty .imp-chip-in { border-style: dashed; }
+.imp-chip.quiet .imp-chip-in { border-color: transparent; padding-left: 1px; font-weight: 500; text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 3px; }
+.imp-chip:active .imp-chip-in { transform: scale(.97); }
+.imp-chip:focus-visible { outline: none; }
+.imp-chip:focus-visible .imp-chip-in { outline: 2px solid var(--ink); outline-offset: 2px; }
+
+.imp-switch {
+  display: inline-flex; align-items: center; gap: 8px; min-height: var(--tap); padding: 0 2px;
+  background: none; border: 0; color: var(--text); font: 500 var(--fs-note)/1.25 var(--font-body);
+}
+.imp-track { position: relative; flex: none; width: 32px; height: 18px; border: 1.5px solid var(--ink); border-radius: 9px; transition: transform var(--dur-press) var(--ease-out); }
+.imp-knob { position: absolute; top: 2px; left: 2px; width: 11px; height: 11px; border-radius: 50%; background: var(--ink); transition: transform var(--dur) var(--ease-out); }
+.imp-switch[aria-checked="true"] .imp-track { background: var(--ink); }
+.imp-switch[aria-checked="true"] .imp-knob { transform: translateX(14px); background: var(--scroll); }
+.imp-switch:active .imp-track { transform: scale(.97); }
+
+.imp-status { display: flex; align-items: center; gap: 6px; margin: 5px 0 0; font-size: var(--fs-fine); line-height: 1.4; color: var(--text-2); }
+.imp-status .motif { flex: none; width: 12px; height: 16px; color: var(--ink); }
+.imp-status.s-dup { color: var(--imp-warn); font-weight: 500; }
+.imp-status.s-bill, .imp-status.s-pay, .imp-status.s-income, .imp-status.s-refund { color: var(--text); }
+.imp-note { margin: 3px 0 0; font-size: var(--fs-fine); color: var(--text-2); }
+
+/* ---------- the category picker (a white sheet above the scroll) ---------- */
+.imp-pick-for { margin: 0; font-size: var(--fs-body); color: var(--text); overflow-wrap: anywhere; }
+.imp-pick-for b { font-weight: 600; }
+.imp-pick-why { margin: 4px 0 0; font-size: var(--fs-fine); line-height: 1.45; color: var(--text-2); }
+.imp-group { margin-top: 18px; }
+.imp-group h3 { padding-bottom: 4px; border-bottom: 1.5px solid var(--ink); }
+.imp-opts { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.imp-opt {
+  min-height: var(--tap); padding: 0 14px; max-width: 100%;
+  background: transparent; color: var(--ink); border: 1.5px solid var(--ink); border-radius: 3px;
+  font: 500 var(--fs-note)/1.2 var(--font-body); text-align: left; overflow-wrap: anywhere;
+  transition: transform var(--dur-press) var(--ease-out);
+}
+.imp-opt[aria-pressed="true"] { background: var(--ink); color: var(--on-ink); font-weight: 600; }
+.imp-opt:active { transform: scale(.97); }
+
+/* ---------- hover (pointer devices only) ---------- */
+@media (hover: hover) {
+  .imp-tickwrap:hover .imp-box { background: var(--hover); }
+  .imp-tickwrap:hover .imp-tick:checked + .imp-box { background: var(--ink-hover); }
+  .imp-chip:hover .imp-chip-in { background: var(--hover); }
+  .imp-chip.quiet:hover .imp-chip-in { background: none; text-decoration-thickness: 2px; }
+  .imp-switch:hover .imp-track { background: var(--hover); }
+  .imp-switch[aria-checked="true"]:hover .imp-track { background: var(--ink-hover); }
+  .imp-opt:hover { background: var(--hover); }
+  .imp-opt[aria-pressed="true"]:hover { background: var(--ink-hover); }
+  .imp-skipped summary:hover { text-decoration: underline; text-underline-offset: 3px; }
+  .imp-sheet .sheet-foot .btn-primary:disabled:hover { background: transparent; border-color: var(--ink); }
+}
+
+/* ---------- reduced motion: no movement, short fades only ---------- */
+@media (prefers-reduced-motion: reduce) {
+  .imp-reveal.unrolling { clip-path: none; animation: imp-fade 150ms ease both; }
+  .imp-reveal.unrolling > .imp-reveal-in { animation: none; }
+  .imp-knob, .imp-box, .imp-chip-in, .imp-opt, .imp-track { transition: opacity 150ms ease; }
+  .imp-box .imp-check { transition-duration: 150ms; }
+  .imp-switch[aria-checked="true"] .imp-knob { transition: none; }
+  .imp-tickwrap:active .imp-box, .imp-chip:active .imp-chip-in, .imp-opt:active, .imp-switch:active .imp-track { transform: none; }
+  .imp-file.is-reading .imp-file-state { animation: none; }
+  .imp-drop { transition: opacity 150ms ease; }
+}
+
+/* ---------- wider screens ---------- */
+@media (min-width: 700px) {
+  .imp-drop-text { font-size: var(--fs-sheet-num); }
+  .imp-drop-in .motif { width: 80px; height: 80px; }
+}

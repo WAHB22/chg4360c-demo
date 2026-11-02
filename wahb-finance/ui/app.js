@@ -17,7 +17,7 @@ import * as motifs from './motifs.js';
 
 const {
   esc, fmt, fmtShort, num, uid, shortDate, monthName, monthOf, addMonths, daysBetween, daysInMonth, isISODate,
-  peekMonth, getMonth, allItems, findItem, billRows, chequingAccount, visaAccount, cents, todayISO,
+  peekMonth, getMonth, allItems, findItem, billRows, chequingAccount, visaAccount, todayISO,
 } = core;
 const { label, clockTime, ordinal } = labels;
 
@@ -323,7 +323,7 @@ function renderPays(s, M) {
   const pays = [...m.pays].sort((a, b) => String(a.date).localeCompare(String(b.date)));
   $('pays').innerHTML = pays.map(p => `
     <button class="row" type="button" data-pay="${esc(p.id)}">
-      <span class="name"><b data-user>${esc(p.note || 'Bobino pay')}</b><small>${isISODate(p.date) ? shortDate(p.date) : esc(p.date)}${p.hours ? ' · ' + esc(p.hours) + ' h' : ''}</small></span>
+      <span class="name"><b data-user>${esc(p.note ? importer.incomeNote(p.note) : 'Bobino pay')}</b><small>${isISODate(p.date) ? shortDate(p.date) : esc(p.date)}${p.hours ? ' · ' + esc(p.hours) + ' h' : ''}</small></span>
       <span class="amt pos">${fmt(Number(p.amt))}</span>
     </button>`).join('') || `<div class="empty">${motifs.arch()}<span>No paycheques logged this month.</span></div>`;
 }
@@ -824,7 +824,7 @@ function editGoal(goalId) {
     onSave(v) {
       const add = asNumberOrNull(v.add);
       const oldSaved = Number(g.saved) || 0;
-      const saved = add != null ? (cents(oldSaved) + cents(add)) / 100 : (asNumberOrNull(v.saved) ?? oldSaved);
+      const saved = add != null ? core.sum([oldSaved, add]) : (asNumberOrNull(v.saved) ?? oldSaved);
       const target = asNumberOrNull(v.target) ?? g.target;
       const name = String(v.name ?? '').trim() || g.name;
       const lbl = add ? label('jar', { goal: g, add }) : label('jar', { goal: g });

@@ -1,0 +1,126 @@
+/* Safe to spend today (Stage 3): the hero number on paper, left of the engraved temple, and the sheet that
+   explains it. One ink: the number in Bodoni, the words in Inter, the owl coin as a single line drawing.
+   Tokens and .hero-caps, .big-num, .est, .story, .btn, .btn-primary, .caps come from ui/app.css. */
+
+/* The text column ends where the temple's first engraved line starts. ui/app.css hangs the 220 px temple 58 px past
+   the right edge of the hero, and its first line is 11 px into the drawing: 151 px in from the right.
+   The column is a size container so the number can be sized from its width. */
+#safe .safe { max-width: calc(100% - 152px); padding-bottom: 18px; container-type: inline-size; }
+
+/* ---------- the number (a button: tap for the sum) ---------- */
+.safe-hit {
+  display: block; width: 100%; margin: 0; padding: 0;
+  background: none; border: 0; border-radius: 4px;
+  color: inherit; font: inherit; text-align: left; cursor: pointer;
+  transform-origin: 0 50%;
+  transition: transform var(--dur-press) var(--ease-out);
+}
+.safe-hit:active { transform: scale(.97); }
+.safe-hit:focus-visible { outline: 2px solid var(--ink); outline-offset: 6px; }
+
+.safe-num { display: block; white-space: nowrap; margin: 10px 0 8px; }
+/* About 96 px, smaller only when the amount would not fit the column (sized for the value the count lands on).
+   In Bodoni a digit is at most .66 em, the $ .57 em and the comma .25 em: "$888" needs 2.55 em, so 39cqw. */
+.safe-num { font-size: min(var(--fs-hero), 53cqw); }
+.safe-num[data-len="2"] { font-size: min(var(--fs-hero), 80cqw); }
+.safe-num[data-len="4"] { font-size: min(var(--fs-hero), 39cqw); }
+.safe-num[data-len="5"], .safe-num[data-len="6"] { font-size: min(var(--fs-hero), 28cqw); }
+.safe-num[data-len="7"] { font-size: min(var(--fs-hero), 24cqw); }
+.safe-num[data-len="8"] { font-size: min(var(--fs-hero), 20cqw); }
+
+.safe-when { display: block; font-size: var(--fs-body); font-weight: 500; line-height: 1.35; color: var(--text); }
+.safe-date { display: block; margin-top: 2px; font-size: var(--fs-note); line-height: 1.4; color: var(--text-2); }
+.safe-date .est { color: var(--text-2); }
+.safe-sep { display: none; }
+.safe-when .nw { white-space: nowrap; }
+
+.safe-more {
+  display: inline-flex; align-items: center; gap: 10px; min-height: var(--tap); margin-top: 12px;
+  font: 600 var(--fs-note)/1.2 var(--font-body); letter-spacing: .01em; color: var(--ink);
+}
+.safe-more .owl { width: 40px; height: 40px; flex: none; color: var(--ink); }
+.safe-more-text { text-wrap: balance; text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 4px; text-decoration-color: var(--line-strong); }
+
+/* A payday that came and is not logged yet */
+.safe-missed { margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--line); }
+.safe-missed p { margin: 0 0 6px; font-size: var(--fs-note); line-height: 1.4; color: var(--text); text-wrap: balance; }
+
+.safe-story { margin: 12px 0 0; text-align: left; }
+
+/* ---------- no paycheque yet ---------- */
+.safe-coin { position: relative; width: 76px; height: 76px; margin: 16px 0 14px; color: var(--ink); }
+.safe-coin .owl { width: 76px; height: 76px; display: block; }
+.safe-coin .owl * { vector-effect: non-scaling-stroke; }
+.safe-coin .star { position: absolute; right: -18px; top: -6px; width: 22px; height: 22px; }
+.safe-ask { margin: 0; font: 600 var(--fs-title)/1.15 var(--font-display); color: var(--ink); text-wrap: balance; }
+.safe-ask-sub { margin: 8px 0 16px; font-size: var(--fs-note); line-height: 1.45; color: var(--text-2); }
+.safe-log { min-width: min(160px, 100%); }
+
+/* ---------- the sheet: the sum as a ruled ledger on white ---------- */
+.sb-lead { display: flex; align-items: center; gap: 14px; margin: 2px 0 4px; }
+.sb-lead .owl { width: 44px; height: 44px; flex: none; color: var(--ink); }
+.sb-lead p { margin: 0; display: flex; align-items: baseline; flex-wrap: wrap; gap: 0 10px; }
+.sb-num { font: 700 var(--fs-sheet-num)/1 var(--font-display); color: var(--ink); font-variant-numeric: lining-nums; letter-spacing: -.01em; }
+.sb-lead-text { font-size: var(--fs-body); font-weight: 500; color: var(--text); }
+.sb-intro { margin: 12px 0 0; font-size: var(--fs-note); line-height: 1.5; color: var(--text-2); }
+.sb-intro .est { color: var(--text-2); }
+.sb-missed {
+  margin: 12px 0 0; padding: 10px 12px;
+  border-left: 2px solid var(--ink); background: var(--hover);
+  font-size: var(--fs-note); line-height: 1.45; font-weight: 500; color: var(--text);
+}
+
+.sb-ledger { margin-top: 16px; border-top: 1.5px solid var(--ink); }
+.sb-group { padding: 12px 0 12px; border-bottom: 1px solid var(--line); }
+.sb-line { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
+.sb-head .caps { min-width: 0; }
+.sb-head .amt { font-size: var(--fs-body); font-weight: 600; color: var(--text); }
+.sb-note { margin: 4px 0 0; font-size: var(--fs-fine); line-height: 1.45; color: var(--text-2); }
+
+.sb-list { list-style: none; margin: 8px 0 0; padding: 0; }
+.sb-row { display: flex; align-items: center; gap: 10px; min-height: 40px; padding: 4px 0; border-top: 1px dotted var(--line-strong); }
+.sb-row:first-child { border-top: 0; }
+.sb-icon { flex: none; width: 20px; display: grid; place-items: center; color: var(--ink); }
+.sb-icon .column { width: 18px; height: 24px; display: block; }
+.sb-name { flex: 1; min-width: 0; }
+.sb-name b { display: block; font-weight: 500; font-size: var(--fs-body); line-height: 1.3; overflow-wrap: anywhere; }
+.sb-name small { display: block; font-size: var(--fs-fine); line-height: 1.35; color: var(--text-2); }
+.sb-row .amt { font-size: var(--fs-note); color: var(--text-2); }
+
+.sb-result { padding: 12px 0 2px; }
+.sb-result .sb-head + .sb-note { margin-bottom: 12px; }
+.sb-left .amt { font-size: var(--fs-lead); }
+.sb-final { align-items: center; margin-top: 14px; padding-top: 12px; border-top: 1.5px solid var(--ink); }
+/* The answer again at the foot of the sum, smaller than the lead: one big number per sheet. */
+.sb-final-num { font: 700 var(--fs-band)/1 var(--font-display); color: var(--ink); font-variant-numeric: lining-nums; white-space: nowrap; }
+
+/* ---------- hover (pointer devices only) ---------- */
+@media (hover: hover) {
+  .safe-hit:hover .safe-more-text { text-decoration-color: currentColor; }
+  .safe-hit:hover .safe-more .owl { transform: rotate(-8deg); }
+  .safe-more .owl { transition: transform var(--dur) var(--ease-out); }
+}
+
+/* ---------- motion ---------- */
+@media (prefers-reduced-motion: reduce) {
+  .safe-hit, .safe-hit:active { transform: none; transition: none; }
+  .safe-more .owl { transition: none; transform: none; }
+}
+
+/* ---------- small phones ---------- */
+@media (max-width: 359px) {
+  .safe-when { font-size: var(--fs-note); }
+  .safe-date { font-size: var(--fs-fine); }
+  .safe-more { gap: 8px; }
+  .safe-more .owl { width: 36px; height: 36px; }
+  .safe-ask { font-size: var(--fs-sum); }
+}
+
+/* ---------- wider screens: one line for the payday, more room before the temple ---------- */
+@media (min-width: 700px) {
+  #safe .safe { max-width: min(440px, calc(100% - 260px)); }
+  .safe-when, .safe-date { display: inline; }
+  .safe-sep { display: inline; }
+  .safe-more { display: flex; width: max-content; }
+  .safe-ask { font-size: var(--fs-band); max-width: 16em; }
+}

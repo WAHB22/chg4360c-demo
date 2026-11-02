@@ -1,0 +1,116 @@
+/* Chequing forecast (Stage 5) on the scroll band: one spun thread in ink, a drop spindle at today, dotted where the
+   balance is an estimate, terracotta over a vertical line screen under $0. Tokens, .band-head, .caps, .btn,
+   .btn-primary, .btn-quiet, .est and .story come from ui/app.css.
+   Contrast on scroll #E1C7B8: ink 6.0:1, text-2 5.5:1, terracotta 4.1:1 (lines and dots only), so words about money
+   below $0 use a darker terracotta (5.2:1). Dark: ink 11.4:1, terracotta text 5.4:1 on #2D2540. */
+
+#forecast { --fc-neg-text: #8A2F21; }
+@media (prefers-color-scheme: dark) {
+  #forecast { --fc-neg-text: var(--terracotta-text); }
+}
+
+#forecast .band-head { margin-bottom: 4px; }
+
+/* ---------- no chequing balance yet ---------- */
+.fc-missing { padding: 2px 0 4px; }
+.fc-missing-art { width: 64px; height: 64px; margin: 8px 0 12px; color: var(--ink); }
+.fc-missing-art .motif { width: 64px; height: 64px; display: block; }
+.fc-ask { margin: 0; max-width: 15em; font: 600 var(--fs-title)/1.15 var(--font-display); color: var(--ink); text-wrap: balance; }
+.fc-ask-sub { margin: 8px 0 16px; max-width: 30em; font-size: var(--fs-note); line-height: 1.45; color: var(--text-2); }
+.fc-ask-btn { min-width: min(220px, 100%); }
+
+/* ---------- the chart ---------- */
+.fc-plot { position: relative; margin-top: 10px; }
+.fc-svg { display: block; overflow: visible; }
+.fc-thread, .fc-spindle { fill: none; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+.fc-thread.is-est { stroke-dasharray: 0 3.2; }
+.fc-ink .fc-thread, .fc-spindle { stroke: var(--ink); }
+.fc-red .fc-thread { stroke: var(--terracotta); }
+.fc-hatch-line { stroke: var(--terracotta); stroke-width: 1; opacity: .55; }
+.fc-zero { fill: none; stroke: var(--text-2); stroke-width: 1; stroke-dasharray: 2 3; }
+.fc-zero-label { fill: var(--text-2); font: 500 var(--fs-label-sm) var(--font-body); font-variant-numeric: tabular-nums; }
+.fc-rule { fill: none; stroke: var(--line-strong); stroke-width: 1; stroke-dasharray: 1 3; }
+.fc-dot { fill: var(--ink); stroke: none; }
+.fc-dot.is-neg { fill: var(--terracotta); }
+.fc-ring { fill: var(--band); stroke: var(--ink); stroke-width: 1.6; }
+.fc-ring.on-dot { fill: none; }
+.fc-ring.is-neg { stroke: var(--terracotta); }
+
+/* The day buttons: 44 px or more around each dot (dots closer than that share one button) */
+.fc-hits { position: absolute; inset: 0; pointer-events: none; }
+.fc-hit {
+  position: absolute; margin: 0; padding: 0; pointer-events: auto;
+  background: transparent; border: 0; border-radius: 22px; cursor: pointer;
+  transition: transform var(--dur-press) var(--ease-out);
+}
+.fc-hit:active { transform: scale(.97); background: var(--press); }
+.fc-hit:focus-visible { outline: 2px solid var(--ink); outline-offset: -3px; }
+
+/* Today, payday and month end under their days */
+.fc-axis { position: relative; height: 20px; margin-top: 2px; }
+.fc-tick { position: absolute; top: 0; white-space: nowrap; font-size: var(--fs-fine); line-height: 20px; color: var(--text-2); }
+.fc-tick b { font-weight: 600; color: var(--text); }
+
+/* The three numbers: a ruled ledger like the hero summary */
+.fc-keys { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); column-gap: 14px; margin: 16px 0 0; padding-top: 8px; border-top: 1.5px solid var(--ink); }
+.fc-keys[data-n="2"] { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.fc-keys[data-n="1"] { grid-template-columns: minmax(0, 1fr); }
+.fc-key { min-width: 0; padding: 4px 0; }
+.fc-key dt { font: 600 var(--fs-label-sm)/1.35 var(--font-body); letter-spacing: .14em; text-transform: uppercase; color: var(--ink); }
+.fc-key dd { margin: 4px 0 0; }
+.fc-key b { display: block; font-weight: 600; font-size: var(--fs-lead); line-height: 1.25; color: var(--text); }
+.fc-key b.neg { color: var(--fc-neg-text); }
+.fc-key small { display: block; font-size: var(--fs-fine); line-height: 1.4; color: var(--text-2); }
+
+/* ---------- the words under it ---------- */
+.fc-notes { margin-top: 10px; }
+.fc-note { display: flex; align-items: flex-start; gap: 10px; margin: 10px 0 0; font-size: var(--fs-note); line-height: 1.45; color: var(--text); }
+.fc-glyph { flex: none; width: 22px; height: 20px; fill: none; stroke: var(--ink); stroke-width: 1.6; stroke-linecap: round; }
+.fc-low { font-weight: 500; }
+.fc-low .est { font-weight: 400; color: var(--text-2); }
+.fc-low.is-neg .fc-glyph { stroke: var(--terracotta); }
+.fc-neg-line { font-weight: 600; color: var(--fc-neg-text); }
+.fc-glyph-neg { stroke: var(--terracotta); stroke-width: 1; }
+.fc-est-line { font-size: var(--fs-fine); color: var(--text-2); }
+.fc-row { display: flex; align-items: center; justify-content: space-between; gap: 4px 12px; flex-wrap: wrap; margin-top: 12px; }
+.fc-row p { flex: 1 1 15em; margin: 0; font-size: var(--fs-note); line-height: 1.45; color: var(--text); }
+.fc-visa { padding-top: 12px; border-top: 1px solid var(--rule); }
+.fc-from p { font-size: var(--fs-fine); color: var(--text-2); }
+.fc-from .btn-quiet { margin: 0; }
+.fc-story { margin-top: 16px; }
+
+/* ---------- the day sheet (white, or the dark sheet colour) ---------- */
+.fc-day + .fc-day { margin-top: 20px; }
+.fc-day h3 { margin: 4px 0 0; }
+.fc-evs { list-style: none; margin: 4px 0 0; padding: 0; }
+.fc-ev { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; padding: 11px 0; border-top: 1px solid var(--line); font-size: var(--fs-body); }
+.fc-ev:first-child { border-top: 0; }
+.fc-ev-name { min-width: 0; overflow-wrap: anywhere; }
+.fc-ev-name small { display: block; font-size: var(--fs-fine); color: var(--text-2); }
+.fc-ev .amt { font-weight: 500; }
+.fc-ev.is-est { color: var(--text-2); }
+.fc-day-bal { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; margin: 0; padding: 12px 0 2px; border-top: 1.5px solid var(--ink); font-weight: 600; }
+.fc-day-bal .amt { text-align: right; }
+.fc-day-bal .neg { color: var(--terracotta-text); }
+.fc-day-bal .est { font-weight: 400; color: var(--text-2); }
+
+/* ---------- motion: the thread pulls out of the spindle once a day ---------- */
+.fc-plot.is-drawing .fc-line { transform-box: view-box; transform-origin: 34px 0; animation: grow 420ms var(--ease-out) both; }
+.fc-plot.is-drawing .fc-marks { animation: fade-in var(--dur) var(--ease-out) 300ms both; }
+
+/* Below 390 px a third of the width is too narrow for "BEFORE PAYDAY" and "Nov 19 · estimate" on one line each
+   (they broke at 360 and 375 px), so the labels get two lines and "estimate" its own line, with the values level. */
+@media (max-width: 389px) {
+  .fc-keys { column-gap: 10px; }
+  .fc-keys[data-n="3"] .fc-key dt { min-height: 2.7em; } /* "Before payday" takes two lines: keep the values level */
+  .fc-key small .fc-sep { display: none; }
+  .fc-key small .fc-est-word { display: block; }
+}
+
+@media (hover: hover) {
+  .fc-hit:hover { background: var(--hover); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .fc-plot.is-drawing .fc-line, .fc-plot.is-drawing .fc-marks { animation: none; }
+  .fc-hit:active { transform: none; }
+}

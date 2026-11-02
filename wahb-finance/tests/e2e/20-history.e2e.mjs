@@ -7,6 +7,10 @@
 
 const BOOKKEEPING = ['savedAt', 'note', 'baseSavedAt'];
 const sleep = ms => new Promise(r => setTimeout(r, ms));
+// Playwright's unroute(url, handler) compares a function url by identity, so every route and its unroute share
+// one of these (a new arrow function in unroute would remove nothing and leak the fake into later steps).
+const isList = u => u.search.includes('history=1');
+const isVersion = u => u.search.includes('version=');
 
 export default async function ({ page, base, shot, step, assert, freshPage, allowErrors, open, waitSynced, key }) {
   const dialogs = [];
@@ -129,6 +133,12 @@ export default async function ({ page, base, shot, step, assert, freshPage, allo
     await page.locator('#tx .row', { hasText: 'History one' }).waitFor();
     assert.equal(await page.locator('.col-btn[data-key="b-netflix@2026-11-16"]').getAttribute('aria-pressed'), 'false');
     assert.match(await page.locator('.bar-hit[data-item="i-groc"]').textContent(), /of \$400/);
+    // The shot shows the restored data (Groceries back to $400, Netflix unpaid) with the undo bar below it.
+    // Scrolling the window moves neither focus nor the pointer, so the undo bar stays paused.
+    await page.evaluate(() => {
+      const el = document.querySelector('.bar-hit[data-item="i-groc"]');
+      window.scrollTo(0, el.getBoundingClientRect().top + window.scrollY - 150);
+    });
     await shot('restored');
   });
 
@@ -174,7 +184,7 @@ export default async function ({ page, base, shot, step, assert, freshPage, allo
 
   await step('loading state while the list is on its way', async () => {
     const slow = async route => { await sleep(900); await route.continue(); };
-    await page.route(u => u.search.includes('history=1'), slow);
+    await page.route(isList, slow);
     await page.locator('#historyBtn').click();
     await sheet().waitFor();
     const loading = sheet().locator('.hist-loading');
@@ -184,7 +194,7 @@ export default async function ({ page, base, shot, step, assert, freshPage, allo
     await shot('loading');
     await sheet().locator('.hist-list').waitFor();
     assert.equal(await sheet().locator('.hist-view').getAttribute('aria-busy'), null);
-    await page.unroute(u => u.search.includes('history=1'), slow);
+    await page.unroute(isList, slow);
     await closeSheet();
   });
 
@@ -197,7 +207,7 @@ export default async function ({ page, base, shot, step, assert, freshPage, allo
       { id: 'finance-preview/data-1-a.json', savedAt: at(2025, 11, 31, 23, 59), note: '<script>window.__pwned=2</script>' },
     ] };
     const handler = route => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(fake) });
-    await page.route(u => u.search.includes('history=1'), handler);
+    await page.route(isList, handler);
     await openHistory();
     assert.deepEqual(await notes(), [
       '<img src=x onerror="window.__pwned=1">Added <b>Nuage</b>',
@@ -210,11 +220,13 @@ export default async function ({ page, base, shot, step, assert, freshPage, allo
     const when = (await sheet().locator('.hist-when').allTextContents()).map(t => t.trim());
     assert.deepEqual(when, ['Today, 3:20 p.m.', 'Yesterday, 9:05 a.m.', 'Nov 1, 12:00 a.m.', 'Dec 31, 2025, 11:59 p.m.']);
     await closeSheet();
-    await page.unroute(u => u.search.includes('history=1'), handler);
+    await page.unroute(isList, handler);
   });
 
   await step('the sheet: tap targets at least 44 px, no dash or hyphen, Escape returns focus', async () => {
     await openHistory();
+    // The real list again (the fake above is gone): the newest save is the undo of the restore.
+    assert.equal((await notes())[0], `Undid "${restoreLabel}"`, 'the fake list from the step before is not used any more');
     const small = await page.evaluate(() => {
       const out = [];
       for (const el of document.querySelectorAll('dialog.sheet[open] button')) {
@@ -248,7 +260,7 @@ export default async function ({ page, base, shot, step, assert, freshPage, allo
   await step('a version that is no longer kept shows a plain message and restores nothing', async () => {
     allowErrors(/status of 404/);
     const gone = route => route.fulfill({ status: 404, contentType: 'application/json', body: JSON.stringify({ error: 'That version is no longer kept' }) });
-    await page.route(u => u.search.includes('version='), gone);
+    await page.route(isVersion, gone);
     const before = await pageCanon();
     await openHistory();
     await rows().nth(2).getByRole('button', { name: 'Restore this version' }).click();
@@ -260,24 +272,24 @@ export default async function ({ page, base, shot, step, assert, freshPage, allo
     assert.equal(await sheet().getByRole('button', { name: 'Restore this version' }).first().isEnabled(), true, 'buttons work again');
     await shot('gone');
     await closeSheet();
-    await page.unroute(u => u.search.includes('version='), gone);
+    await page.unroute(isVersion, gone);
   });
 
   await step('offline: the list says so plainly, Try again loads it; an offline restore changes nothing', async () => {
     allowErrors(/net::ERR_FAILED|net::ERR_INTERNET_DISCONNECTED|Failed to load resource/);
     const fail = route => route.abort('internetdisconnected');
-    await page.route(u => u.search.includes('history=1'), fail);
+    await page.route(isList, fail);
     await page.locator('#historyBtn').click();
     await sheet().waitFor();
     const problem = sheet().locator('.hist-problem');
     await problem.waitFor();
     assert.match(await problem.textContent(), /No connection\. The history loads when you are online\./);
     await shot('offline');
-    await page.unroute(u => u.search.includes('history=1'), fail);
+    await page.unroute(isList, fail);
     await sheet().getByRole('button', { name: 'Try again' }).click();
     await sheet().locator('.hist-list').waitFor();
 
-    await page.route(u => u.search.includes('version='), fail);
+    await page.route(isVersion, fail);
     const before = await pageCanon();
     await rows().nth(1).getByRole('button', { name: 'Restore this version' }).click();
     const msg = sheet().locator('.hist-msg');
@@ -285,7 +297,7 @@ export default async function ({ page, base, shot, step, assert, freshPage, allo
     assert.equal((await msg.textContent()).trim(), 'No connection. Try again when you are online.');
     assert.equal(await pageCanon(), before, 'nothing restored');
     await closeSheet();
-    await page.unroute(u => u.search.includes('version='), fail);
+    await page.unroute(isVersion, fail);
   });
 
   await step('dark mode: the History sheet', async () => {
