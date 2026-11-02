@@ -66,6 +66,15 @@ const isLocal = ['localhost', '127.0.0.1', '[::1]'].includes(location.hostname);
   const h = fromHash != null ? (hash.toString() ? '#' + hash.toString() : '') : location.hash; // any other fragment stays as it was
   history.replaceState(history.state, '', location.pathname + (q ? '?' + q : '') + h);
 })();
+// Opening the setup link in a tab that already shows the page only changes the fragment, and the browser does not
+// reload for that. Store the key, clean the address bar and start again with it.
+window.addEventListener('hashchange', () => {
+  const k = new URLSearchParams(location.hash.replace(/^#/, '')).get('key');
+  if (k == null) return;
+  if (k.trim()) store.set(KEY, k.trim());
+  history.replaceState(history.state, '', location.pathname + location.search);
+  location.reload();
+});
 const todayOverride = isLocal && isISODate(params.get('today')) ? params.get('today') : null;
 const today = () => todayOverride || todayISO();
 
