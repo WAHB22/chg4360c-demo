@@ -17,6 +17,7 @@
 - **Burned-in captions** in bold Times New Roman, appearing word by word, with key words in orange and "AI chat box" in green.
 - **Agent debates on product ideas.** He asked for four agents: one supporter, one critic, one improver, and one gatekeeper who refuses until there is no weak point. He thinks about selling what gets built.
 
+- **The events map (Leaflet, OpenStreetMap).** He wanted it in the brand's own look, not the generic one: Poppins, pink, blue, cream, ink outlines and hard shadows, the real logo, the two store markers as Bobino and Bobinette. Pins keep universal meanings (green yes, orange follow up, grey no). Opening an event zooms to its street so street names read; a « Toute la carte » button comes back. He answers a round of 4 questions readily when asked before a build; ask, then build in one pass.
 - **The food-trailer pitch deck (v4 and v5).** Approved directions:
   - a confident story in chapters, numbered pages, annexes for the detail;
   - the brand's own mascots and drawn scenes from its world instead of icons or stock photos;
@@ -55,6 +56,7 @@
   - chg4360c-demo, which holds the installed skills. Confidential client folders there are excluded from git.
 - **Vercel:**
   - The site is spitch.vercel.app; the app is wahbs-worlds.vercel.app.
-  - The Vercel connector returned 403 for the "wahbs-world" scope, so he deploys by importing the repo himself.
+  - The Vercel connector works for team wahbs-world (team_wxcWPjA6andHGvmW8NJCDVHx): create a project, link it to a GitHub repo with create_git_project (root directory if the page lives in a subfolder), set ssoProtection to null for a public link. A renamed project keeps its old <name>.vercel.app domain, so pick the final name first.
+  - The map « Où va le van Bobino » lives in the private repo WAHB22/bobino-carte (contacts inside, never public) and deploys from web/ to the Vercel project bobino-carte; a Routine updates it every Friday at noon from Gmail, read only.
   - Supabase variables arrive with NEXT_PUBLIC_ names, so make the code accept both VITE_ and NEXT_PUBLIC_.
 - The course is GNG4120. The pitch video is unlisted on YouTube and recruits 3 to 4 teammates.
